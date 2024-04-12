@@ -603,7 +603,7 @@ class ObserverSatellite(Satellite):
                 reward_step += 1 # Reward for successful communication
                 
                 # if data transmitted is already enough, then information has been correctly propagated
-                if data_transmitted >= 0: #data_to_transmit:
+                if data_transmitted >= data_to_transmit:
                     self.update_adjacency_matrix(index, other_satellite_index)
 
                     # Fusion both contacts_matrix from both satellites
