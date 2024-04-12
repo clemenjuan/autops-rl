@@ -66,26 +66,19 @@ Depending on what you are making, it can be a good idea to include screenshots o
 
 ## Installation
 It is strongly recommended that you use a virtual environment in order to manage dependencies and keep your projects organized without interfering with other projects or the global Python installation. You can create one by:
-'''
+```
 python3 -m venv .venv
 source .venv/bin/activate
 pip install numpy gymnasium pettingzoo matplotlib
-'''
+```
+
 When done, you can run the following command to exit the virtual environment.
-'''
+```
 deactivate
-'''
+```
 
 ## Usage
-'''
-python3 -m venv .venv
-source .venv/bin/activate
-pip install numpy gymnasium pettingzoo matplotlib
-'''
-When done, you can run the following command to exit the virtual environment.
-'''
-deactivate
-'''
+blablaba
 
 ## Support
 Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
