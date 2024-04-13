@@ -190,6 +190,7 @@ class Simulator():
 
 
     def step(self, actions, simulator_type): # choose type of communication: centralized, decentralized, everyone
+        self.start_time_step = time.time()
         # Simulate one time step for all satellites
         reward, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_observation_counts = self.process_actions(actions, simulator_type)
         # reward = self.analyze_and_correct_duplications(reward)
@@ -200,6 +201,13 @@ class Simulator():
         self.propagate_orbits()
         self.time_step_number += 1
         done = self.is_terminated()
+        self.step_timer = time.time() - self.start_time_step
+        self.time_elapsed = time.time() - self.start_time
+        average_time_per_step = self.time_elapsed / self.time_step_number
+        remaining_steps = self.num_steps - self.time_step_number
+        remaining_time_estimate = remaining_steps * average_time_per_step / 60
+        
+        print(f"Step {self.time_step_number} completed in {self.step_timer} seconds. Estimated total time: {remaining_time_estimate} minutes.")
         return reward, done
 
 
