@@ -11,6 +11,7 @@ from copy import deepcopy
 from CommSubsystem import CommSubsystem
 from OpticPayload import OpticPayload
 from simulator import Simulator, CentralizedSimulator, MixedSimulator, DecentralizedSimulator
+import time
 
 
 class SatelliteEnv(Env, ParallelEnv):
@@ -210,7 +211,9 @@ def get_next_simulation_number(results_folder):
 
 if __name__ == "__main__":
     num_simulations = 5  # Change this to the desired number of simulations
-    results_folder = r"Results\v0"
+    
+    # Define the folder name
+    results_folder = os.path.join("Results", "v0")
 
     # Create the results folder if it doesn't exist
     if not os.path.exists(results_folder):
@@ -233,21 +236,29 @@ if __name__ == "__main__":
             observation, info = env.reset()
             print("Resetting environment done. Starting simulation...")
 
+            start_time = time.time()
             while True:
-                print("Getting actions...")
+                step_start_time = time.time()
                 actions = {agent: env.action_space(agent).sample() for agent in env.agents}
                 print("Actions: ", actions)
 
                 print("Actions received. Executing step...")
                 observation, reward, done, info = env.step(actions)
                 total_reward += reward
-                # print(f"\tReward: {reward:.3f} ({total_reward:.3f} cumulative)")
-                # file.write(f"\tReward: {reward:.3f} ({total_reward:.3f} cumulative)\n")
+                step_end_time = time.time()
+                step_duration = step_end_time - step_start_time
+                print(f"Step duration: {step_duration:.3f} seconds")
+
                 if done:
                     print("Episode finished")
                     file.write("Episode finished\n")
                     break
 
+            end_time = time.time()
+            total_duration = end_time - start_time
+            print(f"Total duration: {total_duration:.3f} seconds")
+            print(f"Total reward: {total_reward}")
+            
             file.write("\nAdjacency matrix:\n")
             file.write(f"{env.simulator.adjacency_matrix_acc}\n")
             file.write("\nData matrix:\n")
@@ -258,8 +269,9 @@ if __name__ == "__main__":
             file.write(f"{env.simulator.global_observation_counts}\n")
             file.write("\nGlobal observation status matrix:\n")
             file.write(f"{env.simulator.global_observation_status_matrix}\n")
-
-            file.write(f"Total time: {env.simulator.total_time} seconds\n")
+            file.write("\nGlobal pointing accuracy matrix:\n")
+            # more data: mean pointing accuracy etc.
+            file.write(f"Total time: {total_duration:.3f} seconds\n")
             file.write(f"Total reward: {total_reward}\n")
 
         print(f"Simulation {i} output saved in '{output_filename}'")

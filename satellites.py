@@ -631,32 +631,37 @@ class ObserverSatellite(Satellite):
     # action >= 2: Observe target
     def observe_target(self, index, target, target_index, time_step, reward_step, steps=0, observation_done=False):
         if target_index <= len(self.observation_status_matrix):
-            pointing_accuracy = self.evaluate_pointing_accuracy(target, time_step)
-            if pointing_accuracy is not None:
-                if self.observation_status_matrix[target_index] == 3:
-                    # implement penalty for trying to observe an already observed target
-                    reward_step -= 100
-                    observation_done = True
-                # Update cumulative pointing accuracy and counts
-                self.cumulative_pointing_accuracy[target_index] += pointing_accuracy
-                self.observation_counts[target_index] += 1
-                self.observation_status_matrix[target_index] = 2  # Mark as being observed
-                self.has_new_data[:] = True  # Set flag to indicate new data
-                self.update_contacts_matrix(index, target_index)
-                # Update observation time
-                self.observation_time_matrix[target_index] += time_step  # Assuming time_step is in seconds
+            if self.is_processing:
+                # Implement penalty for trying to observe while processing
+                reward_step -= 1000
+                observation_done = True
             else:
-                if self.observation_counts[target_index] > 0:
-                    # just finished observing the target
-                    self.observation_status_matrix[target_index] = 3  # Mark as observed
-                    self.has_new_data[:] = True
-                    self.global_observation_counts[target_index] += 1  # Update global observation matrix
-                    observation_done = True
-                    reward_step += 1000*self.cumulative_pointing_accuracy[target_index]  # Reward for successful observation
+                pointing_accuracy = self.evaluate_pointing_accuracy(target, time_step)
+                if pointing_accuracy is not None:
+                    if self.observation_status_matrix[target_index] == 3:
+                        # implement penalty for trying to observe an already observed target
+                        reward_step -= 100
+                        observation_done = True
+                    # Update cumulative pointing accuracy and counts
+                    self.cumulative_pointing_accuracy[target_index] += pointing_accuracy
+                    self.observation_counts[target_index] += 1
+                    self.observation_status_matrix[target_index] = 2  # Mark as being observed
+                    self.has_new_data[:] = True  # Set flag to indicate new data
+                    self.update_contacts_matrix(index, target_index)
+                    # Update observation time
+                    self.observation_time_matrix[target_index] += time_step  # Assuming time_step is in seconds
                 else:
-                    # implement penalty for not observing the target (out of range)
-                    reward_step -= 100
-                    observation_done = True
+                    if self.observation_counts[target_index] > 0:
+                        # just finished observing the target
+                        self.observation_status_matrix[target_index] = 3  # Mark as observed
+                        self.has_new_data[:] = True
+                        self.global_observation_counts[target_index] += 1  # Update global observation matrix
+                        observation_done = True
+                        reward_step += 1000*self.cumulative_pointing_accuracy[target_index]  # Reward for successful observation
+                    else:
+                        # implement penalty for not observing the target (out of range)
+                        reward_step -= 100
+                        observation_done = True
         steps += 1
         return reward_step, observation_done, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_observation_counts
                     
