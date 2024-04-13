@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from gymnasium import Env, spaces
 from pettingzoo import ParallelEnv
@@ -17,7 +18,7 @@ class SatelliteEnv(Env, ParallelEnv):
                  num_observers: int, 
                  simulator_type: str = 'everyone', 
                  time_step: float = 1, 
-                 duration: float = 24*60):
+                 duration: float = 24*60*60):
         super(SatelliteEnv, self).__init__()
         
         # Environment setup
@@ -191,63 +192,74 @@ class SatelliteEnv(Env, ParallelEnv):
         reward, done = self.simulator.step(action_vector, self.simulator_type)
         observation = self.get_obs()
         infos = {agent: {} for agent in self.agents}
-        print(f"Step reward: {reward}")
+        # print(f"Step reward: {reward}")
         
         return observation, reward, done, infos
 
+
+def get_next_simulation_number(results_folder):
+    """
+    Get the next simulation number based on existing files in the results folder.
+    """
+    existing_files = [file for file in os.listdir(results_folder) if file.startswith("simulation_output_")]
+    if existing_files:
+        latest_simulation_number = max(int(file.split("_")[2].split(".")[0]) for file in existing_files)
+        return latest_simulation_number + 1
+    else:
+        return 1
+
 if __name__ == "__main__":
-    print("Creating environment...")
-    # Run the simulation until timeout or agent failure
-    env = SatelliteEnv(num_targets=10, num_observers=100)
-    total_reward = 0
-    print("Environment created. Resetting...")
-    observation, info = env.reset()
-    print("Resetting environment done. Starting simulation...")
+    num_simulations = 5  # Change this to the desired number of simulations
+    results_folder = r"D:\Universidad\Aeroespace_Engineering\MASTER\TUM\masterthesis_git\Results\v0"
 
+    # Create the results folder if it doesn't exist
+    if not os.path.exists(results_folder):
+        os.makedirs(results_folder)
 
-    while True:
-        # action_vector = np.zeros(env.num_observers)e
-        print("Getting actions...")
-        #while env.agents:
-        # this is where you would insert your policy
-        actions = {agent: env.action_space(agent).sample() for agent in env.agents}
-        print("Actions: ", actions)
+    next_simulation_number = get_next_simulation_number(results_folder)
 
-            # observer_observation = observations[i]  # Get the current observer's observation
-            # action = policy_model.predict(observer_observation)  # Predict action based on the observation
-        
-            # Shield actions
-            # actions[i] = self.shield_actions(action, observer)
-            # action = env.action_space.sample() in step already
-        print("Actions received. Executing step...")
-        observation, reward, done, info = env.step(actions)
-        total_reward += reward
-        print(f"\tReward: {reward:.3f} ({total_reward:.3f} cumulative)")
-        if done:
-            print("Episode finished")
-            break
+    for i in range(next_simulation_number, next_simulation_number + num_simulations):
+        print(f"Starting simulation {i}...")
 
-    print("Adjacency matrix:")
-    print()  # Add a new line
-    print(f"{env.simulator.adjacency_matrix_acc}")
-    print()
-    print("Data matrix:")
-    print()  # Add a new line
-    print(f"{env.simulator.data_matrix_acc}")
-    print()
-    print("Contacts matrix:")
-    print()  # Add a new line
-    print(f"{env.simulator.contacts_matrix_acc}")
-    print()
-    print("Global observation count matrix:")
-    print()  # Add a new line
-    print(f"{env.simulator.global_observation_counts}")
-    print()
-    print("Global observation status matrix:")
-    print()  # Add a new line
-    print(f"{env.simulator.global_observation_status_matrix}")
-    
-    print(f"Total time: {env.simulator.total_time} seconds")
-    print(f"Total reward: {total_reward}")
+        # Create a new output file for each simulation in the specified folder
+        output_filename = os.path.join(results_folder, f"simulation_output_{i}.txt")
 
-    
+        with open(output_filename, "w") as file:
+            print("Creating environment...")
+            # Run the simulation until timeout or agent failure
+            env = SatelliteEnv(num_targets=10, num_observers=10)
+            total_reward = 0
+            print("Environment created. Resetting...")
+            observation, info = env.reset()
+            print("Resetting environment done. Starting simulation...")
+
+            while True:
+                print("Getting actions...")
+                actions = {agent: env.action_space(agent).sample() for agent in env.agents}
+                print("Actions: ", actions)
+
+                print("Actions received. Executing step...")
+                observation, reward, done, info = env.step(actions)
+                total_reward += reward
+                # print(f"\tReward: {reward:.3f} ({total_reward:.3f} cumulative)")
+                # file.write(f"\tReward: {reward:.3f} ({total_reward:.3f} cumulative)\n")
+                if done:
+                    print("Episode finished")
+                    file.write("Episode finished\n")
+                    break
+
+            file.write("\nAdjacency matrix:\n")
+            file.write(f"{env.simulator.adjacency_matrix_acc}\n")
+            file.write("\nData matrix:\n")
+            file.write(f"{env.simulator.data_matrix_acc}\n")
+            file.write("\nContacts matrix:\n")
+            file.write(f"{env.simulator.contacts_matrix_acc}\n")
+            file.write("\nGlobal observation count matrix:\n")
+            file.write(f"{env.simulator.global_observation_counts}\n")
+            file.write("\nGlobal observation status matrix:\n")
+            file.write(f"{env.simulator.global_observation_status_matrix}\n")
+
+            file.write(f"Total time: {env.simulator.total_time} seconds\n")
+            file.write(f"Total reward: {total_reward}\n")
+
+        print(f"Simulation {i} output saved in '{output_filename}'")

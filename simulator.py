@@ -12,7 +12,7 @@ class Simulator():
                 num_targets: int,
                 num_observers: int,
                 time_step: float = 1,
-                duration: float = 24*60,
+                duration: float = 24*60*60,
                 )-> None:
         super().__init__()
         from satellites import TargetSatellite, ObserverSatellite
@@ -45,7 +45,7 @@ class Simulator():
     def process_actions(self, actions, type_of_communication):
         reward_step = 0
         for i, (observer, action) in enumerate(actions.items()):
-            print(f"Processing action: {action} for {observer}")
+            # print(f"Processing action: {action} for {observer}")
             observer = self.observer_satellites[i]
             # Update energy consumption and storage consumption based on the action
             if action == 0: # Standby
