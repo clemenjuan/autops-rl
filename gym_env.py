@@ -190,7 +190,22 @@ class SatelliteEnv(Env, ParallelEnv):
         self.simulator.get_global_targets(self.simulator.observer_satellites, self.simulator.target_satellites)
 
         # Execute actions in the simulator
+        self.start_time_step = time.time()
+
         reward, done = self.simulator.step(action_vector, self.simulator_type)
+        
+        self.step_timer = time.time() - self.start_time_step
+        self.time_elapsed = time.time() - self.simulator.start_time
+        average_time_per_step = self.time_elapsed / self.simulator.time_step_number
+        remaining_steps = self.simulator.num_steps - self.simulator.time_step_number
+        remaining_time_estimate = remaining_steps * average_time_per_step
+        remaining_hours = int(remaining_time_estimate // 60)  # Calculate remaining hours
+        remaining_minutes = int(remaining_time_estimate % 60)  # Calculate remaining minutes
+        remaining_seconds = int((remaining_time_estimate % 1) * 60)  # Calculate remaining seconds
+
+        print(f"Step {self.simulator.time_step_number} completed in {self.step_timer:.2f} seconds. Estimated total time: {remaining_hours} hours, {remaining_minutes} minutes, and {remaining_seconds} seconds.")
+
+                
         observation = self.get_obs()
         infos = {agent: {} for agent in self.agents}
         # print(f"Step reward: {reward}")
@@ -210,7 +225,7 @@ def get_next_simulation_number(results_folder):
         return 1
 
 if __name__ == "__main__":
-    num_simulations = 5  # Change this to the desired number of simulations
+    num_simulations = 10  # Change this to the desired number of simulations
     
     # Define the folder name
     results_folder = os.path.join("Results", "v0")
@@ -230,7 +245,7 @@ if __name__ == "__main__":
         with open(output_filename, "w") as file:
             print("Creating environment...")
             # Run the simulation until timeout or agent failure
-            env = SatelliteEnv(num_targets=10, num_observers=100)
+            env = SatelliteEnv(num_targets=10, num_observers=10)
             total_reward = 0
             print("Environment created. Resetting...")
             observation, info = env.reset()
@@ -258,7 +273,7 @@ if __name__ == "__main__":
             total_duration = end_time - start_time
             print(f"Total duration: {total_duration:.3f} seconds")
             print(f"Total reward: {total_reward}")
-            
+
             file.write("\nAdjacency matrix:\n")
             file.write(f"{env.simulator.adjacency_matrix_acc}\n")
             file.write("\nData matrix:\n")
