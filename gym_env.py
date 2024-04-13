@@ -284,7 +284,7 @@ if __name__ == "__main__":
             file.write(f"{env.simulator.global_observation_counts}\n")
             file.write("\nGlobal observation status matrix:\n")
             file.write(f"{env.simulator.global_observation_status_matrix}\n")
-            file.write("\nGlobal pointing accuracy matrix:\n")
+            # file.write("\nGlobal pointing accuracy matrix:\n")
             # more data: mean pointing accuracy etc.
             file.write(f"Total time: {total_duration:.3f} seconds\n")
             file.write(f"Total reward: {total_reward}\n")
