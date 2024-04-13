@@ -630,7 +630,7 @@ class ObserverSatellite(Satellite):
 
     # action >= 2: Observe target
     def observe_target(self, index, target, target_index, time_step, reward_step, steps=0, observation_done=False):
-        if target_index <= len(self.observation_status_matrix) and self.observation_status_matrix[target_index] in [0,1,2]:
+        if target_index <= len(self.observation_status_matrix):
             pointing_accuracy = self.evaluate_pointing_accuracy(target, time_step)
             if pointing_accuracy is not None:
                 if self.observation_status_matrix[target_index] == 3:
@@ -652,7 +652,7 @@ class ObserverSatellite(Satellite):
                     self.has_new_data[:] = True
                     self.global_observation_counts[target_index] += 1  # Update global observation matrix
                     observation_done = True
-                    reward_step += 10000*self.cumulative_pointing_accuracy[target_index]  # Reward for successful observation
+                    reward_step += 1000*self.cumulative_pointing_accuracy[target_index]  # Reward for successful observation
                 else:
                     # implement penalty for not observing the target (out of range)
                     reward_step -= 100

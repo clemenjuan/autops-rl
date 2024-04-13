@@ -50,6 +50,7 @@ class Simulator():
             # Update energy consumption and storage consumption based on the action
             if action == 0: # Standby
                 power_consumption = observer.power_consumption_rates["standby"]
+                print(f"Observer {i} is on standby")
                 observer.stand_by()
                 # Deduct the power consumption from the available energy
                 if not observer.is_processing:
@@ -73,11 +74,13 @@ class Simulator():
                 # Calculate the total data to transmit
                 data_to_transmit = data_size + sum_of_contacts + sum_of_adjacency - sum_of_contacts_acc - sum_of_adjacency_acc
 
+                print(f"Observer {i} is communicating with other observers")
                 for j, other_observer in enumerate(self.observer_satellites):
                     while not communication_done:
                         reward_step,communication_done, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_observation_counts = observer.propagate_information(i,other_observer,j, self.time_step + steps*self.time_step, type_of_communication, reward_step, steps, communication_done, data_transmitted, data_to_transmit)
                     
                     max_steps = max(steps, max_steps)
+                print(f"Observer {i} has finished communicating with other observers")
 
                 self.contacts_matrix = np.maximum(contacts_matrix, self.contacts_matrix)
                 self.contacts_matrix_acc = np.maximum(contacts_matrix_acc, self.contacts_matrix_acc)
@@ -95,10 +98,10 @@ class Simulator():
             else: # Observation
                 observation_done = False
                 steps = 0
-
+                print(f"Observer {i} is observing target {action - 2}")
                 while not observation_done:
                     reward_step, observation_done, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_observation_counts = observer.observe_target(i, self.target_satellites[action - 2], action - 2, self.time_step + steps*self.time_step, reward_step, steps, observation_done)
-                
+                print(f"Observer {i} has finished observing target {action - 2}")
                 self.contacts_matrix = np.maximum(contacts_matrix, self.contacts_matrix)
                 self.contacts_matrix_acc = np.maximum(contacts_matrix_acc, self.contacts_matrix_acc)
                 self.adjacency_matrix = np.maximum(adjacency_matrix, self.adjacency_matrix)

@@ -210,7 +210,7 @@ def get_next_simulation_number(results_folder):
 
 if __name__ == "__main__":
     num_simulations = 5  # Change this to the desired number of simulations
-    results_folder = r"D:\Universidad\Aeroespace_Engineering\MASTER\TUM\masterthesis_git\Results\v0"
+    results_folder = r"Results\v0"
 
     # Create the results folder if it doesn't exist
     if not os.path.exists(results_folder):
@@ -227,7 +227,7 @@ if __name__ == "__main__":
         with open(output_filename, "w") as file:
             print("Creating environment...")
             # Run the simulation until timeout or agent failure
-            env = SatelliteEnv(num_targets=10, num_observers=10)
+            env = SatelliteEnv(num_targets=10, num_observers=100)
             total_reward = 0
             print("Environment created. Resetting...")
             observation, info = env.reset()
