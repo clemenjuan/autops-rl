@@ -232,10 +232,10 @@ def get_next_simulation_number(results_folder):
         return 1
 
 if __name__ == "__main__":
-    num_simulations = 10  # Change this to the desired number of simulations
-    num_targets = 10
-    num_observers = 10
-    steps_batch_size = 1000
+    num_simulations = 10  # desired number of simulations
+    num_targets = 10 # Number of target satellites
+    num_observers = 10 # Number of observer satellites
+    steps_batch_size = 1000 # Number of steps before printing new information
 
     # Define the folder name
     results_folder = os.path.join("Results", "v0")
