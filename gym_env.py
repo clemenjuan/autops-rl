@@ -33,7 +33,6 @@ class SatelliteEnv(Env, ParallelEnv):
         self.simulator_type = simulator_type
         assert self.num_observers > 0
         assert self.num_targets > 0
-        self.max_pointing_accuracy_avg = np.zeros(self.num_targets)
 
         self.agents = ["observer_" + str(r) for r in range(num_observers)]
         self.possible_agents = self.agents[:]
@@ -193,13 +192,7 @@ class SatelliteEnv(Env, ParallelEnv):
         # Execute actions in the simulator
         self.start_time_step = time.time()
 
-        reward, done, max_pointing_accuracy_avg = self.simulator.step(action_vector, self.simulator_type)
-        self.max_pointing_accuracy_avg = max_pointing_accuracy_avg
-        """
-        if self.max_pointing_accuracy_avg.any() > 0:
-            print(f"ID of max_pointing_accuracy_avg in gym step: {id(self.max_pointing_accuracy_avg)}")
-            print(f"Max pointing accuracy average in gym step: {self.max_pointing_accuracy_avg}")
-        """
+        reward, done = self.simulator.step(action_vector, self.simulator_type)
         self.step_timer = time.time() - self.start_time_step
         self.time_elapsed = time.time() - self.simulator.start_time
         average_time_per_step = self.time_elapsed / self.simulator.time_step_number
@@ -234,8 +227,8 @@ def get_next_simulation_number(results_folder):
 if __name__ == "__main__":
     num_simulations = 10  # desired number of simulations
     num_targets = 10 # Number of target satellites
-    num_observers = 100 # Number of observer satellites
-    steps_batch_size = 10 # Number of steps before printing new information
+    num_observers = 10 # Number of observer satellites
+    steps_batch_size = 1000 # Number of steps before printing new information
 
     # Define the folder name
     results_folder = os.path.join("Results", "v0")
@@ -293,9 +286,9 @@ if __name__ == "__main__":
             file.write(f"{env.simulator.contacts_matrix_acc}\n")
             file.write("\nGlobal observation count matrix:\n")
             file.write(f"{env.simulator.global_observation_counts}\n")
-            # print(f"Final max_pointing_accuracy_avg before writing to file: {env.max_pointing_accuracy_avg}")
+            print(f"Final max_pointing_accuracy_avg before writing to file: {env.simulator.max_pointing_accuracy_avg}")
             file.write("\nMaximum pointing accuracy average matrix:\n")
-            file.write(f"{env.max_pointing_accuracy_avg}\n")
+            file.write(f"{env.simulator.max_pointing_accuracy_avg}\n")
             file.write("\nGlobal observation status matrix:\n")
             file.write(f"{env.simulator.global_observation_status_matrix}\n")
             # file.write("\nGlobal pointing accuracy matrix:\n")

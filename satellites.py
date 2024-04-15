@@ -456,6 +456,9 @@ class ObserverSatellite(Satellite):
                     self.update_contacts_matrix(observer_index, target_index) # Mark as contacted this timestep
         return self.contacts_matrix, self.contacts_matrix_acc
 
+    def update_max_pointing_accuracy_avg_sat(self,index, target_index):
+        self.max_pointing_accuracy_avg_sat[target_index] = np.maximum(self.pointing_accuracy_avg[index,target_index], self.max_pointing_accuracy_avg_sat[target_index])
+        return self.max_pointing_accuracy_avg_sat
             
     def update_data_matrix(self, observer_index, other_observer_index, data_size):
         # Update data matrix
@@ -664,7 +667,7 @@ class ObserverSatellite(Satellite):
                         # print(f"After dividing: Pointing accuracy average for target {target_index} by observer {index}: {self.pointing_accuracy_avg[index, target_index]}")
                         if self.pointing_accuracy_avg[index,target_index] > 0:
                             self.global_observation_counts[target_index] += 1 # Update global observation matrix
-                            self.max_pointing_accuracy_avg_sat[target_index] = np.maximum(self.pointing_accuracy_avg[index,target_index], self.max_pointing_accuracy_avg_sat[target_index])
+                            self.update_max_pointing_accuracy_avg_sat(index,target_index)
                             # print(f"Maximum pointing accuracy: {self.max_pointing_accuracy_avg_sat}")
                             self.observation_status_matrix[target_index] = 3  # Mark as observed
                             self.has_new_data[:] = True

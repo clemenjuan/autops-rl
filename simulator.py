@@ -94,6 +94,7 @@ class Simulator():
                 self.data_matrix = np.maximum(data_matrix, self.data_matrix)
                 self.data_matrix_acc = np.maximum(data_matrix_acc, self.data_matrix_acc)
                 self.global_observation_counts = np.maximum(global_observation_counts, self.global_observation_counts)
+                self.max_pointing_accuracy_avg = np.maximum(max_pointing_accuracy_avg, self.max_pointing_accuracy_avg)
                 
                 observer.processing_time += max_steps * self.time_step
                 power_consumption = observer.power_consumption_rates["communication"]
@@ -114,7 +115,7 @@ class Simulator():
                 self.data_matrix = np.maximum(data_matrix, self.data_matrix)
                 self.data_matrix_acc = np.maximum(data_matrix_acc, self.data_matrix_acc)
                 self.global_observation_counts = np.maximum(global_observation_counts, self.global_observation_counts)
-                self.max_pointing_accuracy_avg = max_pointing_accuracy_avg
+                self.max_pointing_accuracy_avg = np.maximum(max_pointing_accuracy_avg, self.max_pointing_accuracy_avg)
                 # if self.max_pointing_accuracy_avg.any() > 0:
                 #    print(f"ID of max_pointing_accuracy_avg in process_actions: {id(self.max_pointing_accuracy_avg)}")
                 #    print(f"Max pointing accuracy average in process actions: {self.max_pointing_accuracy_avg}")
@@ -129,7 +130,7 @@ class Simulator():
                     print("Satellite energy or storage depleted. Terminating simulation.")
                     reward_step -= 10
                     self.breaker = True
-        return reward_step, max_pointing_accuracy_avg
+        return reward_step
 
 
 
@@ -202,8 +203,8 @@ class Simulator():
         
         # self.start_time_step = time.time()
         # Simulate one time step for all satellites
-        reward, max_pointing_accuracy_avg = self.process_actions(actions, simulator_type)
-        self.max_pointing_accuracy_avg = max_pointing_accuracy_avg
+        reward = self.process_actions(actions, simulator_type)
+        # self.max_pointing_accuracy_avg = max_pointing_accuracy_avg
         # if self.max_pointing_accuracy_avg.any() > 0:
         #    print(f"ID of max_pointing_accuracy_avg in step: {id(self.max_pointing_accuracy_avg)}")
         #    print(f"Max pointing accuracy average in simulator step: {self.max_pointing_accuracy_avg}")
@@ -223,7 +224,7 @@ class Simulator():
         # remaining_time_estimate = remaining_steps * average_time_per_step / 60
         
         # print(f"Step {self.time_step_number} completed in {self.step_timer} seconds. Estimated total time: {remaining_time_estimate} minutes.")
-        return reward, done, self.max_pointing_accuracy_avg
+        return reward, done
 
 
 
