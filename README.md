@@ -1,4 +1,4 @@
-# masterthesis
+# Master Thesis
 
 
 
@@ -15,14 +15,14 @@ git clone https://gitlab.lrz.de/clemente.juan/masterthesis_git.git
 cd masterthesis_git
 ```
 It is strongly recommended that you use a virtual environment in order to manage dependencies and keep your projects organized without interfering with other projects or the global Python installation. You can create one by:
-# Setup on Mac
+### Setup on Mac
 ```
 $ python3 -m venv .venv
 $ source .venv/bin/activate
 $ pip install numpy gymnasium pettingzoo matplotlib
 
 ```
-Setup on Windows:
+### Setup on Windows:
 ```
 $ python -m venv .venv
 $ .venv\Scripts\activate
