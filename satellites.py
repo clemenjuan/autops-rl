@@ -466,7 +466,6 @@ class ObserverSatellite(Satellite):
         self.data_matrix[other_observer_index,observer_index] += data_size
         self.data_matrix_acc[observer_index,other_observer_index] += data_size
         self.data_matrix_acc[other_observer_index,observer_index] += data_size
-        # return self.data_matrix, self.data_matrix_acc
 
     def update_adjacency_matrix(self, observer_index, other_observer_index):
         # Update adjacency matrix
@@ -475,21 +474,20 @@ class ObserverSatellite(Satellite):
         self.adjacency_matrix[other_observer_index, observer_index] = 1
         self.adjacency_matrix_acc[observer_index, other_observer_index] = 1
         self.adjacency_matrix_acc[other_observer_index, observer_index] = 1
-        # return self.adjacency_matrix, self.adjacency_matrix_acc
 
     def update_contacts_matrix(self, observer_index, target_index):
         # Mark communication
         self.contacts_matrix[observer_index,target_index] = 1
         self.contacts_matrix_acc[observer_index,target_index] = 1
-        # return self.contacts_matrix, self.contacts_matrix_acc
 
 
     def synchronize_contacts_matrix(self, index1, index2):
         self.contacts_matrix[index1] = np.maximum(self.contacts_matrix[index1], self.contacts_matrix[index2])
-        self.contacts_matrix[index2] = self.contacts_matrix[index1]  # Both rows now reflect the union of connections
+        self.contacts_matrix[index2] = self.contacts_matrix[index1]
+        
         self.contacts_matrix_acc[index1] = np.maximum(self.contacts_matrix_acc[index1], self.contacts_matrix_acc[index2])
-        self.contacts_matrix_acc[index2] = self.contacts_matrix_acc[index1]  # Both rows now reflect the union of connections
-        # return self.contacts_matrix, self.contacts_matrix_acc
+        self.contacts_matrix_acc[index2] = self.contacts_matrix_acc[index1]
+
 
 
     def check_and_update_processing_state(self, time_step):

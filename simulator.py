@@ -63,15 +63,15 @@ class Simulator():
                 max_steps = 0
                 data_transmitted = 0
                 # Calculate the data size
-                data_size = observer.DataHand['DataSize']
+                data_size = observer.DataHand['DataSize']*8 # in bits
                 # Calculate the sum of contacts
-                sum_of_contacts = np.sum(self.contacts_matrix[i]) * 28
+                sum_of_contacts = np.sum(self.contacts_matrix[i]) * 28 * 8  # in bits
                 # Calculate the sum of adjacency
-                sum_of_adjacency = np.sum(self.adjacency_matrix[i]) * observer.DataHand['DataSize']
+                sum_of_adjacency = np.sum(self.adjacency_matrix[i]) * observer.DataHand['DataSize'] * 8  # in bits
                 # Calculate the sum of accumulated contacts
-                sum_of_contacts_acc = np.sum(self.contacts_matrix_acc[i]) * 28
+                sum_of_contacts_acc = np.sum(self.contacts_matrix_acc[i]) * 28 * 8  # in bits
                 # Calculate the sum of accumulated adjacency
-                sum_of_adjacency_acc = np.sum(self.adjacency_matrix_acc[i]) * observer.DataHand['DataSize']
+                sum_of_adjacency_acc = np.sum(self.adjacency_matrix_acc[i]) * observer.DataHand['DataSize'] * 8  # in bits
                 # Calculate the total data to transmit
                 data_to_transmit = data_size + sum_of_contacts + sum_of_adjacency - sum_of_contacts_acc - sum_of_adjacency_acc
 

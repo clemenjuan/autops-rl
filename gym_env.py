@@ -12,6 +12,7 @@ from CommSubsystem import CommSubsystem
 from OpticPayload import OpticPayload
 from simulator import Simulator, CentralizedSimulator, MixedSimulator, DecentralizedSimulator
 import time
+from plotting import plot_matrices
 
 
 class SatelliteEnv(Env, ParallelEnv):
@@ -225,7 +226,8 @@ def get_next_simulation_number(results_folder):
         return 1
 
 if __name__ == "__main__":
-    num_simulations = 100  # desired number of simulations
+    ### Example of how to use the environment for a Monte Carlo simulation
+    num_simulations = 10  # desired number of simulations
     num_targets = 10 # Number of target satellites
     num_observers = 10 # Number of observer satellites
     steps_batch_size = 1000 # Number of steps before printing new information
@@ -265,8 +267,8 @@ if __name__ == "__main__":
                 total_reward += reward
                 step_end_time = time.time()
                 step_duration = step_end_time - step_start_time
-                if env.simulator.time_step_number % steps_batch_size == 0:
-                    print(f"Step duration: {step_duration:.6f} seconds")
+                # if env.simulator.time_step_number % steps_batch_size == 0:
+                #    print(f"Step {env.simulator.time_step_number} finished, duration: {step_duration:.6f} seconds")
 
                 if done:
                     print("Episode finished")
@@ -278,7 +280,21 @@ if __name__ == "__main__":
             print(f"Total duration of episode: {total_duration:.3f} seconds")
             print(f"Total reward: {total_reward}")
 
-            file.write("\nAdjacency matrix:\n")
+             # Prepare the data for plotting
+            matrices = {
+                'adjacency_matrix': env.simulator.adjacency_matrix_acc,
+                'data_matrix': env.simulator.data_matrix_acc,
+                'contacts_matrix': env.simulator.contacts_matrix_acc,
+                'global_observation_count_matrix': env.simulator.global_observation_counts,
+                'maximum_pointing_accuracy_average_matrix': env.simulator.max_pointing_accuracy_avg,
+                'global_observation_status_matrix': env.simulator.global_observation_status_matrix
+            }
+
+            # Call the plotting function (to be defined based on previous discussions)
+            results_folder_matrices = os.path.join(results_folder, "plots")
+            plot_matrices(matrices, results_folder_matrices, f'simulation_{i}', total_duration, total_reward)
+
+            file.write("Adjacency matrix:\n")
             file.write(f"{env.simulator.adjacency_matrix_acc}\n")
             file.write("\nData matrix:\n")
             file.write(f"{env.simulator.data_matrix_acc}\n")
