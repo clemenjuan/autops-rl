@@ -35,6 +35,7 @@ class Simulator():
         self.global_observation_counts = np.zeros(num_targets, dtype=int)  # Global matrix to track the number of observations for each target
         self.global_observation_status_matrix = np.zeros((num_observers,num_targets), dtype=int)  # Matrix to track observation status
         self.reward_matrix = np.zeros((self.num_steps+1, num_observers))
+        self.max_pointing_accuracy_avg = np.zeros(num_targets, dtype=float)
 
     def reset_matrices_for_timestep(self):
         """Resets matrices to only track the latest timestep's observations and connections."""
@@ -74,13 +75,17 @@ class Simulator():
                 # Calculate the total data to transmit
                 data_to_transmit = data_size + sum_of_contacts + sum_of_adjacency - sum_of_contacts_acc - sum_of_adjacency_acc
 
-                # print(f"Observer {i} is communicating with other observers")
+                # print(f"Starting communication checks for observer {i}")
                 for j, other_observer in enumerate(self.observer_satellites):
-                    while not communication_done:
-                        reward_step,communication_done, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_observation_counts = observer.propagate_information(i,other_observer,j, self.time_step + steps*self.time_step, type_of_communication, reward_step, steps, communication_done, data_transmitted, data_to_transmit)
-                    
+                    communication_done = False
+                    # print(f"Checking communication possibility from observer {i} to observer {j}")
+                    while not communication_done and i != j:
+                        # print(f"Attempting to communicate from observer {i} to observer {j}")
+                        reward_step, communication_done, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_observation_counts, max_pointing_accuracy_avg = observer.propagate_information(
+                            i, other_observer, j, self.time_step + steps * self.time_step, type_of_communication, reward_step, steps, communication_done, data_transmitted, data_to_transmit)
+                        # print(f"Observer {i} has finished communicating with observer {j}")
                     max_steps = max(steps, max_steps)
-                # print(f"Observer {i} has finished communicating with other observers")
+
 
                 self.contacts_matrix = np.maximum(contacts_matrix, self.contacts_matrix)
                 self.contacts_matrix_acc = np.maximum(contacts_matrix_acc, self.contacts_matrix_acc)
@@ -100,7 +105,7 @@ class Simulator():
                 steps = 0
                 # print(f"Observer {i} is observing target {action - 2}")
                 while not observation_done:
-                    reward_step, observation_done, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_observation_counts = observer.observe_target(i, self.target_satellites[action - 2], action - 2, self.time_step + steps*self.time_step, reward_step, steps, observation_done)
+                    reward_step, observation_done, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_observation_counts, max_pointing_accuracy_avg = observer.observe_target(i, self.target_satellites[action - 2], action - 2, self.time_step + steps*self.time_step, reward_step, steps, observation_done)
                 # print(f"Observer {i} has finished observing target {action - 2}")
                 self.contacts_matrix = np.maximum(contacts_matrix, self.contacts_matrix)
                 self.contacts_matrix_acc = np.maximum(contacts_matrix_acc, self.contacts_matrix_acc)
@@ -109,6 +114,10 @@ class Simulator():
                 self.data_matrix = np.maximum(data_matrix, self.data_matrix)
                 self.data_matrix_acc = np.maximum(data_matrix_acc, self.data_matrix_acc)
                 self.global_observation_counts = np.maximum(global_observation_counts, self.global_observation_counts)
+                self.max_pointing_accuracy_avg = max_pointing_accuracy_avg
+                # if self.max_pointing_accuracy_avg.any() > 0:
+                #    print(f"ID of max_pointing_accuracy_avg in process_actions: {id(self.max_pointing_accuracy_avg)}")
+                #    print(f"Max pointing accuracy average in process actions: {self.max_pointing_accuracy_avg}")
 
                 power_consumption = observer.power_consumption_rates["observation"]
                 storage_consumption = observer.storage_consumption_rates["observation"]
@@ -120,7 +129,7 @@ class Simulator():
                     print("Satellite energy or storage depleted. Terminating simulation.")
                     reward_step -= 10
                     self.breaker = True
-        return reward_step, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_observation_counts
+        return reward_step, max_pointing_accuracy_avg
 
 
 
@@ -192,11 +201,14 @@ class Simulator():
     def step(self, actions, simulator_type): # choose type of communication: centralized, decentralized, everyone
         
         # self.start_time_step = time.time()
-        
         # Simulate one time step for all satellites
-        reward, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_observation_counts = self.process_actions(actions, simulator_type)
+        reward, max_pointing_accuracy_avg = self.process_actions(actions, simulator_type)
+        self.max_pointing_accuracy_avg = max_pointing_accuracy_avg
+        # if self.max_pointing_accuracy_avg.any() > 0:
+        #    print(f"ID of max_pointing_accuracy_avg in step: {id(self.max_pointing_accuracy_avg)}")
+        #    print(f"Max pointing accuracy average in simulator step: {self.max_pointing_accuracy_avg}")
         # reward = self.analyze_and_correct_duplications(reward)
-        # duplications already implemented in observe target
+        # duplications penalty already implemented in observe target
         self.reward_matrix[self.time_step_number] = reward
         self.update_communication_timeline()
         self.update_global_observation_status_matrix(self.observer_satellites, self.target_satellites)
@@ -211,7 +223,7 @@ class Simulator():
         # remaining_time_estimate = remaining_steps * average_time_per_step / 60
         
         # print(f"Step {self.time_step_number} completed in {self.step_timer} seconds. Estimated total time: {remaining_time_estimate} minutes.")
-        return reward, done
+        return reward, done, self.max_pointing_accuracy_avg
 
 
 

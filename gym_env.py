@@ -33,6 +33,7 @@ class SatelliteEnv(Env, ParallelEnv):
         self.simulator_type = simulator_type
         assert self.num_observers > 0
         assert self.num_targets > 0
+        self.max_pointing_accuracy_avg = np.zeros(self.num_targets)
 
         self.agents = ["observer_" + str(r) for r in range(num_observers)]
         self.possible_agents = self.agents[:]
@@ -192,18 +193,24 @@ class SatelliteEnv(Env, ParallelEnv):
         # Execute actions in the simulator
         self.start_time_step = time.time()
 
-        reward, done = self.simulator.step(action_vector, self.simulator_type)
-        
+        reward, done, max_pointing_accuracy_avg = self.simulator.step(action_vector, self.simulator_type)
+        self.max_pointing_accuracy_avg = max_pointing_accuracy_avg
+        """
+        if self.max_pointing_accuracy_avg.any() > 0:
+            print(f"ID of max_pointing_accuracy_avg in gym step: {id(self.max_pointing_accuracy_avg)}")
+            print(f"Max pointing accuracy average in gym step: {self.max_pointing_accuracy_avg}")
+        """
         self.step_timer = time.time() - self.start_time_step
         self.time_elapsed = time.time() - self.simulator.start_time
         average_time_per_step = self.time_elapsed / self.simulator.time_step_number
         remaining_steps = self.simulator.num_steps - self.simulator.time_step_number
         remaining_time_estimate = remaining_steps * average_time_per_step
-        remaining_hours = int(remaining_time_estimate // 60)  # Calculate remaining hours
-        remaining_minutes = int(remaining_time_estimate % 60)  # Calculate remaining minutes
-        remaining_seconds = int((remaining_time_estimate % 1) * 60)  # Calculate remaining seconds
+        remaining_hours = int(remaining_time_estimate // 3600)  # Calculate remaining hours (3600 seconds in an hour)
+        remaining_minutes = int((remaining_time_estimate % 3600) // 60)  # Calculate remaining minutes
+        remaining_seconds = int(remaining_time_estimate % 60)  # Calculate remaining seconds
 
-        print(f"Step {self.simulator.time_step_number} completed in {self.step_timer:.2f} seconds. Estimated total time: {remaining_hours} hours, {remaining_minutes} minutes, and {remaining_seconds} seconds.")
+        if self.simulator.time_step_number % 1000 == 0:
+            print(f"Step {self.simulator.time_step_number} completed in {self.step_timer:.6f} seconds. Estimated time remaining: {remaining_hours} hours, {remaining_minutes} minutes, and {remaining_seconds} seconds.")
 
                 
         observation = self.get_obs()
@@ -226,7 +233,10 @@ def get_next_simulation_number(results_folder):
 
 if __name__ == "__main__":
     num_simulations = 10  # Change this to the desired number of simulations
-    
+    num_targets = 10
+    num_observers = 10
+    steps_batch_size = 1000
+
     # Define the folder name
     results_folder = os.path.join("Results", "v0")
 
@@ -245,7 +255,7 @@ if __name__ == "__main__":
         with open(output_filename, "w") as file:
             print("Creating environment...")
             # Run the simulation until timeout or agent failure
-            env = SatelliteEnv(num_targets=10, num_observers=10)
+            env = SatelliteEnv(num_targets, num_observers)
             total_reward = 0
             print("Environment created. Resetting...")
             observation, info = env.reset()
@@ -255,23 +265,24 @@ if __name__ == "__main__":
             while True:
                 step_start_time = time.time()
                 actions = {agent: env.action_space(agent).sample() for agent in env.agents}
-                print("Actions: ", actions)
-
-                print("Actions received. Executing step...")
+                if env.simulator.time_step_number % steps_batch_size == 0:
+                    print("Actions: ", actions)
+                    print(f"Actions received. Executing next {steps_batch_size} steps...")
                 observation, reward, done, info = env.step(actions)
                 total_reward += reward
                 step_end_time = time.time()
                 step_duration = step_end_time - step_start_time
-                print(f"Step duration: {step_duration:.3f} seconds")
+                if env.simulator.time_step_number % 1000 == 0:
+                    print(f"Step duration: {step_duration:.6f} seconds")
 
                 if done:
                     print("Episode finished")
-                    file.write("Episode finished\n")
+                    # file.write("Episode finished\n")
                     break
 
             end_time = time.time()
             total_duration = end_time - start_time
-            print(f"Total duration: {total_duration:.3f} seconds")
+            print(f"Total duration of episode: {total_duration:.3f} seconds")
             print(f"Total reward: {total_reward}")
 
             file.write("\nAdjacency matrix:\n")
@@ -282,11 +293,15 @@ if __name__ == "__main__":
             file.write(f"{env.simulator.contacts_matrix_acc}\n")
             file.write("\nGlobal observation count matrix:\n")
             file.write(f"{env.simulator.global_observation_counts}\n")
+            # print(f"Final max_pointing_accuracy_avg before writing to file: {env.max_pointing_accuracy_avg}")
+            file.write("\nMaximum pointing accuracy average matrix:\n")
+            file.write(f"{env.max_pointing_accuracy_avg}\n")
             file.write("\nGlobal observation status matrix:\n")
             file.write(f"{env.simulator.global_observation_status_matrix}\n")
             # file.write("\nGlobal pointing accuracy matrix:\n")
             # more data: mean pointing accuracy etc.
-            file.write(f"Total time: {total_duration:.3f} seconds\n")
+            # add observer.communication_timeline_matrix?
+            file.write(f"Total time of episode: {total_duration:.3f} seconds\n")
             file.write(f"Total reward: {total_reward}\n")
 
         print(f"Simulation {i} output saved in '{output_filename}'")
