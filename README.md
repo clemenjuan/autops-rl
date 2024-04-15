@@ -36,7 +36,6 @@ deactivate
 
 ## Usage
 v0 only has Monte-Carlo simulation. No trained agent involved. Edit simulation parameters at the end of the file ```gym_env.py``` .
-- 
 ```
 $ python gym_env.py || python3 gym_env.py
 ```
