@@ -225,7 +225,7 @@ def get_next_simulation_number(results_folder):
         return 1
 
 if __name__ == "__main__":
-    num_simulations = 10  # desired number of simulations
+    num_simulations = 100  # desired number of simulations
     num_targets = 10 # Number of target satellites
     num_observers = 10 # Number of observer satellites
     steps_batch_size = 1000 # Number of steps before printing new information
@@ -286,7 +286,7 @@ if __name__ == "__main__":
             file.write(f"{env.simulator.contacts_matrix_acc}\n")
             file.write("\nGlobal observation count matrix:\n")
             file.write(f"{env.simulator.global_observation_counts}\n")
-            print(f"Final max_pointing_accuracy_avg before writing to file: {env.simulator.max_pointing_accuracy_avg}")
+            # print(f"Final max_pointing_accuracy_avg before writing to file: {env.simulator.max_pointing_accuracy_avg}")
             file.write("\nMaximum pointing accuracy average matrix:\n")
             file.write(f"{env.simulator.max_pointing_accuracy_avg}\n")
             file.write("\nGlobal observation status matrix:\n")

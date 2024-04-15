@@ -628,10 +628,10 @@ class ObserverSatellite(Satellite):
                     reward_step += 100  # Reward for successful complete communication
                     communication_done = True
             else:
-                reward_step -= 10 # Penalty for failed (other not available) or incomplete communication
+                reward_step -= 0.1 # Penalty for failed (other not available) or incomplete communication
                 communication_done = True
         else:
-            reward_step -= 10  # Penalty for failed communication (not available or same satellite)
+            reward_step -= 0.1  # Penalty for failed communication (not available or same satellite)
             communication_done = True
         steps += 1
         return reward_step,communication_done, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_observation_counts, self.max_pointing_accuracy_avg_sat
@@ -641,14 +641,14 @@ class ObserverSatellite(Satellite):
         if target_index <= len(self.observation_status_matrix):
             if self.is_processing:
                 # Implement penalty for trying to observe while processing
-                reward_step -= 100
+                reward_step -= 0.1
                 observation_done = True
             else:
                 pointing_accuracy = self.evaluate_pointing_accuracy(target, time_step)
                 if pointing_accuracy > 0:
                     if self.observation_status_matrix[target_index] == 3:
                         # implement penalty for trying to observe an already observed target
-                        reward_step -= 10
+                        reward_step -= 0.1
                         observation_done = True
                     # Update cumulative pointing accuracy and counts
                     self.cumulative_pointing_accuracy[index,target_index] += pointing_accuracy
@@ -679,7 +679,7 @@ class ObserverSatellite(Satellite):
                             raise ValueError("Error: Pointing accuracy average is zero")
                     else:
                         # implement penalty for not observing the target (out of range)
-                        reward_step -= 10
+                        reward_step -= 0.1
                         observation_done = True
         steps += 1
         return reward_step, observation_done, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_observation_counts, self.max_pointing_accuracy_avg_sat

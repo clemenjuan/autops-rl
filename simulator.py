@@ -128,7 +128,7 @@ class Simulator():
 
             if observer.epsys['EnergyAvailable'] < 0 or observer.DataHand['StorageAvailable'] < 0:
                     print("Satellite energy or storage depleted. Terminating simulation.")
-                    reward_step -= 10
+                    reward_step -= 10000
                     self.breaker = True
         return reward_step
 
