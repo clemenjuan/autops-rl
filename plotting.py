@@ -74,7 +74,7 @@ def parse_matrices_from_file(file_path, save_dir):
 
 
 def plot_matrices(matrix_dict, plot_dir, file_identifier, total_time, total_reward):
-    fig, axs = plt.subplots(2, 2, figsize=(10, 10))  # Adjust for a 2x2 subplot grid if fewer plots are needed
+    fig, axs = plt.subplots(2, 2, figsize=(10, 12), gridspec_kw={'hspace': 0.3, 'top': 0.85})
 
     # Plotting the binary grid plots
     binary_matrices = ['adjacency_matrix']
@@ -113,7 +113,7 @@ def plot_matrices(matrix_dict, plot_dir, file_identifier, total_time, total_rewa
     plt.tight_layout()
 
     # Annotating the total time and reward
-    plt.figtext(0.5, 0.01, f"Total Time: {total_time:.3f} seconds\nTotal Reward: {total_reward:.3f}", ha="center", fontsize=12, bbox={"facecolor":"orange", "alpha":0.5, "pad":5})
+    plt.figtext(0.5, 0.92, f"Total Time: {total_time:.3f} seconds\nTotal Reward: {total_reward:.3f}", ha="center", fontsize=12, bbox={"facecolor":"orange", "alpha":0.5, "pad":5})
 
     # Save the figure
     plt.savefig(os.path.join(plot_dir, f'plot_{file_identifier}.png'), bbox_inches='tight')
@@ -125,7 +125,7 @@ def plot_matrices(matrix_dict, plot_dir, file_identifier, total_time, total_rewa
 folder_path = 'Results/v0'
 npy_dir = 'Results/v0/npy_matrices'
 plot_dir = 'Results/v0/plots'
-# ensure_directory_exists(npy_dir)
+ensure_directory_exists(npy_dir)
 ensure_directory_exists(plot_dir)
 
 
