@@ -209,7 +209,7 @@ class SatelliteEnv(Env, ParallelEnv):
         remaining_minutes = int((remaining_time_estimate % 3600) // 60)  # Calculate remaining minutes
         remaining_seconds = int(remaining_time_estimate % 60)  # Calculate remaining seconds
 
-        if self.simulator.time_step_number % 1000 == 0:
+        if self.simulator.time_step_number % steps_batch_size == 0:
             print(f"Step {self.simulator.time_step_number} completed in {self.step_timer:.6f} seconds. Estimated time remaining: {remaining_hours} hours, {remaining_minutes} minutes, and {remaining_seconds} seconds.")
 
                 
@@ -234,8 +234,8 @@ def get_next_simulation_number(results_folder):
 if __name__ == "__main__":
     num_simulations = 10  # desired number of simulations
     num_targets = 10 # Number of target satellites
-    num_observers = 10 # Number of observer satellites
-    steps_batch_size = 1000 # Number of steps before printing new information
+    num_observers = 100 # Number of observer satellites
+    steps_batch_size = 10 # Number of steps before printing new information
 
     # Define the folder name
     results_folder = os.path.join("Results", "v0")
@@ -272,7 +272,7 @@ if __name__ == "__main__":
                 total_reward += reward
                 step_end_time = time.time()
                 step_duration = step_end_time - step_start_time
-                if env.simulator.time_step_number % 1000 == 0:
+                if env.simulator.time_step_number % steps_batch_size == 0:
                     print(f"Step duration: {step_duration:.6f} seconds")
 
                 if done:
