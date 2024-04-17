@@ -19,14 +19,14 @@ It is strongly recommended that you use a virtual environment in order to manage
 ```
 python3 -m venv .venv
 source .venv/bin/activate
-pip install numpy gymnasium pettingzoo matplotlib
+pip install numpy gymnasium pettingzoo matplotlib pandas ray "ray[tune]" tree typer scikit-image optuna torch lz4
 
 ```
 ### Setup on Windows
 ```
 python -m venv .venv
 .venv\Scripts\activate
-pip install numpy gymnasium pettingzoo matplotlib
+pip install numpy gymnasium pettingzoo matplotlib pandas ray "ray[tune]" tree typer scikit-image optuna torch lz4
 
 ```
 When done, you can run the following command to exit the virtual environment.

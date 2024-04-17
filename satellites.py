@@ -75,7 +75,7 @@ class Satellite(ABC):
             epsys = {
                 'EnergyStorage': 84*3600,    #From Endurosat battery pack [W]*[s]=[J]
                 'SolarPanelSize': 0.4*0.3,
-                'EnergyAvailable': 10*3600,
+                'EnergyAvailable': 20*3600,
                 # add more subsystems as needed
 
             }
@@ -363,20 +363,20 @@ class ObserverSatellite(Satellite):
     def __init__(self, num_targets, num_observers, name="observer"):
         super().__init__(name = name)
         self.num_observers = num_observers
-        self.observation_status_matrix = np.zeros(num_targets, dtype=int)  # 0: undetected, 1: detected, 2: being observed, 3: observed
-        self.pointing_accuracy_matrix = np.zeros(num_targets, dtype=float)  # pointing accuracy for each target
-        self.communication_ability = np.zeros(num_observers, dtype=int)  # Track communication status for each observer satellite
-        self.observation_time_matrix = np.zeros(num_targets, dtype=float)  # Total observation time for each target
+        self.observation_status_matrix = np.zeros(num_targets, dtype=np.int32)  # 0: undetected, 1: detected, 2: being observed, 3: observed
+        self.pointing_accuracy_matrix = np.zeros(num_targets, dtype=np.float32)  # pointing accuracy for each target
+        self.communication_ability = np.zeros(num_observers, dtype=np.int32)  # Track communication status for each observer satellite
+        self.observation_time_matrix = np.zeros(num_targets, dtype=np.float32)  # Total observation time for each target
         self.optic_payload = OpticPayload()
         self.max_distance = self.optic_payload.dist_detect() / 1000  # Assuming optic_payload is defined in Satellite
         self.has_new_data = np.zeros(num_observers, dtype=bool)  # Track new data status for each observer satellite
-        self.communication_timeline_matrix = np.zeros(num_targets, dtype=int)  # Track communication timeline
+        self.communication_timeline_matrix = np.zeros(num_targets, dtype=np.int32)  # Track communication timeline
         self.is_processing = False  # Indicates if the satellite is currently processing
         self.processing_time = 0  # Time required for processing new data
-        self.observation_counts = np.zeros(num_targets, dtype=int)  # Track the number of observations (timesteps) for each target
-        self.pointing_accuracy_avg = np.zeros((num_observers, num_targets), dtype=float)  # Track average pointing accuracy for each target
-        self.cumulative_pointing_accuracy = np.zeros((num_observers,num_targets), dtype=float)  # Track cumulative pointing accuracy for each target
-        self.max_pointing_accuracy_avg_sat = np.zeros(num_targets, dtype=float)  # Track maximum pointing accuracy for each target
+        self.observation_counts = np.zeros(num_targets, dtype=np.int32)  # Track the number of observations (timesteps) for each target
+        self.pointing_accuracy_avg = np.zeros((num_observers, num_targets), dtype=np.float32)  # Track average pointing accuracy for each target
+        self.cumulative_pointing_accuracy = np.zeros((num_observers,num_targets), dtype=np.float32)  # Track cumulative pointing accuracy for each target
+        self.max_pointing_accuracy_avg_sat = np.zeros(num_targets, dtype=np.float32)  # Track maximum pointing accuracy for each target
         # Add power consumption rates (in Watts)
         self.power_consumption_rates = {
             "standby": 7,  # Standby mode
@@ -384,17 +384,17 @@ class ObserverSatellite(Satellite):
             "observation": 10,  # During observation
         }
         self.storage_consumption_rates = {
-            "observation": 0.1,  # Storage consumption rate during observation
-            "communication": 0.1,  # Storage consumption rate during communication
+            "observation": 1024*1024*8,  # Storage consumption rate during observation - 1 Mbits/s
+            "communication": 1,  # Storage consumption rate during communication
         }
         self.current_power_consumption = 0  # Current power consumption
 
-        self.contacts_matrix = np.zeros((num_observers, num_targets), dtype=int)  # Current timestep contacted targets matrix
-        self.contacts_matrix_acc = np.zeros((num_observers, num_targets), dtype=int)  # Accumulated contacted targets matrix
-        self.data_matrix = np.zeros((num_observers, num_observers), dtype=float)  # Current timestep data exchange
-        self.data_matrix_acc = np.zeros((num_observers, num_observers), dtype=float)  # Accumulated data exchange
-        self.adjacency_matrix = np.zeros((num_observers, num_observers), dtype=int)  # Current timestep adjacency matrix
-        self.adjacency_matrix_acc = np.zeros((num_observers, num_observers), dtype=int)  # Accumulated adjacency matrix
+        self.contacts_matrix = np.zeros((num_observers, num_targets), dtype=np.int32)  # Current timestep contacted targets matrix
+        self.contacts_matrix_acc = np.zeros((num_observers, num_targets), dtype=np.int32)  # Accumulated contacted targets matrix
+        self.data_matrix = np.zeros((num_observers, num_observers), dtype=np.float32)  # Current timestep data exchange
+        self.data_matrix_acc = np.zeros((num_observers, num_observers), dtype=np.float32)  # Accumulated data exchange
+        self.adjacency_matrix = np.zeros((num_observers, num_observers), dtype=np.int32)  # Current timestep adjacency matrix
+        self.adjacency_matrix_acc = np.zeros((num_observers, num_observers), dtype=np.int32)  # Accumulated adjacency matrix
         self.global_observation_counts = np.zeros(num_targets, dtype=int)  # Global matrix to track the number of observations for each target
 
     def evaluate_pointing_accuracy(self, target_satellite,time_step):

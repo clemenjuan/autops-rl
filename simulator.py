@@ -34,8 +34,10 @@ class Simulator():
         self.breaker = False #our mighty loop exiter!
         self.global_observation_counts = np.zeros(num_targets, dtype=int)  # Global matrix to track the number of observations for each target
         self.global_observation_status_matrix = np.zeros((num_observers,num_targets), dtype=int)  # Matrix to track observation status
-        self.reward_matrix = np.zeros((self.num_steps+1, num_observers))
+        self.reward_matrix = np.zeros((self.num_steps, num_observers))
         self.max_pointing_accuracy_avg = np.zeros(num_targets, dtype=float)
+        self.batteries = np.zeros(num_observers, dtype=float)
+        self.storage = np.zeros(num_observers, dtype=float)
 
     def reset_matrices_for_timestep(self):
         """Resets matrices to only track the latest timestep's observations and connections."""
@@ -100,7 +102,7 @@ class Simulator():
                 power_consumption = observer.power_consumption_rates["communication"]
                 storage_consumption = observer.storage_consumption_rates["communication"] # needs fixing 
                 observer.epsys['EnergyAvailable'] -= power_consumption * self.time_step * max_steps
-                observer.DataHand['StorageAvailable'] -= storage_consumption * self.time_step * max_steps
+                observer.DataHand['StorageAvailable'] -= self.data_matrix[i].sum() # bites
             else: # Observation
                 observation_done = False
                 steps = 0
@@ -130,6 +132,11 @@ class Simulator():
                     print("Satellite energy or storage depleted. Terminating simulation.")
                     reward_step -= 10000
                     self.breaker = True
+
+            self.batteries[i] = observer.epsys['EnergyAvailable'] / observer.epsys['EnergyStorage']
+            self.storage[i] = observer.DataHand['StorageAvailable'] / observer.DataHand['DataStorage']
+            # print(f"Storage of observer {i}: {self.storage[i]}")
+
         return reward_step
 
 
@@ -200,30 +207,15 @@ class Simulator():
 
 
     def step(self, actions, simulator_type): # choose type of communication: centralized, decentralized, everyone
-        
-        # self.start_time_step = time.time()
-        # Simulate one time step for all satellites
+                # Simulate one time step for all satellites
         reward = self.process_actions(actions, simulator_type)
-        # self.max_pointing_accuracy_avg = max_pointing_accuracy_avg
-        # if self.max_pointing_accuracy_avg.any() > 0:
-        #    print(f"ID of max_pointing_accuracy_avg in step: {id(self.max_pointing_accuracy_avg)}")
-        #    print(f"Max pointing accuracy average in simulator step: {self.max_pointing_accuracy_avg}")
-        # reward = self.analyze_and_correct_duplications(reward)
-        # duplications penalty already implemented in observe target
         self.reward_matrix[self.time_step_number] = reward
         self.update_communication_timeline()
         self.update_global_observation_status_matrix(self.observer_satellites, self.target_satellites)
         self.propagate_orbits()
         self.time_step_number += 1
         done = self.is_terminated()
-
-        # self.step_timer = time.time() - self.start_time_step
-        # self.time_elapsed = time.time() - self.start_time
-        # average_time_per_step = self.time_elapsed / self.time_step_number
-        # remaining_steps = self.num_steps - self.time_step_number
-        # remaining_time_estimate = remaining_steps * average_time_per_step / 60
         
-        # print(f"Step {self.time_step_number} completed in {self.step_timer} seconds. Estimated total time: {remaining_time_estimate} minutes.")
         return reward, done
 
 

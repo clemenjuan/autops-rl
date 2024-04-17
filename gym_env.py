@@ -2,6 +2,7 @@ import os
 import numpy as np
 from gymnasium import Env, spaces
 from pettingzoo import ParallelEnv
+from pettingzoo.utils import agent_selector, wrappers
 
 
 
@@ -12,7 +13,8 @@ from CommSubsystem import CommSubsystem
 from OpticPayload import OpticPayload
 from simulator import Simulator, CentralizedSimulator, MixedSimulator, DecentralizedSimulator
 import time
-from plotting import plot_matrices
+from plotting import plot
+from data_logging import log_full_matrices, log_summary_results, compute_statistics_from_npy
 
 
 class SatelliteEnv(Env, ParallelEnv):
@@ -38,6 +40,7 @@ class SatelliteEnv(Env, ParallelEnv):
         self.agents = ["observer_" + str(r) for r in range(num_observers)]
         self.possible_agents = self.agents[:]
         self.agent_name_mapping = dict(zip(self.agents, list(range(self.num_observers)))) # Mapping of agent names to indices
+        self._agent_selector = agent_selector(self.agents)
 
         # Action, observation and state spaces
         self.action_spaces = dict(
@@ -47,7 +50,7 @@ class SatelliteEnv(Env, ParallelEnv):
             zip(self.agents, [spaces.Dict({
             'observer_satellites': spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_observers, 14)),  # Orbital parameters for each observer satellite
             'target_satellites': spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_targets, 6)),  # Position and velocity for each target satellite
-            'availability': spaces.Discrete(2, seed=42), # {0, 1} Availability of each observer satellite
+            'availability': spaces.Discrete(2), # {0, 1} Availability of each observer satellite
             'battery': spaces.Box(low=0, high=1, shape=(self.num_observers, 1)),  # Battery level for each observer satellite
             'storage': spaces.Box(low=0, high=1, shape=(self.num_observers, 1)),  # Storage level for each observer satellite
             'observation_status': spaces.MultiDiscrete([4] * self.num_targets),  # Observation status for each target satellite
@@ -57,6 +60,7 @@ class SatelliteEnv(Env, ParallelEnv):
             })] * self.num_observers)
         )
         self.state_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_observers, 14)) # to be fixed
+
 
         # Initialize simulator
         if self.simulator_type == 'centralized':
@@ -73,7 +77,7 @@ class SatelliteEnv(Env, ParallelEnv):
         return self.observation_spaces[agent]
 
     def action_space(self, agent):
-        return env.action_spaces[agent]
+        return self.action_spaces[agent]
     
 
     def _generate_observation(self):
@@ -85,15 +89,15 @@ class SatelliteEnv(Env, ParallelEnv):
         # Generate observations based on the current state and communication history
         # Update observer's own state in the observation vector
         observation = {
-            'observer_satellites': np.zeros((self.num_observers, 14)),
-            'target_satellites': np.zeros((self.num_targets, 6)),
-            'availability': None,
-            'battery': np.zeros((self.num_observers, 1)),
-            'storage': np.zeros((self.num_observers, 1)),
-            'observation_status': np.zeros(self.num_targets, dtype=int),
-            'pointing_accuracy': np.zeros((self.num_observers, self.num_targets)),
-            'communication_status': np.zeros(self.num_observers, dtype=int),
-            'communication_ability': np.zeros((self.num_observers, self.num_observers), dtype=int)
+            'observer_satellites': np.zeros((self.num_observers, 14), dtype=np.float32),
+            'target_satellites': np.zeros((self.num_targets, 6), dtype=np.float32),
+            'availability': 0,  # Assuming availability is a binary or discrete value
+            'battery': np.zeros((self.num_observers, 1), dtype=np.float32),
+            'storage': np.zeros((self.num_observers, 1), dtype=np.float32),
+            'observation_status': np.zeros(self.num_targets, dtype=np.int32),
+            'pointing_accuracy': np.zeros((self.num_observers, self.num_targets), dtype=np.float32),
+            'communication_status': np.zeros(self.num_observers, dtype=np.int32),
+            'communication_ability': np.zeros((self.num_observers, self.num_observers), dtype=np.int32)
         }
 
         orbital_params_order = ['semimajoraxis', 'inclination', 'eccentricity',
@@ -101,33 +105,37 @@ class SatelliteEnv(Env, ParallelEnv):
                                 'radius', 'x', 'y', 'z', 'vx', 'vy', 'vz']
         orbital_params_order_targets = ['x', 'y', 'z', 'vx', 'vy', 'vz']
         for i, observer in enumerate(self.simulator.observer_satellites):
-            observer_orbit_params = np.array([observer.orbit[param] for param in orbital_params_order])
+            observer_orbit_params = np.array([observer.orbit[param] for param in orbital_params_order], dtype=np.float32)
             observation['observer_satellites'][i] = observer_orbit_params
             observation['availability'] = observer.availability
-            observation['battery'][i] = observer.epsys['EnergyAvailable'] / observer.epsys['EnergyStorage']
-            observation['storage'][i] = observer.DataHand['StorageAvailable'] / observer.DataHand['DataStorage']
-            observation['observation_status'] = observer.observation_status_matrix
-            observation['pointing_accuracy'][i] = observer.pointing_accuracy_matrix
-            observation['communication_status'] = self.simulator.adjacency_matrix_acc[i]
-            observation['communication_ability'][i] = observer.get_communication_ability(self.simulator.observer_satellites, self.simulator.time_step, self.simulator_type)
+            observation['battery'][i] = np.array([observer.epsys['EnergyAvailable'] / observer.epsys['EnergyStorage']], dtype=np.float32)
+            observation['storage'][i] = np.array([observer.DataHand['StorageAvailable'] / observer.DataHand['DataStorage']], dtype=np.float32)
+            observation['observation_status'] = np.array(observer.observation_status_matrix, dtype=np.int32)
+            observation['pointing_accuracy'][i] = np.array(observer.pointing_accuracy_matrix, dtype=np.float32)
+            observation['communication_status'] = np.array(self.simulator.adjacency_matrix_acc[i], dtype=np.int32)
+            observation['communication_ability'][i] = np.array(observer.get_communication_ability(self.simulator.observer_satellites, self.simulator.time_step, self.simulator_type), dtype=np.int32)
 
             for j, other_observer in enumerate(self.simulator.observer_satellites):
                 if i != j:
                     if self.simulator.adjacency_matrix_acc[i, j] == 1:
-                        other_observer_orbit_params = np.array([other_observer.orbit[param] for param in orbital_params_order])
+                        other_observer_orbit_params = np.array([other_observer.orbit[param] for param in orbital_params_order], dtype=np.float32)
                         observation['observer_satellites'][j] = other_observer_orbit_params
                     if self.simulator.adjacency_matrix[i, j] == 1:
-                        observation['battery'][j] = other_observer.epsys['EnergyAvailable'] / other_observer.epsys['EnergyStorage']
-                        observation['storage'][j] = other_observer.DataHand['StorageAvailable'] / other_observer.DataHand['DataStorage']
-                        observation['communication_ability'][j] = other_observer.get_communication_ability(self.simulator.observer_satellites, self.simulator.time_step, self.simulator_type)
-                        observation['pointing_accuracy'][j] = other_observer.pointing_accuracy_matrix
+                        observation['battery'][j] = np.array(other_observer.epsys['EnergyAvailable'] / other_observer.epsys['EnergyStorage'], dtype=np.float32)
+                        observation['storage'][j] = np.array(other_observer.DataHand['StorageAvailable'] / other_observer.DataHand['DataStorage'], dtype=np.float32)
+                        observation['communication_ability'][j] = np.array(other_observer.get_communication_ability(self.simulator.observer_satellites, self.simulator.time_step, self.simulator_type),dtype=np.int32)
+                        observation['pointing_accuracy'][j] = np.array(other_observer.pointing_accuracy_matrix, dtype=np.float32)
 
             for k, target in enumerate(self.simulator.target_satellites):
                 if self.simulator.contacts_matrix[i, k] == 1:
-                    target_orbit_params = np.array([target.orbit[param] for param in orbital_params_order_targets])
+                    target_orbit_params = np.array([target.orbit[param] for param in orbital_params_order_targets], dtype=np.float32)
                     observation['target_satellites'][k] = target_orbit_params
 
         return observation
+    
+    def observe(self, agent):
+        """Format the observation per the PettingZoo Parallel API."""
+        return self._generate_observation()
     
     def get_obs(self):
         """Format the observation per the PettingZoo Parallel API."""
@@ -154,7 +162,7 @@ class SatelliteEnv(Env, ParallelEnv):
         except AttributeError:
             pass
 
-    def reset(self):
+    def reset(self, seed=None, options=None):
         self.delete_simulator()
         # Initialize simulator
         if self.simulator_type == 'centralized':
@@ -167,6 +175,8 @@ class SatelliteEnv(Env, ParallelEnv):
             raise ValueError("Invalid simulator type. Choose from 'centralized', 'decentralized', or 'everyone'.")
         
         self.agents = self.possible_agents[:]
+        self._agent_selector.reinit(self.agents)
+        self.agent_selection = self._agent_selector.next()
 
         observation = self.get_obs()
         infos = {agent: {} for agent in self.agents}
@@ -210,107 +220,138 @@ class SatelliteEnv(Env, ParallelEnv):
         observation = self.get_obs()
         infos = {agent: {} for agent in self.agents}
         # print(f"Step reward: {reward}")
-        
+
+        '''
+        if self._agent_selector.is_last():
+            self.terminations = dict(
+                zip(self.agents, [self.terminate for _ in self.agents])
+            )
+            self.truncations = dict(
+                zip(self.agents, [self.truncate for _ in self.agents])
+            )
+        '''
+
+        self.agent_selection = self._agent_selector.next()
+
         return observation, reward, done, infos
+    
+def validate_environment(env):
+    print("Resetting environment...")
+    obs = env.reset()
+    print("Reset observation:", obs)
 
-
-def get_next_simulation_number(results_folder):
-    """
-    Get the next simulation number based on existing files in the results folder.
-    """
-    existing_files = [file for file in os.listdir(results_folder) if file.startswith("simulation_output_")]
-    if existing_files:
-        latest_simulation_number = max(int(file.split("_")[2].split(".")[0]) for file in existing_files)
-        return latest_simulation_number + 1
-    else:
-        return 1
+    print("Taking a step in the environment...")
+    random_actions = {agent: env.action_space(agent).sample() for agent in env.agents}
+    obs, rewards, done, info = env.step(random_actions)
+    print("Step observation:", obs)
+    print("Rewards:", rewards)
+    print("Done:", done)
+    print("Info:", info)
 
 if __name__ == "__main__":
+    # env = SatelliteEnv(num_targets=10, num_observers=10, simulator_type='everyone', time_step=1, duration=24*60*60)
+    # validate_environment(env)
     ### Example of how to use the environment for a Monte Carlo simulation
-    num_simulations = 10  # desired number of simulations
+    ############################ EDIT HERE ############################
+    num_simulations = 100  # desired number of simulations
     num_targets = 10 # Number of target satellites
     num_observers = 10 # Number of observer satellites
+    simulator_type = 'everyone' # choose from 'centralized', 'decentralized', or 'everyone'
+    time_step = 1 # Time step in seconds
+    duration = 24*60*60 # Duration of the simulation in seconds
     steps_batch_size = 1000 # Number of steps before printing new information
 
     # Define the folder name
-    results_folder = os.path.join("Results", "v0")
+    results_folder = os.path.join("Results", "Monte_Carlo_Simulation")
+    results_folder_plots = os.path.join(results_folder, "plots")
+    os.makedirs(results_folder, exist_ok=True)
+    os.makedirs(results_folder_plots, exist_ok=True)
 
-    # Create the results folder if it doesn't exist
-    if not os.path.exists(results_folder):
-        os.makedirs(results_folder)
-
-    next_simulation_number = get_next_simulation_number(results_folder)
-
-    for i in range(next_simulation_number, next_simulation_number + num_simulations):
+    write_to_csv_file_flag = True  # Write the output to a file
+    plot_flag = True  # Plot the output
+    # Define the relevant attributes to be logged (from env.simulator)
+    # add in matrices that you want to log
+    relevant_attributes = [
+        'adjacency_matrix', 'data_matrix', 'contacts_matrix',
+        'global_observation_count_matrix', 'maximum_pointing_accuracy_average_matrix',
+        'global_observation_status_matrix', 'batteries', 'storage', 'total_reward', 
+        'total_duration', 'total_steps',
+        ]
+    ####################################################################
+    for i in range(num_simulations):
         print(f"Starting simulation {i}...")
+        # print("Creating environment...")
+        # Run the simulation until timeout or agent failure
+        env = SatelliteEnv(num_targets, num_observers, simulator_type, time_step, duration)
+        total_reward = 0
+        # print("Environment created. Resetting...")
+        observation, info = env.reset()
+        # print("Resetting environment done. Starting simulation...")
 
-        # Create a new output file for each simulation in the specified folder
-        output_filename = os.path.join(results_folder, f"simulation_output_{i}.txt")
+        action_counts = {}
+        start_time = time.time()
 
-        with open(output_filename, "w") as file:
-            print("Creating environment...")
-            # Run the simulation until timeout or agent failure
-            env = SatelliteEnv(num_targets, num_observers)
-            total_reward = 0
-            print("Environment created. Resetting...")
-            observation, info = env.reset()
-            print("Resetting environment done. Starting simulation...")
+        while True:
+            step_start_time = time.time()
+            actions = {agent: env.action_space(agent).sample() for agent in env.agents}
+            for agent, action in actions.items():
+                action_counts.setdefault(agent, []).append(action)
+            #if env.simulator.time_step_number % steps_batch_size == 0:
+                # print("Actions: ", actions)
+                # print(f"Actions received. Executing next {steps_batch_size} steps...")
+            observation, reward, done, info = env.step(actions)
+            total_reward += reward
+            step_end_time = time.time()
+            step_duration = step_end_time - step_start_time
+            # if env.simulator.time_step_number % steps_batch_size == 0:
+            #    print(f"Step {env.simulator.time_step_number} finished, duration: {step_duration:.6f} seconds")
+            #    print(f"Observations: {observation}")
 
-            start_time = time.time()
-            while True:
-                step_start_time = time.time()
-                actions = {agent: env.action_space(agent).sample() for agent in env.agents}
-                if env.simulator.time_step_number % steps_batch_size == 0:
-                    print("Actions: ", actions)
-                    print(f"Actions received. Executing next {steps_batch_size} steps...")
-                observation, reward, done, info = env.step(actions)
-                total_reward += reward
-                step_end_time = time.time()
-                step_duration = step_end_time - step_start_time
-                # if env.simulator.time_step_number % steps_batch_size == 0:
-                #    print(f"Step {env.simulator.time_step_number} finished, duration: {step_duration:.6f} seconds")
+            if done:
+                print("Episode finished")
+                # file.write("Episode finished\n")
+                break
 
-                if done:
-                    print("Episode finished")
-                    # file.write("Episode finished\n")
-                    break
+        end_time = time.time()
+        total_duration = end_time - start_time
+        print(f"Total steps: {env.simulator.time_step_number}")
+        print(f"Total duration of episode: {total_duration:.3f} seconds")
+        print(f"Total reward: {total_reward}")
 
-            end_time = time.time()
-            total_duration = end_time - start_time
-            print(f"Total duration of episode: {total_duration:.3f} seconds")
-            print(f"Total reward: {total_reward}")
+        # Prepare the data for plotting
+        matrices = {
+            'adjacency_matrix': env.simulator.adjacency_matrix_acc,
+            'data_matrix': env.simulator.data_matrix_acc,
+            'contacts_matrix': env.simulator.contacts_matrix_acc,
+            'global_observation_count_matrix': env.simulator.global_observation_counts,
+            'maximum_pointing_accuracy_average_matrix': env.simulator.max_pointing_accuracy_avg,
+            'global_observation_status_matrix': env.simulator.global_observation_status_matrix,
+            'batteries': env.simulator.batteries,
+            'storage': env.simulator.storage,
+            'total_reward': total_reward,
+            'total_duration': total_duration,
+            'total_steps': env.simulator.time_step_number,
+        }
 
-             # Prepare the data for plotting
-            matrices = {
-                'adjacency_matrix': env.simulator.adjacency_matrix_acc,
-                'data_matrix': env.simulator.data_matrix_acc,
-                'contacts_matrix': env.simulator.contacts_matrix_acc,
-                'global_observation_count_matrix': env.simulator.global_observation_counts,
-                'maximum_pointing_accuracy_average_matrix': env.simulator.max_pointing_accuracy_avg,
-                'global_observation_status_matrix': env.simulator.global_observation_status_matrix
+        if write_to_csv_file_flag:
+            # Log the full matrices as .npy files
+            log_full_matrices(matrices, i, results_folder)
+
+            # Log the summary statistics to a single CSV file
+            data_summary = {
+                'Simulation Index': i,
+                'Total Reward': total_reward,
+                'Total Duration': total_duration,
+                # ... other summary statistics ...
             }
+            log_summary_results(data_summary, i, results_folder)
 
-            # Call the plotting function (to be defined based on previous discussions)
-            results_folder_matrices = os.path.join(results_folder, "plots")
-            plot_matrices(matrices, results_folder_matrices, f'simulation_{i}', total_duration, total_reward)
+        
+        if plot_flag:
+            plot(matrices, results_folder_plots, total_duration, total_reward )
+    
 
-            file.write("Adjacency matrix:\n")
-            file.write(f"{env.simulator.adjacency_matrix_acc}\n")
-            file.write("\nData matrix:\n")
-            file.write(f"{env.simulator.data_matrix_acc}\n")
-            file.write("\nContacts matrix:\n")
-            file.write(f"{env.simulator.contacts_matrix_acc}\n")
-            file.write("\nGlobal observation count matrix:\n")
-            file.write(f"{env.simulator.global_observation_counts}\n")
-            # print(f"Final max_pointing_accuracy_avg before writing to file: {env.simulator.max_pointing_accuracy_avg}")
-            file.write("\nMaximum pointing accuracy average matrix:\n")
-            file.write(f"{env.simulator.max_pointing_accuracy_avg}\n")
-            file.write("\nGlobal observation status matrix:\n")
-            file.write(f"{env.simulator.global_observation_status_matrix}\n")
-            # file.write("\nGlobal pointing accuracy matrix:\n")
-            # more data: mean pointing accuracy etc.
-            # add observer.communication_timeline_matrix?
-            file.write(f"Total time of episode: {total_duration:.3f} seconds\n")
-            file.write(f"Total reward: {total_reward}\n")
-
-        print(f"Simulation {i} output saved in '{output_filename}'")
+    if write_to_csv_file_flag:
+        # Compute statistics such as the mean of each attribute across all simulations and write to a CSV
+        compute_statistics_from_npy(results_folder, relevant_attributes)
+        print("Averages written to averages.csv")
