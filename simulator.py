@@ -45,10 +45,11 @@ class Simulator():
         self.adjacency_matrix.fill(0)
         self.contacts_matrix.fill(0)
 
-    def process_actions(self, actions, type_of_communication):
-        reward_step = 0
+    def process_actions(self, actions, type_of_communication, agents):
+        reward_step = {agent: 0 for agent in agents}
         for i, (observer, action) in enumerate(actions.items()):
             # print(f"Processing action: {action} for {observer}")
+            agent = agents[i]
             observer = self.observer_satellites[i]
             # Update energy consumption and storage consumption based on the action
             if action == 0: # Standby
@@ -83,8 +84,8 @@ class Simulator():
                     # print(f"Checking communication possibility from observer {i} to observer {j}")
                     while not communication_done and i != j:
                         # print(f"Attempting to communicate from observer {i} to observer {j}")
-                        reward_step, communication_done, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_observation_counts, max_pointing_accuracy_avg = observer.propagate_information(
-                            i, other_observer, j, self.time_step + steps * self.time_step, type_of_communication, reward_step, steps, communication_done, data_transmitted, data_to_transmit)
+                        reward_step[agent], communication_done, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_observation_counts, max_pointing_accuracy_avg = observer.propagate_information(
+                            i, other_observer, j, self.time_step + steps * self.time_step, type_of_communication, reward_step[agent], steps, communication_done, data_transmitted, data_to_transmit)
                         # print(f"Observer {i} has finished communicating with observer {j}")
                     max_steps = max(steps, max_steps)
 
@@ -108,7 +109,7 @@ class Simulator():
                 steps = 0
                 # print(f"Observer {i} is observing target {action - 2}")
                 while not observation_done:
-                    reward_step, observation_done, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_observation_counts, max_pointing_accuracy_avg = observer.observe_target(i, self.target_satellites[action - 2], action - 2, self.time_step + steps*self.time_step, reward_step, steps, observation_done)
+                    reward_step[agent], observation_done, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_observation_counts, max_pointing_accuracy_avg = observer.observe_target(i, self.target_satellites[action - 2], action - 2, self.time_step + steps*self.time_step, reward_step[agent], steps, observation_done)
                 # print(f"Observer {i} has finished observing target {action - 2}")
                 self.contacts_matrix = np.maximum(contacts_matrix, self.contacts_matrix)
                 self.contacts_matrix_acc = np.maximum(contacts_matrix_acc, self.contacts_matrix_acc)
@@ -129,8 +130,8 @@ class Simulator():
                 observer.processing_time += steps * self.time_step
 
             if observer.epsys['EnergyAvailable'] < 0 or observer.DataHand['StorageAvailable'] < 0:
-                    print("Satellite energy or storage depleted. Terminating simulation.")
-                    reward_step -= 10000
+                    print(f"Satellite energy or storage depleted ({agent}). Terminating simulation.")
+                    reward_step[agent] -= 10000
                     self.breaker = True
 
             self.batteries[i] = observer.epsys['EnergyAvailable'] / observer.epsys['EnergyStorage']
@@ -174,31 +175,6 @@ class Simulator():
                 if was_communicated == 1:  # If there was recent communication or observation
                     observer.communication_timeline_matrix[target_index] = 1  # Reset the timeline to 1 for recent communication
 
-    """
-    def update_data_matrix(self, observer_index, other_observer_index, data_size):
-        # Update data matrix
-        self.data_matrix[observer_index][other_observer_index] += data_size
-        self.data_matrix[other_observer_index][observer_index] += data_size
-        self.data_matrix_acc[observer_index][other_observer_index] += data_size
-        self.data_matrix_acc[other_observer_index][observer_index] += data_size
-
-    def update_adjacency_matrix(self, observer_index, other_observer_index):
-        # Update adjacency matrix
-        self.adjacency_matrix[observer_index][other_observer_index] = self.adjacency_matrix[other_observer_index][observer_index] = 1
-        self.adjacency_matrix_acc[observer_index][other_observer_index] = self.adjacency_matrix_acc[other_observer_index][observer_index] = 1
-    
-    def update_contacts_matrix(self, observer_index, target_index):
-        # Mark communication
-        self.contacts_matrix[observer_index][target_index] = 1 # Not square matrix
-        self.contacts_matrix_acc[observer_index][target_index] = 1
-
-    def synchronize_contacts_matrix(self, index1, index2):
-        self.contacts_matrix[index1] = np.maximum(self.contacts_matrix[index1], self.contacts_matrix[index2])
-        self.contacts_matrix[index2] = self.contacts_matrix[index1]  # Both rows now reflect the union of connections
-        self.contacts_matrix_acc[index1] = np.maximum(self.contacts_matrix_acc[index1], self.contacts_matrix_acc[index2])
-        self.contacts_matrix_acc[index2] = self.contacts_matrix_acc[index1]  # Both rows now reflect the union of connections
-    """
-
     def update_global_observation_status_matrix(self, observer, target):
         for i, observer_satellite in enumerate(self.observer_satellites):
             for j, target_satellite in enumerate(self.target_satellites):
@@ -206,28 +182,46 @@ class Simulator():
 
 
 
-    def step(self, actions, simulator_type): # choose type of communication: centralized, decentralized, everyone
-                # Simulate one time step for all satellites
-        reward = self.process_actions(actions, simulator_type)
-        self.reward_matrix[self.time_step_number] = reward
+    def step(self, actions, simulator_type, agents): # choose type of communication: centralized, decentralized, everyone
+        # Simulate one time step for all satellites
+        rewards = {agent: 0 for agent in agents}  # Initialize rewards for all agents
+        self.reset_matrices_for_timestep()
+
+        for observer in self.observer_satellites:
+            observer.check_and_update_processing_state(self.time_step)
+
+        self.get_global_targets(self.observer_satellites, self.target_satellites)
+
+        rewards = self.process_actions(actions, simulator_type, agents) # careful with action/actions
+
         self.update_communication_timeline()
         self.update_global_observation_status_matrix(self.observer_satellites, self.target_satellites)
+
+        # Move to the next timestep
         self.propagate_orbits()
         self.time_step_number += 1
+
+        # print(f"Time step number: {self.time_step_number}")
         done = self.is_terminated()
         
-        return reward, done
+        return rewards, done
 
 
 
-    def is_terminated (self):
-        # Check if the simulation is terminated
-        if self.global_observation_status_matrix.all() == 3 or self.time_step_number > self.num_steps:
+    def is_terminated(self):
+        if self.global_observation_status_matrix.all() == 3:
+            print(f"Simulation terminated because all observations were made at step {self.time_step_number}.")
             self.breaker = True
+
+        if self.time_step_number >= self.num_steps:
+            print(f"Simulation reaches its duration limit at step {self.time_step_number}. Total duration: {self.duration} seconds.")
+            self.breaker = True
+
+        if self.breaker:
             self.total_time = time.time() - self.start_time
             print(f"Simulation terminated after {self.total_time} seconds.")
-        return self.breaker
 
+        return self.breaker
 
 
 

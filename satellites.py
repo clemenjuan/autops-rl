@@ -74,9 +74,11 @@ class Satellite(ABC):
         if epsys is None: 
             epsys = {
                 'EnergyStorage': 84*3600,    #From Endurosat battery pack [W]*[s]=[J]
-                'SolarPanelSize': 0.4*0.3,
-                'EnergyAvailable': 20*3600,
-                # add more subsystems as needed
+                'SolarPanelSize': 0.4*0.3, # deployable solar panels 12U solar panel area [m2]
+                'EnergyAvailable': 60*3600,
+                # efficiency = 0.3,  # Efficiency of the solar panels
+                # irradiation = 1370 # W/m2, Solar constant
+                # prod = area * efficiency * irradiation
 
             }
 
@@ -98,7 +100,7 @@ class Satellite(ABC):
         if DataHand is None:
             DataHand = {
                 'DataStorage': 8*64e9, # Maximum storage onboard. 8*[bytes]=[bites], from ISISpace bus
-                'StorageAvailable': 1*64e9, # Storage available for observation
+                'StorageAvailable': 6*64e9, # Storage available for observation
                 'DataSize': 52, # Data package size per satellite in bytes
             }
         
@@ -142,9 +144,7 @@ class Satellite(ABC):
 
         #Define availability of the satellite
         if availability is None:
-            availability= {
-            'availability': 1,   # use 1 for available and 0 for not available
-            } 
+            availability= 1
         
         if instrumentation is None:
             instrumentation= {
@@ -447,11 +447,12 @@ class ObserverSatellite(Satellite):
         for target_index, target_satellite in enumerate(target_satellites):
             pointing_accuracy = self.evaluate_pointing_accuracy(target_satellite, time_step) #, self.max_distance)
             self.pointing_accuracy_matrix[target_index] = pointing_accuracy
-            if pointing_accuracy is not None:
+            if pointing_accuracy > 0:
                 if self.observation_status_matrix[target_index] in [1, 2, 3]: # already detected, being observed or observed
                     self.update_contacts_matrix(observer_index, target_index) # Only mark as contacted this timestep
                 else:
                     self.observation_status_matrix[target_index] = 1  # Mark as detected
+                    # print(f"Observer {observer_index} detected target {target_index}")
                     self.has_new_data[:] = True  # Set flag to indicate new data
                     self.update_contacts_matrix(observer_index, target_index) # Mark as contacted this timestep
         return self.contacts_matrix, self.contacts_matrix_acc
@@ -536,6 +537,7 @@ class ObserverSatellite(Satellite):
         Get the communication vector for the observer satellite based on the communication model.
         The communication vector indicates which observer satellites can communicate with the current satellite.
         """
+        # self.communication_ability = np.zeros((self.num_observers, 1), dtype=np.int8)
         for i, other_observer in enumerate(observer_satellites):
             if self != other_observer and self.can_communicate(i):
                 can_communicate = False

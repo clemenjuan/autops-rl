@@ -2,3 +2,4 @@ Results/
 .venv/
 __pycache__/
 .DS_Store
+launch.json

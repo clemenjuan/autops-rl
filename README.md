@@ -19,14 +19,14 @@ It is strongly recommended that you use a virtual environment in order to manage
 ```
 python3 -m venv .venv
 source .venv/bin/activate
-pip install numpy gymnasium pettingzoo matplotlib pandas ray "ray[tune]" tree typer scikit-image optuna torch lz4
+pip install numpy gymnasium pettingzoo matplotlib pandas ray "ray[tune]" tree typer scikit-image optuna torch lz4 tensorflow supersuit
 
 ```
 ### Setup on Windows
 ```
 python -m venv .venv
 .venv\Scripts\activate
-pip install numpy gymnasium pettingzoo matplotlib pandas ray "ray[tune]" tree typer scikit-image optuna torch lz4
+pip install numpy gymnasium pettingzoo matplotlib pandas ray "ray[tune]" tree typer scikit-image optuna torch lz4 tensorflow supersuit 
 
 ```
 When done, you can run the following command to exit the virtual environment.
@@ -35,7 +35,7 @@ deactivate
 ```
 
 ## Usage
-v0 only has Monte-Carlo simulation. No trained agent involved. Edit simulation parameters at the end of the file ```gym_env.py``` .
+Monte-Carlo simulation. No trained agent involved. Edit simulation parameters at the end of the file ```gym_env.py``` .
 ### Usage on Mac or Linux
 ```
 python3 gym_env.py
@@ -43,4 +43,14 @@ python3 gym_env.py
 ### Usage on Windows
 ```
 python gym_env.py 
+```
+
+Acutal Trained Agent. Training for PPO (working on DQN as well) 
+### Usage on Mac or Linux
+```
+python3 train.py
+```
+### Usage on Windows
+```
+python train.py
 ```
