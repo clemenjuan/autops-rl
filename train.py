@@ -1,4 +1,5 @@
 import os
+import time
 import argparse
 import ray
 from ray import tune
@@ -214,10 +215,13 @@ for i in range(args.stop_iters):
 
     # improve the PPO policy
     print("-- PPO --")
+    start_time = time.time()
     result_ppo = ppo.train()
     print(pretty_print(result_ppo))
+    print("Time taken for training with 8 simulations: ", time.time()-start_time)
 
     # Test passed gracefully.
+    '''
     if (
         args.as_test
         # and result_dqn["episode_reward_mean"] > args.stop_reward
@@ -225,6 +229,8 @@ for i in range(args.stop_iters):
     ):
         print("test passed (agents above requested reward)")
         quit(0)
+    '''
+    
 
     # swap weights to synchronize
     # dqn.set_weights(ppo.get_weights(["ppo_policy"]))
