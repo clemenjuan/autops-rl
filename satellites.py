@@ -1,36 +1,16 @@
 import math
 import random
 import numpy as np
-from typing import Any
-
-from gymnasium import spaces
-from abc import ABC, abstractmethod
+from abc import ABC
 
 from OpticPayload import OpticPayload
 from CommSubsystem import CommSubsystem
-from simulator import Simulator, CentralizedSimulator, MixedSimulator, DecentralizedSimulator
 
 
 
 class Satellite(ABC):
     """
-    Represents a satellite object.
-
-    Attributes:
-        orbit (dict): Dictionary containing orbital parameters of the satellite.
-        epsys (dict): Dictionary containing electric power subsystem parameters of the satellite.
-        commsys (dict): Dictionary containing communication subsystem parameters of the satellite.
-        DataHand (dict): Dictionary containing data handling parameters of the satellite.
-        PropSys (dict): Dictionary containing propulsion system parameters of the satellite.
-        Optic (dict): Dictionary containing optical payload parameters of the satellite.
-        category (dict): Dictionary containing category parameters of the satellite.
-        name (dict): Dictionary containing name parameters of the satellite.
-        attitude (dict): Dictionary containing attitude parameters of the satellite.
-        availability (dict): Dictionary containing availability parameters of the satellite.
-        instrumentation (dict): Dictionary containing instrumentation parameters of the satellite.
-        RewardFunction (dict): Dictionary containing reward function parameters of the satellite.
-        data_comms (CommSubsystem): Communication subsystem object.
-        processing_time (int): Processing time for the satellite after receiving information (in seconds).
+    Represents a satellite in Earth's orbit.
     """
     def __init__(self, orbit=None, epsys=None, commsys=None, DataHand=None, PropSys=None, Optic=None, category=None, name=None, attitude=None, availability=None, instrumentation=None, RewardFunction=None):
         # Sun-synchronous parameters
@@ -63,7 +43,7 @@ class Satellite(ABC):
                 'semimajoraxis': semimajoraxis_sso,  # km
                 'inclination': inclination,  # degrees
                 'eccentricity': random.uniform(0, 0.001),
-                'raan': 0,
+                'raan': random.uniform(0,180),
                 'arg_of_perigee':0,
                 'true_anomaly':random.uniform(0, 360),
                 # add more orbital parameters as needed
@@ -76,10 +56,9 @@ class Satellite(ABC):
                 'EnergyStorage': 84*3600,    #From Endurosat battery pack [W]*[s]=[J]
                 'SolarPanelSize': 0.4*0.3, # deployable solar panels 12U solar panel area [m2]
                 'EnergyAvailable': 60*3600,
-                # efficiency = 0.3,  # Efficiency of the solar panels
-                # irradiation = 1370 # W/m2, Solar constant
-                # prod = area * efficiency * irradiation
-
+                'Efficiency': 0.1,  # Efficiency of the solar panels
+                'SolarConstant': 1370 # W/m2, Solar constant
+                # prod = area * efficiency * solarconstant
             }
 
         # Comm Subsystem
@@ -139,7 +118,7 @@ class Satellite(ABC):
         if attitude is None:
             attitude= {
             'quaternion': np.array([1.0, 0.0, 0.0, 0.0]),  # Initial quaternion [scalar, i, j, k]
-            'angular_velocity': np.array([0.0, 0.0, 0.0]),  # Initial angular velocity [rad/s]
+            'angular_velocity': np.array([0.01, 0.01, 0.01]) # Initial angular velocity [rad/s]
             } 
 
         #Define availability of the satellite
@@ -264,6 +243,7 @@ class Satellite(ABC):
         # Propagate the attitude quaternion using quaternion kinematics
         quaternion = self.attitude['quaternion']
         angular_velocity = self.attitude['angular_velocity']
+        # print(f"Attitude quaternion: {quaternion}, angular velocity: {angular_velocity}")
 
         # Update quaternion using quaternion kinematics (Euler integration)
         q_dot = 0.5 * np.array([
@@ -279,6 +259,7 @@ class Satellite(ABC):
 
         # Update attitude parameters
         self.attitude['quaternion'] = quaternion
+
 
     def distance_between(sat1, sat2, time_step):
         # propagate both satellites to the same time
@@ -297,6 +278,7 @@ class Satellite(ABC):
     def calculate_pointing_direction(self):
         # Calculate pointing direction from the attitude quaternion
         quaternion = self.attitude['quaternion']
+        # print(f"Attitude quaternion: {quaternion}")
 
         # Convert quaternion to rotation matrix
         rotation_matrix = self.quaternion_to_rotation_matrix(quaternion)
@@ -314,7 +296,63 @@ class Satellite(ABC):
             [2*q[1]*q[2] + 2*q[0]*q[3], 1 - 2*q[1]**2 - 2*q[3]**2, 2*q[2]*q[3] - 2*q[0]*q[1]],
             [-2*q[0]*q[2] + 2*q[1]*q[3], 2*q[0]*q[1] + 2*q[2]*q[3], 1 - 2*q[1]**2 - 2*q[2]**2]
         ])
+    
+    def charge_battery(self, sunlight_exposure, time_step):
+        # Charge the battery based on the solar panel efficiency and sunlight exposure
+        # print(f"Solar panel size: {self.epsys['SolarPanelSize']:.2f} m2, Solar panel efficiency: {self.epsys['Efficiency']:.2f}, Solar constant: {self.epsys['SolarConstant']:.2f} W/m2, Sunlight exposure: {sunlight_exposure:.2f} W/m2, Time step: {time_step:.2f} s")
+        energy_produced = self.epsys['SolarPanelSize'] * self.epsys['Efficiency'] * self.epsys['SolarConstant'] * sunlight_exposure * time_step
+        self.epsys['EnergyAvailable'] = min(self.epsys['EnergyAvailable'] + energy_produced, self.epsys['EnergyStorage'])
+        # print(f"Energy produced: {energy_produced:.2f} J, Energy available: {self.epsys['EnergyAvailable']:.2f} J")
 
+    def get_sunlight_exposure(self):
+        # Calculate the sunlight exposure
+        # Get the Sun vector
+        sun_vector = self.get_sun_vector()
+
+        # Calculate the angle between the Sun vector and the satellite's pointing direction
+        pointing_direction = self.calculate_pointing_direction()
+        # print(f"Pointing direction: {pointing_direction}")
+        cos_angle = np.dot(pointing_direction, sun_vector)
+        angle = math.acos(cos_angle)
+
+        # Check if the satellite is in the Earth's shadow
+        if self.is_in_eclipse():
+            return 0  # No sunlight exposure if in eclipse
+
+        # Calculate sunlight exposure based on the angle
+        # Assuming solar panels are perfectly aligned with the satellite's pointing direction
+        exposure = max(0, cos_angle)  # Max ensures no negative values
+        
+        # print(f"Angle between Sun vector and pointing direction: {math.degrees(angle):.2f} degrees, Sunlight exposure: {exposure:.2f}")
+        return exposure
+    
+    def is_in_eclipse(self):
+        # Get the satellite's position
+        sat_position = np.array([self.orbit['x'], self.orbit['y'], self.orbit['z']])
+        # Calculate the Earth's shadow radius at the satellite's altitude
+        earth_radius = 6371e3  # Earth radius in meters
+        shadow_radius = earth_radius * (1 + self.orbit['semimajoraxis'] / (self.orbit['semimajoraxis'] + earth_radius))
+        
+        # Calculate the distance from the satellite to the center of the Earth
+        distance_to_earth = np.linalg.norm(sat_position)
+
+        # Check if the satellite is within the Earth's shadow
+        return distance_to_earth < shadow_radius
+    
+    def get_sun_vector(self):
+        # Get the satellite's position
+        sat_position = np.array([self.orbit['x'], self.orbit['y'], self.orbit['z']])
+        # Get the Sun's position
+        sun_position = self.get_sun_position()
+        # Calculate the vector from the satellite to the Sun
+        sun_vector = sun_position - sat_position
+        return sun_vector / np.linalg.norm(sun_vector)  # Normalize the vector
+    
+    def get_sun_position(self):
+        # For simplicity, assume a fixed position in the inertial frame
+        # Realistically, this should be updated based on the current date and time
+        return np.array([1.496e+11, 0, 0])  # Example: Sun at 1 AU along the x-axis in meters
+    
 
 
 class TargetSatellite(Satellite):
@@ -326,39 +364,6 @@ class TargetSatellite(Satellite):
 class ObserverSatellite(Satellite):
     """
     Represents an observer satellite that can detect and observe target satellites.
-
-    Attributes:
-        name (str): The name of the observer satellite.
-        num_targets (int): The number of target satellites.
-        num_observers (int): The number of observer satellites.
-        commsys (dict): The communication system configuration.
-        num_observers (int): The number of observer satellites.
-        observation_status_matrix (ndarray): The matrix to track the observation status of each target satellite.
-        pointing_accuracy_matrix (ndarray): The matrix to track the pointing accuracy for each target satellite.
-        observation_time_matrix (ndarray): The matrix to track the total observation time for each target satellite.
-        optic_payload (OpticPayload): The optic payload of the observer satellite.
-        max_distance (float): The maximum distance for detection based on the optic payload.
-        has_new_data (ndarray): The flag to track new data status for each observer satellite.
-        communication_timeline_matrix (ndarray): The matrix to track the communication timeline.
-        is_processing (bool): Indicates if the satellite is currently processing.
-        processing_time (int): The time required for processing new data.
-        observation_counts (ndarray): The matrix to track the number of observations (timesteps) for each target satellite.
-        cumulative_pointing_accuracy (ndarray): The matrix to track the cumulative pointing accuracy for each target satellite.
-        power_consumption_rates (dict): The power consumption rates for different modes.
-        current_power_consumption (int): The current power consumption.
-
-    Methods:
-        evaluate_pointing_accuracy(target_satellite, time_step): Evaluates the pointing accuracy for a target satellite.
-        get_targets(target_satellites, time_step): Gets the target satellites and updates the observation status.
-        check_and_update_processing_state(time_step): Checks and updates the processing state of the satellite.
-        can_communicate(): Checks if the satellite can communicate.
-        can_communicate_with_centralized(other, time_step): Checks if the satellite can communicate with another satellite in a centralized communication model.
-        can_communicate_with_decentralized(other, time_step): Checks if the satellite can communicate with another satellite in a decentralized communication model.
-        can_communicate_with_everyone(other, time_step): Checks if the satellite can communicate with another satellite in a fully decentralized communication model.
-        update_processing_status(observation_status_matrix): Updates the observation status based on received information.
-        calculate_data_volume(other, time_step): Calculates the data volume to be transmitted to another satellite.
-        stand_by(): Performs the stand-by action.
-        propagate_information(other_satellite, time_step, communication_type, reward, steps, communication_done, data_transmitted, data_to_transmit): Propagates information to other satellites based on communication capabilities and new data availability.
     """
     def __init__(self, num_targets, num_observers, name="observer"):
         super().__init__(name = name)
@@ -395,7 +400,7 @@ class ObserverSatellite(Satellite):
         self.data_matrix_acc = np.zeros((num_observers, num_observers), dtype=np.float32)  # Accumulated data exchange
         self.adjacency_matrix = np.zeros((num_observers, num_observers), dtype=np.int32)  # Current timestep adjacency matrix
         self.adjacency_matrix_acc = np.zeros((num_observers, num_observers), dtype=np.int32)  # Accumulated adjacency matrix
-        self.global_observation_counts = np.zeros(num_targets, dtype=int)  # Global matrix to track the number of observations for each target
+        self.global_observation_counts = np.zeros((num_observers,num_targets), dtype=int)  # Global matrix to track the number of observations for each target
 
     def evaluate_pointing_accuracy(self, target_satellite,time_step):
         # Evaluate pointing accuracy for each observer satellite with respect to each target satellite if they are in range. Otherwise returne None
@@ -455,6 +460,8 @@ class ObserverSatellite(Satellite):
                     # print(f"Observer {observer_index} detected target {target_index}")
                     self.has_new_data[:] = True  # Set flag to indicate new data
                     self.update_contacts_matrix(observer_index, target_index) # Mark as contacted this timestep
+                
+                print(f"{self.name} has detected target: {target_satellite.name}")
         return self.contacts_matrix, self.contacts_matrix_acc
 
     def update_max_pointing_accuracy_avg_sat(self,index, target_index):
@@ -586,7 +593,8 @@ class ObserverSatellite(Satellite):
         Propagate information to other satellites based on communication capabilities and new data availability.
         This method combines the logic of sharing data across centralized, decentralized, and fully open communication models.
         """
-        if self.can_communicate(other_satellite_index):
+        # print(f"{self.name} is trying to communicate with {other_satellite.name}")
+        if self.can_communicate(other_satellite_index)  and data_to_transmit>0:
             can_communicate = False
             volume_of_data = 0
 
@@ -599,15 +607,28 @@ class ObserverSatellite(Satellite):
                 can_communicate = self.can_communicate_with_everyone(other_satellite, time_step)
             else :
                 raise ValueError("Invalid communication type. Choose from 'centralized', 'decentralized', or 'everyone'.")
-            
+
+            # print(f"{self.name} and {other_satellite.name} are available and have info to communicate. Can communicate: {can_communicate}")
             if can_communicate:
                 # Calculate the volume of data exchanged based on effective data rate and time step
-                volume_of_data = self.calculate_data_volume(other_satellite, time_step)
+                effective_data_rate = self.calculate_data_volume(other_satellite, time_step)
+                if effective_data_rate <= 0:
+                    # Effective data rate is zero or less, skip further attempts
+                    reward_step -= 0.1  # Penalty for failed communication
+                    communication_done = True
+                    steps += 1
+                    return reward_step, communication_done, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_observation_counts, self.max_pointing_accuracy_avg_sat, data_transmitted
+                
+                # Calculate the volume of data exchanged based on effective data rate and time step
+                volume_of_data = min(self.calculate_data_volume(other_satellite, time_step), data_to_transmit - data_transmitted)
                 data_transmitted += volume_of_data
+                # print(f"Data transmitted: {data_transmitted:.2f} bits, Data to transmit: {data_to_transmit:.2f} bits")
                 # Update data matrices in the Simulator
                 self.update_data_matrix(index, other_satellite_index, volume_of_data)
-                reward_step += 10 # Reward for successful communication step
-                
+                reward_step += 100 # Reward for successful communication step
+
+                print(f"{self.name} is communicating with {other_satellite.name}")
+
                 # if data transmitted is already enough, then information has been correctly propagated
                 if data_transmitted >= data_to_transmit:
                     self.update_adjacency_matrix(index, other_satellite_index)
@@ -625,16 +646,20 @@ class ObserverSatellite(Satellite):
                     self.has_new_data[other_satellite_index] = False
                     # print(f"Data successfully transmitted from {self.name} to {other_satellite.name}")
                     # print(f"Adjacency matrix: \n{self.adjacency_matrix_acc[index]}")
-                    reward_step += 100  # Reward for successful complete communication
+                    reward_step += 1000  # Reward for successful complete communication
+                    print(f"Data successfully transmitted from {self.name} to {other_satellite.name}")
+                    print(f"Data transmitted: {data_transmitted / 8 / 1024} KBytes")
                     communication_done = True
             else:
                 reward_step -= 0.1 # Penalty for failed (other not available) or incomplete communication
                 communication_done = True
+                # print(f"{self.name} cannot communicate with {other_satellite.name}")
         else:
             reward_step -= 0.1  # Penalty for failed communication (not available or same satellite)
             communication_done = True
+            # print(f"{self.name} cannot communicate with {other_satellite.name}")
         steps += 1
-        return reward_step,communication_done, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_observation_counts, self.max_pointing_accuracy_avg_sat
+        return reward_step,communication_done, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_observation_counts, self.max_pointing_accuracy_avg_sat, data_transmitted
 
     # action >= 2: Observe target
     def observe_target(self, index, target, target_index, time_step, reward_step, steps=0, observation_done=False):
@@ -658,6 +683,7 @@ class ObserverSatellite(Satellite):
                     self.update_contacts_matrix(index, target_index)
                     # Update observation time
                     self.observation_time_matrix[target_index] += time_step  # Assuming time_step is in seconds
+                    print(f"{self.name} is observing target {target.name}")
                 else:
                     if self.observation_counts[target_index] > 0 and self.observation_status_matrix[target_index] == 2 and self.cumulative_pointing_accuracy[index,target_index] > 0:
                         # just finished observing the target
@@ -666,15 +692,16 @@ class ObserverSatellite(Satellite):
                         self.pointing_accuracy_avg[index, target_index] = self.cumulative_pointing_accuracy[index, target_index] / self.observation_counts[target_index]
                         # print(f"After dividing: Pointing accuracy average for target {target_index} by observer {index}: {self.pointing_accuracy_avg[index, target_index]}")
                         if self.pointing_accuracy_avg[index,target_index] > 0:
-                            self.global_observation_counts[target_index] += 1 # Update global observation matrix
+                            self.global_observation_counts[index, target_index] += 1 # Update global observation matrix
                             self.update_max_pointing_accuracy_avg_sat(index,target_index)
                             # print(f"Maximum pointing accuracy: {self.max_pointing_accuracy_avg_sat}")
                             self.observation_status_matrix[target_index] = 3  # Mark as observed
                             self.has_new_data[:] = True
                             self.cumulative_pointing_accuracy[index,target_index] = 0  # Reset cumulative pointing accuracy
                             self.observation_counts[target_index] = 0  # Reset target counts
-                            reward_step += 100*self.pointing_accuracy_avg[index,target_index] # Reward for successful observation
+                            reward_step += 1000*self.pointing_accuracy_avg[index,target_index] # Reward for successful observation
                             observation_done = True
+                            print(f"{self.name} successfully observed target {target.name} with pointing accuracy: {self.pointing_accuracy_avg[index,target_index]}")
                         else:
                             raise ValueError("Error: Pointing accuracy average is zero")
                     else:
@@ -684,3 +711,11 @@ class ObserverSatellite(Satellite):
         steps += 1
         return reward_step, observation_done, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_observation_counts, self.max_pointing_accuracy_avg_sat
                     
+# Example usage of the updated class (main function or simulation setup)
+if __name__ == "__main__":
+    satellite = Satellite()
+    for _ in range(10):  # Simulate 10 time steps
+        satellite.propagate_orbit(1)
+        satellite.propagate_attitude(1)
+        sunlight_exposure = satellite.get_sunlight_exposure()
+        satellite.charge_battery(sunlight_exposure, 1)

@@ -1,4 +1,6 @@
+import os
 from copy import copy
+import time
 
 import numpy as np
 import gymnasium as gym
@@ -7,7 +9,8 @@ from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.utils.typing import MultiAgentDict
 
 from simulator import Simulator, CentralizedSimulator, MixedSimulator, DecentralizedSimulator
-
+from plotting import plot
+from data_logging import log_full_matrices, log_summary_results, compute_statistics_from_npy
 class FSS_env(MultiAgentEnv):
     metadata = {
         "name": "FSS_env-v0",
@@ -177,8 +180,8 @@ class FSS_env(MultiAgentEnv):
                 zip(self.agents, [True for _ in self.agents])
             )
         '''
-        if self._step%1000 == 0:
-            print(f"Step {self.simulator.time_step_number} rewards: {rewards}")
+        if self._step%10000 == 0:
+            print(f"Step {self.simulator.time_step_number} done")
         # print(f"Terminations this step: {terminations}")
         # print(f"Truncations this step: {truncations}")
 
@@ -266,22 +269,95 @@ class FSS_env(MultiAgentEnv):
         return observation
     
 if __name__ == "__main__":
-    env = FSS_env(num_targets=10, num_observers=10, simulator_type='everyone', time_step=1, duration=24*60*60)
+    ### Example of how to use the environment for a Monte Carlo simulation
+    ############################ EDIT HERE ############################
+    num_simulations = 3  # desired number of simulations
+    num_targets = 10 # Number of target satellites
+    num_observers = 10 # Number of observer satellites
+    simulator_type = 'everyone' # choose from 'centralized', 'decentralized', or 'everyone'
+    time_step = 1 # Time step in seconds
+    duration = 24*60*60 # Duration of the simulation in seconds
+    steps_batch_size = 1000 # Number of steps before printing new information
 
-    observations, infos = env.reset()
+    # Define the folder name
+    results_folder = os.path.join("Results", "MonteCarlo") # v0, MonteCarlo, PPO, DQN, etc.
+    results_folder_plots = os.path.join(results_folder, "plots")
+    os.makedirs(results_folder, exist_ok=True)
+    os.makedirs(results_folder_plots, exist_ok=True)
 
-    total_reward = 0
-    while env.agents:
-        # this is where you would insert your policy
-        actions = {agent: env.action_space(agent).sample() for agent in env.agents}
-        # print(f"Actions: {actions}")
+    write_to_csv_file_flag = True  # Write the output to a file
+    plot_flag = True  # Plot the output
+    # Define the relevant attributes to be logged (from env.simulator)
+    # add in matrices that you want to log
+    relevant_attributes = [
+        'adjacency_matrix', 'data_matrix', 'contacts_matrix',
+        'global_observation_counts', 'max_pointing_accuracy_avg',
+        'global_observation_status_matrix', 'batteries', 'storage', 'total_reward', 
+        'total_duration', 'total_steps',
+        ]
+    ####################################################################
 
-        observations, rewards, terminations, truncations, infos = env.step(actions)
-        # print(f"Step observations: {observations}")
-        total_reward += sum(rewards.values())
-        print(f"Step {env.simulator.time_step_number} reward: {rewards}")
-        print(f"Total reward (step {env.simulator.time_step_number}): {total_reward}")
+    env = FSS_env(num_targets, num_observers, simulator_type, time_step, duration)
 
-    print(f"Total reward: {total_reward}")
-    env.close()
+    for i in range(num_simulations):
+        print()
+        print(f"########Starting simulation {i+1}########")
+        # Run the simulation until timeout or agent failure
+        env = FSS_env(num_targets, num_observers, simulator_type, time_step, duration)
+        total_reward = 0
+        observation, infos = env.reset()
+
+        action_counts = {}
+        start_time = time.time()
+
+        while env.agents:
+            step_start_time = time.time()
+            actions = {agent: env.action_space.sample() for agent in env.agents}
+            for agent, action in actions.items():
+                action_counts.setdefault(agent, []).append(action)
+
+            observation, rewards, terminated, truncated, infos = env.step(actions)
+            total_reward += sum(rewards.values())
+            step_end_time = time.time()
+            step_duration = step_end_time - step_start_time
+
+            if any(terminated.values()) or any(truncated.values()):
+                print("Episode finished")
+                break
+
+        end_time = time.time()
+        total_duration = end_time - start_time
+        print(f"Total steps: {env.simulator.time_step_number}")
+        print(f"Total duration of episode: {total_duration:.3f} seconds")
+        print(f"Total reward: {total_reward}")
+
+        # Prepare the data for logging
+        matrices = {
+            'adjacency_matrix': env.simulator.adjacency_matrix_acc,
+            'data_matrix': env.simulator.data_matrix_acc,
+            'contacts_matrix': env.simulator.contacts_matrix_acc,
+            'global_observation_counts': np.sum(env.simulator.global_observation_counts, axis=0),
+            'max_pointing_accuracy_avg': env.simulator.max_pointing_accuracy_avg,
+            'global_observation_status_matrix': env.simulator.global_observation_status_matrix,
+            'batteries': env.simulator.batteries,
+            'storage': env.simulator.storage,
+            'total_reward': total_reward,
+            'total_duration': total_duration,
+            'total_steps': env.simulator.time_step_number,
+        }
+
+        if write_to_csv_file_flag:
+            log_full_matrices(matrices,results_folder)
+            data_summary = {
+                'Total Reward': total_reward,
+                'Total Duration': total_duration,
+            }
+            log_summary_results(data_summary, results_folder)
+
+        if plot_flag:
+            plot(matrices, results_folder_plots, total_duration, total_reward)
+    
+    if write_to_csv_file_flag:
+        compute_statistics_from_npy(results_folder, relevant_attributes)
+        print("Averages written to averages.csv")
 

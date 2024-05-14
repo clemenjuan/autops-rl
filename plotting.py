@@ -42,7 +42,7 @@ def plot_matrices(matrix_dict, plot_dir, file_identifier, total_time, total_rewa
     ax.set_ylabel('Observer', fontsize=12)
 
     # Plotting the bar charts for 1D arrays 2nd row
-    array_labels = ['global_observation_count_matrix', 'maximum_pointing_accuracy_average_matrix']
+    array_labels = ['global_observation_counts', 'max_pointing_accuracy_avg']
     for i, title in enumerate(array_labels):
         ax = axs[1, i % 2] 
         data = matrix_dict[title]

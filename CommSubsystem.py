@@ -31,7 +31,7 @@ class CommSubsystem():
         self.FREQUENCY = 437e6 #[Hz]
         self.BANDWIDTH = 9600 #[Hz]
         self.SYMBOLRATE = 9600 #[Hz]
-        self.MODULATIONORDER = 2 #QPSK
+        self.MODULATIONORDER = 4  #QPSK
         self.SENSITIVITY = -151 #[dBW]
         #self.AVAILABLEENERGY = 5000 #[J]
   #      self.current_data = initial_data
@@ -65,7 +65,12 @@ class CommSubsystem():
     
     def calculateIdealDataRate(self, dist):
         # This is the Shannon-Hartley Theorem
-        return self.BANDWIDTH * np.log2(1 + 10**(self.calculateSNR(dist)/10)) #bits/s
+        IdealDataRate=self.BANDWIDTH * np.log2(1 + 10**(self.calculateSNR(dist)/10)) #bits/s
+        
+        if IdealDataRate> self.SYMBOLRATE * np.log2(self.MODULATIONORDER): #In the case of which the channel is limiting my data rate
+            return self.SYMBOLRATE * np.log2(self.MODULATIONORDER) 
+        else:
+            return IdealDataRate
     
     def calculateBER(self, dist):
         bitrate = self.SYMBOLRATE * np.log2(self.MODULATIONORDER)
@@ -90,3 +95,13 @@ class CommSubsystem():
 #        self.current_data = self.current_data - data_sent
 #        if self.current_data < 0:
 #            self.current_data = 0
+# Instantiate the class
+comm = CommSubsystem()
+
+# Define a value for 'dist'
+dist = 1500000
+# Call the method on the instance with the defined 'dist'
+testdist = comm.calculateEffectiveDataRate(dist)
+
+# Print the result
+print(testdist)

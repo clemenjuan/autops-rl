@@ -4,7 +4,8 @@ import pandas as pd
 import csv
 
 
-def log_full_matrices(matrices, simulation_number, folder):
+def log_full_matrices(matrices, folder):
+    simulation_number = get_next_simulation_number_write(folder)
     matrix_folder = os.path.join(folder, f"simulation_{simulation_number}_matrices")
     os.makedirs(matrix_folder, exist_ok=True)
 
@@ -16,8 +17,9 @@ def log_full_matrices(matrices, simulation_number, folder):
         # Save the matrix to file in .npy format
         np.save(file_path, matrix)
 
-def log_summary_results(data_summary, simulation_number, folder):
-    summary_file = os.path.join(folder, f"simulation_{simulation_number}_summaries.csv")
+def log_summary_results(data_summary, folder):
+    simulation_number = get_next_simulation_number_write(folder)
+    summary_file = os.path.join(folder, f"simulation_{simulation_number - 1}_summaries.csv")
     df = pd.DataFrame([data_summary])
     if not os.path.exists(summary_file):
         df.to_csv(summary_file, index=False)
@@ -34,18 +36,32 @@ def log_simulation_results(data_summary, folder):
 
 def get_next_simulation_number_write(results_folder):
     """
-    Get the next simulation number based on existing files in the results folder.
+    Get the next simulation number based on existing folders in the results folder.
     """
-    existing_files = [file for file in os.listdir(results_folder) if file.startswith("simulation_results_")]
-
-    if existing_files:
-        latest_simulation_number = max(int(file.split("_")[2].split(".")[0]) for file in existing_files)
+    # List all items in the results folder
+    existing_items = os.listdir(results_folder)
+    
+    # Filter to only include directories that match the "simulation_x_matrices" pattern
+    existing_simulation_dirs = [
+        item for item in existing_items 
+        if os.path.isdir(os.path.join(results_folder, item)) and item.startswith("simulation_") and item.endswith("_matrices")
+    ]
+    
+    # Extract the simulation numbers
+    simulation_numbers = [
+        int(item.split("_")[1]) for item in existing_simulation_dirs
+    ]
+    
+    if simulation_numbers:
+        # Get the maximum simulation number and add 1
+        latest_simulation_number = max(simulation_numbers)
         return latest_simulation_number + 1
     else:
+        # If no simulation directories are found, start with 1
         return 1
     
 def aggregate_simulation_results(folder):
-    files = [os.path.join(folder, f) for f in os.listdir(folder) if f.startswith('simulation_results_')]
+    files = [os.path.join(folder, f) for f in os.listdir(folder) if f.startswith('simulation_')]
     if not files:
         print("No simulation data found.")
         return

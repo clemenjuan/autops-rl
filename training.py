@@ -10,6 +10,7 @@ from ray.rllib.algorithms.ppo import (
     PPOTF2Policy,
     PPOTorchPolicy,
 )
+from ray.rllib.algorithms.a2c import A2CConfig
 from ray.tune.registry import register_env
 from ray.tune.logger import pretty_print
 from FSS_env import FSS_env
@@ -79,24 +80,30 @@ def check_observation_space(obs_space, observations):
 
 
 # check_observation_space(obs_space, observations)
-
-
-
+        
 def select_policy(algorithm, framework):
-        if algorithm == "PPO":
-            if framework == "torch":
-                return PPOTorchPolicy
-            elif framework == "tf":
-                return PPOTF1Policy
-            else:
-                return PPOTF2Policy
-        elif algorithm == "DQN":
-            if framework == "torch":
-                return DQNTorchPolicy
-            else:
-                return DQNTFPolicy
+    if algorithm == "PPO":
+        if framework == "torch":
+            return PPOTorchPolicy
+        elif framework == "tf":
+            return PPOTF1Policy
         else:
-            raise ValueError("Unknown algorithm: ", algorithm)
+            return PPOTF2Policy
+    elif algorithm == "DQN":
+        if framework == "torch":
+            return DQNTorchPolicy
+        else:
+            return DQNTFPolicy
+    elif algorithm == "A2C":
+        from ray.rllib.algorithms.a2c import A2CConfig, A2CTorchPolicy, A2CTFPolicy
+        if framework == "torch":
+            return A2CTorchPolicy
+        else:
+            return A2CTFPolicy
+    # Add other algorithms similarly
+    else:
+        raise ValueError("Unknown algorithm: ", algorithm)
+
 
 
 
@@ -148,6 +155,26 @@ dqn_config.training(
 dqn_config.resources(num_gpus=0)
 
 
+# Configuration for A2C
+a2c_config = A2CConfig()
+a2c_config.environment(
+     env_name,
+     disable_env_checking=True,
+     )
+a2c_config.framework(args.framework)
+a2c_config.rollouts(
+    num_rollout_workers=4,
+    num_envs_per_worker=2,
+    rollout_fragment_length="auto",
+    batch_mode="complete_episodes"
+)
+a2c_config.training(
+        lr=0.0001,
+        gamma=0.95
+)
+a2c_config.resources(num_gpus=0)
+
+
 
 # Specify two policies, each with their own config created above
 # You can also have multiple policies per algorithm, but here we just
@@ -165,6 +192,12 @@ policies = {
         act_space,
         dqn_config,
     ),
+    "a2c_policy": (
+        select_policy("A2C", args.framework),
+        obs_space,
+        act_space,
+        a2c_config,
+    ),
 }
 
 def policy_mapping_fn_ppo(agent_id, episode, worker, **kwargs):
@@ -172,29 +205,39 @@ def policy_mapping_fn_ppo(agent_id, episode, worker, **kwargs):
         
 def policy_mapping_fn_dqn(agent_id, episode, worker, **kwargs):
         return "dqn_policy"
+
+def policy_mapping_fn_a2c(agent_id, episode, worker, **kwargs):
+        return "a2c_policy"
         
-# Add multi-agent configuration options to both configs and build them.
+# Add multi-agent configuration options and build the trainers
 ppo_config.multi_agent(
     policies=policies,
     policy_mapping_fn=policy_mapping_fn_ppo,
     policies_to_train=["ppo_policy"],
 )
-
 print("Building PPO")
 ppo = ppo_config.build()
 print("PPO built")
+
 
 dqn_config.multi_agent(
     policies=policies,
     policy_mapping_fn=policy_mapping_fn_dqn,
     policies_to_train=["dqn_policy"],
 )
-
-'''
 print("Building DQN")
 dqn = dqn_config.build()
 print("DQN built")
-'''
+
+
+a2c_config.multi_agent(
+    policies=policies,
+    policy_mapping_fn=policy_mapping_fn_a2c,
+    policies_to_train=["a2c_policy"],
+)
+print("Building A2C")
+a2c = a2c_config.build()
+print("A2C built")
 
 
 
@@ -206,36 +249,25 @@ print("DQN built")
 for i in range(args.stop_iters):
     print("== Iteration", i, "==")
 
-    '''
-    # improve the DQN policy
-    print("-- DQN --")
-    result_dqn = dqn.train()
-    print(pretty_print(result_dqn))
-    '''
-
     # improve the PPO policy
     print("-- PPO --")
     start_time = time.time()
     result_ppo = ppo.train()
     print(pretty_print(result_ppo))
-    print("Time taken for training with 8 simulations: ", time.time()-start_time)
+    print("Time taken for training PPO with 8 simulations: ", time.time()-start_time)
 
-    # Test passed gracefully.
-    '''
-    if (
-        args.as_test
-        # and result_dqn["episode_reward_mean"] > args.stop_reward
-        and result_ppo["episode_reward_mean"] > args.stop_reward
-    ):
-        print("test passed (agents above requested reward)")
-        quit(0)
-    '''
-    
 
-    # swap weights to synchronize
-    # dqn.set_weights(ppo.get_weights(["ppo_policy"]))
-    # ppo.set_weights(dqn.get_weights(["dqn_policy"]))
+    # improve the DQN policy
+    print("-- DQN --")
+    start_time = time.time()
+    result_dqn = dqn.train()
+    print(pretty_print(result_dqn))
+    print("Time taken for training DQN with 8 simulations: ", time.time()-start_time)
 
-# Desired reward not reached.
-# if args.as_test:
-#    raise ValueError("Desired reward ({}) not reached!".format(args.stop_reward))
+
+    # improve the A2C policy
+    print("-- A2C --")
+    start_time = time.time()
+    result_a2c = a2c.train()
+    print(pretty_print(result_a2c))
+    print("Time taken for training A2C with 8 simulations: ", time.time()-start_time)
