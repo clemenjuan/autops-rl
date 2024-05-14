@@ -35,22 +35,24 @@ deactivate
 ```
 
 ## Usage
-Monte-Carlo simulation. No trained agent involved. Edit simulation parameters at the end of the file ```gym_env.py``` .
+## Monte-Carlo simulation. 
+No trained agent involved. Edit simulation parameters at the end of the file ```FSS_env.py``` .
 ### Usage on Mac or Linux
 ```
-python3 gym_env.py
+python3 FSS_env.py
 ```
 ### Usage on Windows
 ```
-python gym_env.py 
+python FSS_env.py 
 ```
 
-Acutal Trained Agent. Training for PPO (working on DQN as well) 
+## Trained Agent. 
+Training for PPO (work in progress for DQN and A2C as well)
 ### Usage on Mac or Linux
 ```
-python3 train.py
+python3 training.py
 ```
 ### Usage on Windows
 ```
-python train.py
+python training.py
 ```
