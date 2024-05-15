@@ -68,23 +68,44 @@ register_env(env_name, lambda config: env_creator(env_config))
 
 # Configuration for PPO
 ppo_config = setup_config(PPOConfig())
-ppo_config.training(vf_loss_coeff=0.01, num_sgd_iter=6, train_batch_size=env_config["duration"], lr=tune.loguniform(1e-4, 1e-2), gamma=tune.uniform(0.9, 0.99), use_gae=True, lambda_=tune.uniform(0.9, 1.0), clip_param=0.2, entropy_coeff=0.01, sgd_minibatch_size=64)
+ppo_config.training(
+    vf_loss_coeff=0.01, num_sgd_iter=6, train_batch_size=env_config["duration"],
+    lr=tune.loguniform(1e-4, 1e-2) if args.tune else 1e-3,  # Set a default value if not tuning
+    gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99,
+    use_gae=True, lambda_=tune.uniform(0.9, 1.0) if args.tune else 0.95,
+    clip_param=0.2, entropy_coeff=0.01, sgd_minibatch_size=64
+)
 
 # Configuration for DQN
 dqn_config = setup_config(DQNConfig())
-dqn_config.training(n_step=3, lr=tune.loguniform(1e-4, 1e-2), gamma=tune.uniform(0.9, 0.99))
+dqn_config.training(
+    n_step=3,
+    lr=tune.loguniform(1e-4, 1e-2) if args.tune else 1e-3,
+    gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99
+)
 
 # Configuration for A2C
 a2c_config = setup_config(A2CConfig())
-a2c_config.training(lr=tune.loguniform(1e-4, 1e-2), gamma=tune.uniform(0.9, 0.99), sample_async=False)
+a2c_config.training(
+    lr=tune.loguniform(1e-4, 1e-2) if args.tune else 1e-3,
+    gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99,
+    sample_async=False
+)
 
 # Configuration for A3C
 a3c_config = setup_config(A3CConfig())
-a3c_config.training(lr=tune.loguniform(1e-4, 1e-2), gamma=tune.uniform(0.9, 0.99), sample_async=False)
+a3c_config.training(
+    lr=tune.loguniform(1e-4, 1e-2) if args.tune else 1e-3,
+    gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99,
+    sample_async=False
+)
 
 # Configuration for IMPALA
 impala_config = setup_config(ImpalaConfig())
-impala_config.training(lr=tune.loguniform(1e-4, 1e-2), gamma=tune.uniform(0.9, 0.99))
+impala_config.training(
+    lr=tune.loguniform(1e-4, 1e-2) if args.tune else 1e-3,
+    gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99
+)
 
 # Function to get the latest checkpoint path
 def get_latest_checkpoint(checkpoint_dir):

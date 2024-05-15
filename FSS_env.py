@@ -48,6 +48,7 @@ class FSS_env(MultiAgentEnv):
         # Define the observation and action spaces for each agent
         self._observation_spaces = spaces.Dict({
             "observer_satellites": spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_observers, len(self.orbital_params_order))),
+            "band": spaces.Box(low=1, high=5, shape=(1,), dtype=np.int8),
             "target_satellites": spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_targets, len(self.orbital_params_order_targets))),
             "availability": spaces.MultiBinary(1),
             "battery": spaces.Box(low=0, high=1, shape=(self.num_observers, 1)),
@@ -202,6 +203,7 @@ class FSS_env(MultiAgentEnv):
         i = agent_idx
         observer_orbit_params = np.array([observer.orbit[param] for param in orbital_params_order], dtype=np.float32)
         observation['observer_satellites'][i] = observer_orbit_params
+        observation['band'] = np.array([observer.commsys['band']], dtype=np.int8)
         observation['availability'] = np.array([observer.availability], dtype=np.int8)
         observation['battery'][i] = np.array([observer.epsys['EnergyAvailable'] / observer.epsys['EnergyStorage']], dtype=np.float32)
         observation['storage'][i] = np.array([observer.DataHand['StorageAvailable'] / observer.DataHand['DataStorage']], dtype=np.float32)
@@ -226,7 +228,9 @@ class FSS_env(MultiAgentEnv):
                 target_orbit_params = np.array([target.orbit[param] for param in orbital_params_order_targets], dtype=np.float32)
                 observation['target_satellites'][k] = target_orbit_params
 
+        # Ensure all values are within the defined bounds
         observation['observer_satellites'] = np.array(observation['observer_satellites'], dtype=np.float32)
+        observation['band'] = np.array(observation['band'], dtype=np.int8)
         observation['availability'] = np.array(observation['availability'], dtype=np.int8)
         observation['battery'] = np.clip(np.array(observation['battery'], dtype=np.float32), 0, 1)  # Also ensures values are within bounds
         observation['storage'] = np.clip(np.array(observation['storage'], dtype=np.float32), 0, 1)  # Also ensures values are within bounds

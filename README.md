@@ -17,15 +17,25 @@ cd masterthesis_git
 It is strongly recommended that you use a virtual environment in order to manage dependencies and keep your projects organized without interfering with other projects or the global Python installation. You can create one by:
 ### Setup on Mac or Linux
 ```
+# Creates the environment
 python3 -m venv .venv
-source .venv/bin/activate
-pip install numpy gymnasium pettingzoo matplotlib pandas ray "ray[tune]" tree typer scikit-image optuna torch lz4 tensorflow supersuit
 
+# Starts the environment
+source .venv/Scripts/activate
+
+# Installs all necessary packages
+pip install numpy gymnasium pettingzoo matplotlib pandas ray "ray[tune]" tree typer scikit-image optuna torch lz4 tensorflow supersuit
 ```
+
 ### Setup on Windows
 ```
+# Creates the environment
 python -m venv .venv
+
+# Starts the environment
 .venv\Scripts\activate
+
+# Installs all necessary packages
 pip install numpy gymnasium pettingzoo matplotlib pandas ray "ray[tune]" tree typer scikit-image optuna torch lz4 tensorflow supersuit 
 
 ```
@@ -50,7 +60,7 @@ python FSS_env.py
 Training for different policies (PPO, DQN, A2C, A3C, IMPALA).
 ### Usage
 Edit the common configuration setup function in training.py to include gpu resources or add more parallelism to the training process. 
-To perform hyperparameter tuning and training for different policies, run the following commands:
+To perform hyperparameter tuning and training for different policies, run the following commands (```python``` only for Windows):
 ```
 python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy ppo --checkpoint-dir ppo_checkpoints --tune
 python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy dqn --checkpoint-dir dqn_checkpoints --tune
@@ -59,7 +69,7 @@ python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --pol
 python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy impala --checkpoint-dir impala_checkpoints --tune
 ````
 If you only want to train (or keep training from last checkpoint) the policies without tuning, omit the --tune argument:
-````
+```
 python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy ppo --checkpoint-dir ppo_checkpoints
 python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy dqn --checkpoint-dir dqn_checkpoints
 python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a2c --checkpoint-dir a2c_checkpoints

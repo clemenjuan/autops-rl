@@ -461,7 +461,7 @@ class ObserverSatellite(Satellite):
                     self.has_new_data[:] = True  # Set flag to indicate new data
                     self.update_contacts_matrix(observer_index, target_index) # Mark as contacted this timestep
                 
-                print(f"{self.name} has detected target: {target_satellite.name}")
+                print(f"{self.name} has detected {target_satellite.name}")
         return self.contacts_matrix, self.contacts_matrix_acc
 
     def update_max_pointing_accuracy_avg_sat(self,index, target_index):
@@ -648,7 +648,7 @@ class ObserverSatellite(Satellite):
                     # print(f"Adjacency matrix: \n{self.adjacency_matrix_acc[index]}")
                     reward_step += 1000  # Reward for successful complete communication
                     print(f"Data successfully transmitted from {self.name} to {other_satellite.name}")
-                    print(f"Data transmitted: {data_transmitted / 8 / 1024} KBytes")
+                    print(f"Data transmitted: {data_transmitted / 8} Bytes")
                     communication_done = True
             else:
                 reward_step -= 0.1 # Penalty for failed (other not available) or incomplete communication
