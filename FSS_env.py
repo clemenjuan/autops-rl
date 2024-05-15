@@ -170,20 +170,8 @@ class FSS_env(MultiAgentEnv):
         # still be an entry for each agent
         infos = {agent: {} for agent in self.agents}
 
-        # Reward mean was working fine with
-        '''
-        if self._agent_selector.is_last():
-            self.terminations = dict(
-                zip(self.agents, [True for _ in self.agents])
-            )
-            self.truncations = dict(
-                zip(self.agents, [True for _ in self.agents])
-            )
-        '''
         if self._step%10000 == 0:
             print(f"Step {self.simulator.time_step_number} done")
-        # print(f"Terminations this step: {terminations}")
-        # print(f"Truncations this step: {truncations}")
 
         # print("Step done")
         # print(f"Step {self.simulator.time_step_number} reward: {rewards}")

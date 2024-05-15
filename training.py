@@ -2,272 +2,211 @@ import os
 import time
 import argparse
 import ray
-from ray import tune
-from ray.rllib.algorithms.dqn import DQNConfig, DQNTFPolicy, DQNTorchPolicy
-from ray.rllib.algorithms.ppo import (
-    PPOConfig,
-    PPOTF1Policy,
-    PPOTF2Policy,
-    PPOTorchPolicy,
-)
+from ray import air, tune
+from ray.rllib.algorithms.dqn import DQNConfig
+from ray.rllib.algorithms.ppo import PPOConfig
 from ray.rllib.algorithms.a2c import A2CConfig
+from ray.rllib.algorithms.a3c import A3CConfig
+from ray.rllib.algorithms.impala import ImpalaConfig
 from ray.tune.registry import register_env
 from ray.tune.logger import pretty_print
 from FSS_env import FSS_env
 
+'''
+Edit the common configuration setup function to include gpu resources or add more parallelism to the training process. 
+#### Usage ##############################
+To perform hyperparameter tuning and training for different policies, run the following commands:
+python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy ppo --checkpoint-dir ppo_checkpoints --tune
+python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy dqn --checkpoint-dir dqn_checkpoints --tune
+python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a2c --checkpoint-dir a2c_checkpoints --tune
+python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a3c --checkpoint-dir a3c_checkpoints --tune
+python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy impala --checkpoint-dir impala_checkpoints --tune
+
+To train (or keep training from last checkpoint) the policies without tuning, omit the --tune argument:
+python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy ppo --checkpoint-dir ppo_checkpoints
+python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy dqn --checkpoint-dir dqn_checkpoints
+python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a2c --checkpoint-dir a2c_checkpoints
+python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a3c --checkpoint-dir a3c_checkpoints
+python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy impala --checkpoint-dir impala_checkpoints
+'''
+
+##### EDIT THIS FUNCTION #####
+# Common configuration setup
+def setup_config(config):
+    config.environment(env=env_name, env_config=env_config, disable_env_checking=True)
+    config.framework(args.framework)
+    config.rollouts(num_rollout_workers=4, num_envs_per_worker=2, rollout_fragment_length="auto", batch_mode="complete_episodes")
+    config.resources(num_gpus=0)
+    return config
+###############################
+
 # Argument parsing setup
 parser = argparse.ArgumentParser()
 parser.add_argument("--framework", choices=["tf", "tf2", "torch"], default="torch", help="The DL framework specifier.")
-# parser.add_argument("--as-test", action="store_true", help="Whether this script should be run as a test.")
 parser.add_argument("--stop-iters", type=int, default=20, help="Number of iterations to train.")
-# parser.add_argument("--stop-timesteps", type=int, default=100000, help="Number of timesteps to train.")
 parser.add_argument("--stop-reward", type=float, default=500000.0, help="Reward at which we stop training.")
+parser.add_argument("--policy", choices=["ppo", "dqn", "a2c", "a3c", "impala"], required=True, help="Policy to train.")
+parser.add_argument("--checkpoint-dir", type=str, default="checkpoints", help="Directory to save checkpoints.")
+parser.add_argument("--tune", action="store_true", help="Whether to perform hyperparameter tuning.")
 args = parser.parse_args()
 
 def env_creator(env_config):
-    """Function to create and return your custom environment"""
     env = FSS_env(**env_config)
-    # env = FlattenObservationWrapper(env)
     return env
 
-# Register your environment to use it with Ray RLlib
+# Register environment
 env_name = "FSS_env-v0"
 env_config = {
-        "num_targets": 10, 
-        "num_observers": 10, 
-        "simulator_type": 'everyone', 
-        "time_step": 1, 
-        "duration": 24*60*60
-        }
-
-# register_env(env_name, lambda config=None: ValidateSpacesWrapper(env_creator(env_config)))
-register_env(env_name, lambda config=None: env_creator(env_config))
-
-
-tmp_env = env_creator(env_config)
-act_space = tmp_env.action_space
-obs_space = tmp_env.observation_space
-observations, infos = tmp_env.reset()
-
-# Check observation spaces and initial observations
-# print("Observation space:", obs_space)
-# print("Initial observation:", observations)
-
-def check_observation_space(obs_space, observations):
-    """Check if all expected keys are present in the observations"""
-    # Iterate over expected agents and verify all keys are present
-    missing_keys = {}
-
-    # Check each agent's observation against the expected keys in the observation space
-    for agent_id, agent_obs in observations.items():
-        agent_space = obs_space[agent_id]  # This accesses the observation space for the current agent
-        # List missing keys by checking if each expected key in agent_space is in the agent's actual observations
-        missing_keys[agent_id] = [key for key in agent_space.spaces.keys() if key not in agent_obs]
-
-    # Check if there are any agents with missing keys and raise an error if there are
-    if any(missing_keys.values()):  # This checks if there is any non-empty list in the dictionary
-        raise KeyError(f"Missing keys in observations for agents: {missing_keys}")
-    else:
-        print("All agents' observations contain the required keys.")
-
-    # Continue with validation of each observation according to its space
-    for agent_id, agent_obs in observations.items():
-        agent_space = obs_space[agent_id]
-        for key, space in agent_space.spaces.items():
-            assert space.contains(agent_obs[key]), f"Observation {key} for {agent_id} out of bounds"
-
-    print("All observations are within bounds and properly validated!")
-
-
-# check_observation_space(obs_space, observations)
-        
-def select_policy(algorithm, framework):
-    if algorithm == "PPO":
-        if framework == "torch":
-            return PPOTorchPolicy
-        elif framework == "tf":
-            return PPOTF1Policy
-        else:
-            return PPOTF2Policy
-    elif algorithm == "DQN":
-        if framework == "torch":
-            return DQNTorchPolicy
-        else:
-            return DQNTFPolicy
-    elif algorithm == "A2C":
-        from ray.rllib.algorithms.a2c import A2CConfig, A2CTorchPolicy, A2CTFPolicy
-        if framework == "torch":
-            return A2CTorchPolicy
-        else:
-            return A2CTFPolicy
-    # Add other algorithms similarly
-    else:
-        raise ValueError("Unknown algorithm: ", algorithm)
-
-
+    "num_targets": 10, 
+    "num_observers": 10, 
+    "simulator_type": 'everyone', 
+    "time_step": 1, 
+    "duration": 24*60*60
+}
+register_env(env_name, lambda config: env_creator(env_config))
 
 
 # Configuration for PPO
-ppo_config = PPOConfig()
-ppo_config.environment(
-     env=env_name,
-     disable_env_checking=True,
-    )
-ppo_config.framework(args.framework)
-ppo_config.rollouts(
-    num_rollout_workers=4,
-    num_envs_per_worker=2,
-    rollout_fragment_length="auto",
-    batch_mode="complete_episodes"
-)
-ppo_config.training(
-        vf_loss_coeff=0.01,
-        num_sgd_iter=6,
-        train_batch_size=env_config["duration"],
-        lr=0.0001, # tune.loguniform(1e-4, 1e-2),
-        gamma=0.95, # tune.uniform(0.9, 0.99),
-        use_gae=True,
-        lambda_=0.95, # tune.uniform(0.9, 1.0),
-        clip_param=0.2,
-        entropy_coeff=0.01,
-        sgd_minibatch_size=64,
-    )
-ppo_config.resources(num_gpus=0)
+ppo_config = setup_config(PPOConfig())
+ppo_config.training(vf_loss_coeff=0.01, num_sgd_iter=6, train_batch_size=env_config["duration"], lr=tune.loguniform(1e-4, 1e-2), gamma=tune.uniform(0.9, 0.99), use_gae=True, lambda_=tune.uniform(0.9, 1.0), clip_param=0.2, entropy_coeff=0.01, sgd_minibatch_size=64)
 
 # Configuration for DQN
-dqn_config = DQNConfig()
-dqn_config.environment(
-     env_name,
-     disable_env_checking=True,
-     )
-dqn_config.framework(args.framework)
-dqn_config.rollouts(
-    num_rollout_workers=4,
-    num_envs_per_worker=2,
-    rollout_fragment_length="auto",
-    batch_mode="complete_episodes"
-)
-dqn_config.training(
-        n_step=3,
-        lr=0.0001, # tune.loguniform(1e-4, 1e-2),
-        gamma=0.95, # tune.uniform(0.9, 0.99)
-    )
-dqn_config.resources(num_gpus=0)
-
+dqn_config = setup_config(DQNConfig())
+dqn_config.training(n_step=3, lr=tune.loguniform(1e-4, 1e-2), gamma=tune.uniform(0.9, 0.99))
 
 # Configuration for A2C
-a2c_config = A2CConfig()
-a2c_config.environment(
-     env_name,
-     disable_env_checking=True,
-     )
-a2c_config.framework(args.framework)
-a2c_config.rollouts(
-    num_rollout_workers=4,
-    num_envs_per_worker=2,
-    rollout_fragment_length="auto",
-    batch_mode="complete_episodes"
-)
-a2c_config.training(
-        lr=0.0001,
-        gamma=0.95
-)
-a2c_config.resources(num_gpus=0)
+a2c_config = setup_config(A2CConfig())
+a2c_config.training(lr=tune.loguniform(1e-4, 1e-2), gamma=tune.uniform(0.9, 0.99), sample_async=False)
 
+# Configuration for A3C
+a3c_config = setup_config(A3CConfig())
+a3c_config.training(lr=tune.loguniform(1e-4, 1e-2), gamma=tune.uniform(0.9, 0.99), sample_async=False)
 
+# Configuration for IMPALA
+impala_config = setup_config(ImpalaConfig())
+impala_config.training(lr=tune.loguniform(1e-4, 1e-2), gamma=tune.uniform(0.9, 0.99))
 
-# Specify two policies, each with their own config created above
-# You can also have multiple policies per algorithm, but here we just
-# show one each for PPO and DQN.
-policies = {
-    "ppo_policy": (
-        select_policy("PPO", args.framework),
-        obs_space,
-        act_space,
-        ppo_config,
-    ),
-    "dqn_policy": (
-        select_policy("DQN", args.framework),
-        obs_space,
-        act_space,
-        dqn_config,
-    ),
-    "a2c_policy": (
-        select_policy("A2C", args.framework),
-        obs_space,
-        act_space,
-        a2c_config,
-    ),
-}
+# Function to get the latest checkpoint path
+def get_latest_checkpoint(checkpoint_dir):
+    if not os.path.exists(checkpoint_dir):
+        return None
+    checkpoints = [os.path.join(checkpoint_dir, name) for name in os.listdir(checkpoint_dir)]
+    checkpoints = [path for path in checkpoints if os.path.isdir(path)]
+    if not checkpoints:
+        return None
+    return max(checkpoints, key=os.path.getctime)
 
-def policy_mapping_fn_ppo(agent_id, episode, worker, **kwargs):
-        return "ppo_policy"
+# Function to train a policy
+def train_policy(config, policy_name, checkpoint_dir):
+    algorithm = config.build()
+
+    checkpoint_path = os.path.join(checkpoint_dir, policy_name)
+    os.makedirs(checkpoint_path, exist_ok=True)
+
+    latest_checkpoint = get_latest_checkpoint(checkpoint_path)
+
+    if latest_checkpoint:
+        algorithm.restore(latest_checkpoint)
+
+    for i in range(args.stop_iters):
+        print(f"== {policy_name.upper()} Iteration {i} ==")
+        start_time = time.time()
+        result = algorithm.train()
+        print(pretty_print(result))
+        print(f"Time taken for training {policy_name.upper()}: ", time.time() - start_time)
         
-def policy_mapping_fn_dqn(agent_id, episode, worker, **kwargs):
-        return "dqn_policy"
+        checkpoint = algorithm.save(checkpoint_path)
+        print(f"Checkpoint saved at {checkpoint}")
 
-def policy_mapping_fn_a2c(agent_id, episode, worker, **kwargs):
-        return "a2c_policy"
-        
-# Add multi-agent configuration options and build the trainers
-ppo_config.multi_agent(
-    policies=policies,
-    policy_mapping_fn=policy_mapping_fn_ppo,
-    policies_to_train=["ppo_policy"],
-)
-print("Building PPO")
-ppo = ppo_config.build()
-print("PPO built")
+        if result["episode_reward_mean"] >= args.stop_reward:
+            print(f"Stopping {policy_name.upper()} training as it reached the reward threshold.")
+            break
 
+if args.tune:
+    if args.policy == "ppo":
+        analysis = tune.run(
+            "PPO",
+            config=ppo_config.to_dict(),
+            num_samples=10,
+            metric="episode_reward_mean",
+            mode="max",
+            local_dir=args.checkpoint_dir,
+            name="ppo_experiment",
+            checkpoint_at_end=False
+        )
+    elif args.policy == "dqn":
+        analysis = tune.run(
+            "DQN",
+            config=dqn_config.to_dict(),
+            num_samples=10,
+            metric="episode_reward_mean",
+            mode="max",
+            local_dir=args.checkpoint_dir,
+            name="dqn_experiment",
+            checkpoint_at_end=False
+        )
+    elif args.policy == "a2c":
+        analysis = tune.run(
+            "A2C",
+            config=a2c_config.to_dict(),
+            num_samples=10,
+            metric="episode_reward_mean",
+            mode="max",
+            local_dir=args.checkpoint_dir,
+            name="a2c_experiment",
+            checkpoint_at_end=False
+        )
+    elif args.policy == "a3c":
+        analysis = tune.run(
+            "A3C",
+            config=a3c_config.to_dict(),
+            num_samples=10,
+            metric="episode_reward_mean",
+            mode="max",
+            local_dir=args.checkpoint_dir,
+            name="a3c_experiment",
+            checkpoint_at_end=False
+        )
+    elif args.policy == "impala":
+        analysis = tune.run(
+            "IMPALA",
+            config=impala_config.to_dict(),
+            num_samples=10,
+            metric="episode_reward_mean",
+            mode="max",
+            local_dir=args.checkpoint_dir,
+            name="impala_experiment",
+            checkpoint_at_end=False
+        )
 
-dqn_config.multi_agent(
-    policies=policies,
-    policy_mapping_fn=policy_mapping_fn_dqn,
-    policies_to_train=["dqn_policy"],
-)
-print("Building DQN")
-dqn = dqn_config.build()
-print("DQN built")
+    # Get the best hyperparameters
+    best_config = analysis.best_config
+    print(f"Best config: {best_config}")
 
-
-a2c_config.multi_agent(
-    policies=policies,
-    policy_mapping_fn=policy_mapping_fn_a2c,
-    policies_to_train=["a2c_policy"],
-)
-print("Building A2C")
-a2c = a2c_config.build()
-print("A2C built")
-
-
-
-# You should see both the printed X and Y approach 200 as this trains:
-    # info:
-    #   policy_reward_mean:
-    #     dqn_policy: X
-    #     ppo_policy: Y
-for i in range(args.stop_iters):
-    print("== Iteration", i, "==")
-
-    # improve the PPO policy
-    print("-- PPO --")
-    start_time = time.time()
-    result_ppo = ppo.train()
-    print(pretty_print(result_ppo))
-    print("Time taken for training PPO with 8 simulations: ", time.time()-start_time)
-
-
-    # improve the DQN policy
-    print("-- DQN --")
-    start_time = time.time()
-    result_dqn = dqn.train()
-    print(pretty_print(result_dqn))
-    print("Time taken for training DQN with 8 simulations: ", time.time()-start_time)
-
-
-    # improve the A2C policy
-    print("-- A2C --")
-    start_time = time.time()
-    result_a2c = a2c.train()
-    print(pretty_print(result_a2c))
-    print("Time taken for training A2C with 8 simulations: ", time.time()-start_time)
+    # Train the policy with the best hyperparameters
+    if args.policy == "ppo":
+        ppo_config.update_from_dict(best_config)
+        train_policy(ppo_config, "ppo_policy", args.checkpoint_dir)
+    elif args.policy == "dqn":
+        dqn_config.update_from_dict(best_config)
+        train_policy(dqn_config, "dqn_policy", args.checkpoint_dir)
+    elif args.policy == "a2c":
+        a2c_config.update_from_dict(best_config)
+        train_policy(a2c_config, "a2c_policy", args.checkpoint_dir)
+    elif args.policy == "a3c":
+        a3c_config.update_from_dict(best_config)
+        train_policy(a3c_config, "a3c_policy", args.checkpoint_dir)
+    elif args.policy == "impala":
+        impala_config.update_from_dict(best_config)
+        train_policy(impala_config, "impala_policy", args.checkpoint_dir)
+else:
+    if args.policy == "ppo":
+        train_policy(ppo_config, "ppo_policy", args.checkpoint_dir)
+    elif args.policy == "dqn":
+        train_policy(dqn_config, "dqn_policy", args.checkpoint_dir)
+    elif args.policy == "a2c":
+        train_policy(a2c_config, "a2c_policy", args.checkpoint_dir)
+    elif args.policy == "a3c":
+        train_policy(a3c_config, "a3c_policy", args.checkpoint_dir)
+    elif args.policy == "impala":
+        train_policy(impala_config, "impala_policy", args.checkpoint_dir)

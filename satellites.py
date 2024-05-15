@@ -54,9 +54,9 @@ class Satellite(ABC):
         if epsys is None: 
             epsys = {
                 'EnergyStorage': 84*3600,    #From Endurosat battery pack [W]*[s]=[J]
-                'SolarPanelSize': 0.4*0.3, # deployable solar panels 12U solar panel area [m2]
+                'SolarPanelSize': 0.2*0.3, # deployable solar panels 6U solar panel area [m2]
                 'EnergyAvailable': 60*3600,
-                'Efficiency': 0.1,  # Efficiency of the solar panels
+                'Efficiency': 0.25,  # Efficiency of the solar panels
                 'SolarConstant': 1370 # W/m2, Solar constant
                 # prod = area * efficiency * solarconstant
             }

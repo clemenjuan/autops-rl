@@ -47,12 +47,22 @@ python FSS_env.py
 ```
 
 ## Trained Agent. 
-Training for PPO (work in progress for DQN and A2C as well)
-### Usage on Mac or Linux
+Training for different policies (PPO, DQN, A2C, A3C, IMPALA).
+### Usage
+Edit the common configuration setup function in training.py to include gpu resources or add more parallelism to the training process. 
+To perform hyperparameter tuning and training for different policies, run the following commands:
 ```
-python3 training.py
-```
-### Usage on Windows
-```
-python training.py
+python3 training2.py --framework torch --stop-iters 20 --stop-reward 500000 --policy ppo --checkpoint-dir ppo_checkpoints --tune
+python3 training2.py --framework torch --stop-iters 20 --stop-reward 500000 --policy dqn --checkpoint-dir dqn_checkpoints --tune
+python3 training2.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a2c --checkpoint-dir a2c_checkpoints --tune
+python3 training2.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a3c --checkpoint-dir a3c_checkpoints --tune
+python3 training2.py --framework torch --stop-iters 20 --stop-reward 500000 --policy impala --checkpoint-dir impala_checkpoints --tune
+````
+If you only want to train (or keep training from last checkpoint) the policies without tuning, omit the --tune argument:
+````
+python3 training2.py --framework torch --stop-iters 20 --stop-reward 500000 --policy ppo --checkpoint-dir ppo_checkpoints
+python3 training2.py --framework torch --stop-iters 20 --stop-reward 500000 --policy dqn --checkpoint-dir dqn_checkpoints
+python3 training2.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a2c --checkpoint-dir a2c_checkpoints
+python3 training2.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a3c --checkpoint-dir a3c_checkpoints
+python3 training2.py --framework torch --stop-iters 20 --stop-reward 500000 --policy impala --checkpoint-dir impala_checkpoints
 ```
