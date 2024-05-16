@@ -620,7 +620,7 @@ class ObserverSatellite(Satellite):
                     return reward_step, communication_done, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_observation_counts, self.max_pointing_accuracy_avg_sat, data_transmitted
                 
                 # Calculate the volume of data exchanged based on effective data rate and time step
-                volume_of_data = min(self.calculate_data_volume(other_satellite, time_step), data_to_transmit - data_transmitted)
+                volume_of_data = min(self.calculate_data_volume(other_satellite, time_step), data_to_transmit) # previously data_to_transmit - data_transmitted
                 data_transmitted += volume_of_data
                 # print(f"Data transmitted: {data_transmitted:.2f} bits, Data to transmit: {data_to_transmit:.2f} bits")
                 # Update data matrices in the Simulator
@@ -648,7 +648,7 @@ class ObserverSatellite(Satellite):
                     # print(f"Adjacency matrix: \n{self.adjacency_matrix_acc[index]}")
                     reward_step += 1000  # Reward for successful complete communication
                     print(f"Data successfully transmitted from {self.name} to {other_satellite.name}")
-                    print(f"Data transmitted: {data_transmitted / 8} Bytes")
+                    print(f"Data transmitted: {data_to_transmit / 8} Bytes")
                     communication_done = True
             else:
                 reward_step -= 0.1 # Penalty for failed (other not available) or incomplete communication
