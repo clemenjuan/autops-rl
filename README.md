@@ -15,30 +15,21 @@ git clone https://gitlab.lrz.de/clemente.juan/masterthesis_git.git
 cd masterthesis_git
 ```
 It is strongly recommended that you use a virtual environment in order to manage dependencies and keep your projects organized without interfering with other projects or the global Python installation. You can create one by:
-### Setup on Mac or Linux
 ```
 # Creates the environment
 python3 -m venv .venv
 
 # Starts the environment
-source .venv/Scripts/activate
+# MacOS or Linux
+source .venv/Scripts/activate 
 
-# Installs all necessary packages
-pip install numpy gymnasium pettingzoo matplotlib pandas ray "ray[tune]" tree typer scikit-image optuna torch lz4 tensorflow supersuit
-```
-
-### Setup on Windows
-```
-# Creates the environment
-python -m venv .venv
-
-# Starts the environment
+# Windows
 .venv\Scripts\activate
 
 # Installs all necessary packages
-pip install numpy gymnasium pettingzoo matplotlib pandas ray "ray[tune]" tree typer scikit-image optuna torch lz4 tensorflow supersuit 
-
+pip install -r requirements.txt
 ```
+
 When done, you can run the following command to exit the virtual environment.
 ```
 deactivate
@@ -47,13 +38,8 @@ deactivate
 ## Usage
 ## Monte-Carlo simulation. 
 No trained agent involved. Edit simulation parameters at the end of the file ```FSS_env.py``` .
-### Usage on Mac or Linux
 ```
 python3 FSS_env.py
-```
-### Usage on Windows
-```
-python FSS_env.py 
 ```
 
 ## Train Agents
