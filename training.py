@@ -40,6 +40,14 @@ def setup_config(config):
     config.rollouts(num_rollout_workers=4, num_envs_per_worker=2, rollout_fragment_length="auto", batch_mode="complete_episodes")
     config.resources(num_gpus=1 if torch.cuda.is_available() else 0)
     return config
+
+env_config = {
+    "num_targets": 5, 
+    "num_observers": 5, 
+    "simulator_type": 'everyone', 
+    "time_step": 1, 
+    "duration": 24*60*60
+}
 ###############################
 
 os.environ["RAY_verbose_spill_logs"] = "0"
@@ -61,13 +69,7 @@ def env_creator(env_config):
 
 # Register environment
 env_name = "FSS_env-v0"
-env_config = {
-    "num_targets": 5, 
-    "num_observers": 5, 
-    "simulator_type": 'everyone', 
-    "time_step": 1, 
-    "duration": 24*60*60
-}
+
 register_env(env_name, lambda config: env_creator(env_config))
 
 
