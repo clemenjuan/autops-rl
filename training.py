@@ -39,6 +39,7 @@ def setup_config(config):
     config.framework(args.framework)
     config.rollouts(num_rollout_workers=4, num_envs_per_worker=2, rollout_fragment_length="auto", batch_mode="complete_episodes")
     config.resources(num_gpus=1 if torch.cuda.is_available() else 0)
+    print(f"Using {config.resources['num_gpus']} GPU(s) for training.")
     return config
 
 env_config = {

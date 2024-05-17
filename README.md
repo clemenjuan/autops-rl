@@ -46,6 +46,8 @@ Log out and log back in for the changes to take effect.
 
 #### NVIDIA Jetson
 
+Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Docker to run the container with GPU support:
+
 1. Install Docker:
 
     ```sh
@@ -53,19 +55,61 @@ Log out and log back in for the changes to take effect.
     sudo apt-get install -y docker.io
     ``` 
 
-2. Install NVIDIA Container Toolkit:
+2. Verify CUDA installation on your Jetson host:
+
+   ```sh
+   nvcc --version
+   nvidia-smi
+   ``` 
+
+3.	Install NVIDIA Container Toolkit:
 
     ```sh
+    sudo apt-get update
     sudo apt-get install -y nvidia-container-toolkit
     sudo systemctl restart docker
     ```
+
+4.	Configure Docker to use NVIDIA runtime by creating or editing /etc/docker/daemon.json:
+
+    ```json
+    {
+    "runtimes": {
+        "nvidia": {
+        "path": "nvidia-container-runtime",
+        "runtimeArgs": []
+        }
+    },
+    "default-runtime": "nvidia"
+    }
+    ```
+
+5.	Then restart Docker:
+
+    ```sh
+    sudo systemctl restart docker
+    ```
+
+6. Run the Docker container with CUDA 11.4 support:
+
+    ```sh
+    docker run --rm -it --runtime=nvidia --gpus all -v /usr/local/cuda-11.4:/usr/local/cuda:ro -v $(pwd):/app masterthesis_clemente /bin/bash
+    ``` 
+
+7. Verify CUDA availability inside the container:
+
+    ```sh 
+    nvidia-smi
+    nvcc --version
+    ```
+
 
 ## Setting Up the Project
 
 1. Clone the repository to your local machine:
 
    ```sh
-   git clone hhttps://gitlab.lrz.de/clemente.juan/masterthesis_git.git
+   git clone https://gitlab.lrz.de/clemente.juan/masterthesis_git.git
    cd masterthesis_git
    ```
 
@@ -99,7 +143,7 @@ docker run --rm -it -v %cd%:/app masterthesis_clemente
 Ensure you have Docker installed and set up on your Jetson device. If you need GPU support, use NVIDIA Docker. The command to run the container is the same:
 
 ```sh
-docker run --rm -it --runtime=nvidia -v $(pwd):/app masterthesis_clemente
+docker run --rm -it --runtime=nvidia --gpus all nvidia/cuda:11.4-base nvidia-smi
 ``` 
 
 ### Running Your Scripts
