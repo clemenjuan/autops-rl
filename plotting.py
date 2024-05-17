@@ -3,18 +3,18 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import os
 
-def plot(matrices, results_folder, total_duration, total_reward):
+def plot(matrices, results_folder, total_duration, total_reward, total_steps):
     # Call the plotting function
     if not os.path.exists(results_folder):
         os.makedirs(results_folder)
 
     i = get_next_simulation_number_plot(results_folder)
 
-    plot_matrices(matrices, results_folder, f'simulation_{i}', total_duration, total_reward)
+    plot_matrices(matrices, results_folder, f'simulation_{i}', total_duration, total_reward, total_steps)
 
 
 
-def plot_matrices(matrix_dict, plot_dir, file_identifier, total_time, total_reward):
+def plot_matrices(matrix_dict, plot_dir, file_identifier, total_time, total_reward, total_steps):
     # Use a 3x2 grid layout
     fig, axs = plt.subplots(3, 2, figsize=(12, 18), gridspec_kw={'hspace': 0.3, 'top': 0.85})
 
@@ -25,7 +25,7 @@ def plot_matrices(matrix_dict, plot_dir, file_identifier, total_time, total_rewa
         matrix = matrix_dict[title]
         c = ax.matshow(matrix, cmap='Greys', aspect='auto')
         fig.colorbar(c, ax=ax, fraction=0.046, pad=0.04)
-        ax.set_title(title, fontsize=14) # Set the title
+        ax.set_title("Adjacency Matrix", fontsize=14) # Set the title
         ax.set_xlabel('Observer', fontsize=12)
         ax.set_ylabel('Observer', fontsize=12)
 
@@ -63,7 +63,7 @@ def plot_matrices(matrix_dict, plot_dir, file_identifier, total_time, total_rewa
         ax.set_ylabel('Value', fontsize=12)
 
     # Annotate the total time and reward
-    plt.figtext(0.5, 0.92, f"Total Time: {total_time:.3f} seconds\nTotal Reward: {total_reward:.3f}", ha="center", fontsize=12, bbox={"facecolor":"orange", "alpha":0.5, "pad":5})
+    plt.figtext(0.5, 0.92, f"Total Time: {total_time:.3f} seconds\nTotal Reward: {total_reward:.3f}\nTotal steps: {total_steps}", ha="center", fontsize=12, bbox={"facecolor":"orange", "alpha":0.5, "pad":5})
 
     # Adjust the layout to ensure everything fits
     plt.tight_layout(rect=[0, 0, 1, 0.9])  # rect parameter is [left, bottom, right, top]

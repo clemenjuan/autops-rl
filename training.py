@@ -2,6 +2,7 @@ import os
 import time
 import argparse
 import ray
+import torch
 from ray import air, tune
 from ray.rllib.algorithms.dqn import DQNConfig
 from ray.rllib.algorithms.ppo import PPOConfig
@@ -11,6 +12,7 @@ from ray.rllib.algorithms.impala import ImpalaConfig
 from ray.tune.registry import register_env
 from ray.tune.logger import pretty_print
 from FSS_env import FSS_env
+
 
 '''
 Edit the common configuration setup function to include gpu resources or add more parallelism to the training process. 
@@ -36,9 +38,12 @@ def setup_config(config):
     config.environment(env=env_name, env_config=env_config, disable_env_checking=True)
     config.framework(args.framework)
     config.rollouts(num_rollout_workers=4, num_envs_per_worker=2, rollout_fragment_length="auto", batch_mode="complete_episodes")
-    config.resources(num_gpus=0)
+    config.resources(num_gpus=1 if torch.cuda.is_available() else 0)
     return config
 ###############################
+
+os.environ["RAY_verbose_spill_logs"] = "0"
+os.environ["RAY_DEDUP_LOGS"] = "0"
 
 # Argument parsing setup
 parser = argparse.ArgumentParser()
@@ -57,8 +62,8 @@ def env_creator(env_config):
 # Register environment
 env_name = "FSS_env-v0"
 env_config = {
-    "num_targets": 10, 
-    "num_observers": 10, 
+    "num_targets": 5, 
+    "num_observers": 5, 
     "simulator_type": 'everyone', 
     "time_step": 1, 
     "duration": 24*60*60
@@ -73,7 +78,8 @@ ppo_config.training(
     lr=tune.loguniform(1e-4, 1e-2) if args.tune else 1e-3,  # Set a default value if not tuning
     gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99,
     use_gae=True, lambda_=tune.uniform(0.9, 1.0) if args.tune else 0.95,
-    clip_param=0.2, entropy_coeff=0.01, sgd_minibatch_size=64
+    clip_param=0.2, entropy_coeff=0.01, sgd_minibatch_size=64,
+    checkpoint_freq=5
 )
 
 # Configuration for DQN
@@ -81,7 +87,8 @@ dqn_config = setup_config(DQNConfig())
 dqn_config.training(
     n_step=3,
     lr=tune.loguniform(1e-4, 1e-2) if args.tune else 1e-3,
-    gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99
+    gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99,
+    checkpoint_freq=5
 )
 
 # Configuration for A2C
@@ -89,7 +96,8 @@ a2c_config = setup_config(A2CConfig())
 a2c_config.training(
     lr=tune.loguniform(1e-4, 1e-2) if args.tune else 1e-3,
     gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99,
-    sample_async=False
+    sample_async=False,
+    checkpoint_freq=5
 )
 
 # Configuration for A3C
@@ -97,14 +105,16 @@ a3c_config = setup_config(A3CConfig())
 a3c_config.training(
     lr=tune.loguniform(1e-4, 1e-2) if args.tune else 1e-3,
     gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99,
-    sample_async=False
+    sample_async=False,
+    checkpoint_freq=5
 )
 
 # Configuration for IMPALA
 impala_config = setup_config(ImpalaConfig())
 impala_config.training(
     lr=tune.loguniform(1e-4, 1e-2) if args.tune else 1e-3,
-    gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99
+    gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99,
+    checkpoint_freq=5
 )
 
 # Function to get the latest checkpoint path

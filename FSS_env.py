@@ -263,7 +263,7 @@ class FSS_env(MultiAgentEnv):
 if __name__ == "__main__":
     ### Example of how to use the environment for a Monte Carlo simulation
     ############################ EDIT HERE ############################
-    num_simulations = 3  # desired number of simulations
+    num_simulations = 10  # desired number of simulations
     num_targets = 10 # Number of target satellites
     num_observers = 10 # Number of observer satellites
     simulator_type = 'everyone' # choose from 'centralized', 'decentralized', or 'everyone'
@@ -293,7 +293,7 @@ if __name__ == "__main__":
 
     for i in range(num_simulations):
         print()
-        print(f"########Starting simulation {i+1}########")
+        print(f"######## Starting simulation {i+1} ########")
         # Run the simulation until timeout or agent failure
         env = FSS_env(num_targets, num_observers, simulator_type, time_step, duration)
         total_reward = 0
@@ -347,7 +347,7 @@ if __name__ == "__main__":
             log_summary_results(data_summary, results_folder)
 
         if plot_flag:
-            plot(matrices, results_folder_plots, total_duration, total_reward)
+            plot(matrices, results_folder_plots, total_duration, total_reward, env.simulator.time_step_number)
     
     if write_to_csv_file_flag:
         compute_statistics_from_npy(results_folder, relevant_attributes)

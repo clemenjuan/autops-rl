@@ -683,7 +683,7 @@ class ObserverSatellite(Satellite):
                     self.update_contacts_matrix(index, target_index)
                     # Update observation time
                     self.observation_time_matrix[target_index] += time_step  # Assuming time_step is in seconds
-                    print(f"{self.name} is observing target {target.name}")
+                    print(f"{self.name} is observing {target.name}")
                 else:
                     if self.observation_counts[target_index] > 0 and self.observation_status_matrix[target_index] == 2 and self.cumulative_pointing_accuracy[index,target_index] > 0:
                         # just finished observing the target
@@ -701,7 +701,7 @@ class ObserverSatellite(Satellite):
                             self.observation_counts[target_index] = 0  # Reset target counts
                             reward_step += 1000*self.pointing_accuracy_avg[index,target_index] # Reward for successful observation
                             observation_done = True
-                            print(f"{self.name} successfully observed target {target.name} with pointing accuracy: {self.pointing_accuracy_avg[index,target_index]}")
+                            print(f"{self.name} successfully observed {target.name} with pointing accuracy: {self.pointing_accuracy_avg[index,target_index]}")
                         else:
                             raise ValueError("Error: Pointing accuracy average is zero")
                     else:
