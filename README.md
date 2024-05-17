@@ -65,11 +65,11 @@ Log out and log back in for the changes to take effect.
 1. Clone the repository to your local machine:
 
    ```sh
-   git clone https://gitlab.com/yourusername/masterthesis_git.git
+   git clone hhttps://gitlab.lrz.de/clemente.juan/masterthesis_git.git
    cd masterthesis_git
    ```
 
-2. Build the Docker image:
+2. Build the Docker image (might need sudo):
 
     ```sh
     docker build -t masterthesis_clemente .
