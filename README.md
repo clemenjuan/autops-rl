@@ -89,7 +89,7 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
 6. Pull the compatible PyTorch Docker image:
 
     ```sh
-    docker pull nvcr.io/nvidia/pytorch:23.05-py3
+    docker pull nvcr.io/nvidia/l4t-base:r35.1.0
     ```
 
 
