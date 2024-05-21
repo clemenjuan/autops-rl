@@ -66,7 +66,7 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
     sudo systemctl restart docker
     ``` 
 
-4.	Configure Docker to use NVIDIA runtime by creating or editing /etc/docker/daemon.json:
+4.	Configure Docker to use NVIDIA runtime by creating or editing /etc/docker/daemon.json (sudo nano /etc/docker/daemon.json):
 
     ```json
     {
@@ -89,7 +89,7 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
 6. Pull the compatible PyTorch Docker image:
 
     ```sh
-    docker pull nvcr.io/nvidia/l4t-base:r35.1.0
+    sudo docker pull nvcr.io/nvidia/l4t-base:r35.1.0
     ```
 
 
