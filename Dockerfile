@@ -20,7 +20,7 @@ COPY . .
 ENV PYTHONPATH="/app/python_packages:${PYTHONPATH}"
 
 # Stage 2: NVIDIA Jetson specific image
-FROM nvcr.io/nvidia/l4t-base:r35.1.0 AS jetson
+FROM nvcr.io/nvidia/l4t-pytorch:r35.2.1-pth2.0-py3 AS jetson
 
 # Install Python and pip
 RUN apt-get update && apt-get install -y python3 python3-pip
