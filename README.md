@@ -48,6 +48,7 @@ Log out and log back in for the changes to take effect.
 
 Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Docker to run the container with GPU support:
 
+
 1. Install Docker:
 
     ```sh
@@ -55,20 +56,20 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
     sudo apt-get install -y docker.io
     ``` 
 
-2. Verify CUDA installation on your Jetson host:
+2. Verify CUDA installation:
 
-   ```sh
-   nvcc --version
-   nvidia-smi
-   ``` 
+    ```sh
+    nvcc --version
+    nvidia-smi
+    ``` 
+
 
 3.	Install NVIDIA Container Toolkit:
 
     ```sh
-    sudo apt-get update
     sudo apt-get install -y nvidia-container-toolkit
     sudo systemctl restart docker
-    ```
+    ``` 
 
 4.	Configure Docker to use NVIDIA runtime by creating or editing /etc/docker/daemon.json:
 
@@ -84,24 +85,18 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
     }
     ```
 
-5.	Then restart Docker:
+5. Then restart Docker:
 
     ```sh
     sudo systemctl restart docker
-    ```
-
-6. Run the Docker container with CUDA 11.4 support:
-
-    ```sh
-    docker run --rm -it --runtime=nvidia --gpus all -v /usr/local/cuda-11.4:/usr/local/cuda:ro -v $(pwd):/app masterthesis_clemente /bin/bash
     ``` 
 
-7. Verify CUDA availability inside the container:
+6. Pull the compatible PyTorch Docker image:
 
-    ```sh 
-    nvidia-smi
-    nvcc --version
+    ```sh
+    docker pull nvcr.io/nvidia/pytorch:23.06-py3
     ```
+
 
 
 ## Setting Up the Project
@@ -113,38 +108,54 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
    cd masterthesis_git
    ```
 
-2. Build the Docker image (might need sudo):
+2. Build the Docker image (might need sudo)
+
+- For general use:
 
     ```sh
     docker build -t masterthesis_clemente .
     ```
 
+- For NVIDIA Jetson:
+
+    ```sh
+    docker build --target jetson -t masterthesis_clemente:jetson .
+    ``` 
+    
+
 
 ### Running the Docker Container
 
-To start an interactive session inside the Docker container, use the following commands based on your operating system:
+To start an interactive session inside the Docker container, use the following commands based on your operating system. Change the --shm-size=xgb (shared memory) to make sure to set this to more than 30% of available RAM:
 
 #### On macOS and Linux
 
 ```sh
-docker run --rm -it -v $(pwd):/app masterthesis_clemente
+docker run --rm -it --shm-size=2gb -v $(pwd):/app masterthesis_clemente
 ```
 
 
 #### On Windows (Command Prompt or PowerShell)
 
 ```sh
-docker run --rm -it -v %cd%:/app masterthesis_clemente
+docker run --rm -it --shm-size=2gb -v %cd%:/app masterthesis_clemente
 ```
 
 
 #### On NVIDIA Jetson
 
-Ensure you have Docker installed and set up on your Jetson device. If you need GPU support, use NVIDIA Docker. The command to run the container is the same:
+```sh
+docker run --rm -it --shm-size=2gb --runtime=nvidia --gpus all -v $(pwd):/app masterthesis_clemente:jetson /bin/bash
+``` 
+
+And verify CUDA and PyTorch availability inside the container:
 
 ```sh
-docker run --rm -it --runtime=nvidia --gpus all nvidia/cuda:11.4-base nvidia-smi
+nvidia-smi
+python -c "import torch; print(torch.cuda.is_available())"
 ``` 
+
+By following these steps, you can ensure that your Docker container on NVIDIA Jetson with JetPack 5.1.x has access to CUDA 11.4 and PyTorch 2.1.0a.
 
 ### Running Your Scripts
 

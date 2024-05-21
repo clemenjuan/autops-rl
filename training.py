@@ -14,24 +14,6 @@ from ray.tune.logger import pretty_print
 from FSS_env import FSS_env
 
 
-'''
-Edit the common configuration setup function to include gpu resources or add more parallelism to the training process. 
-#### Usage ##############################
-To perform hyperparameter tuning and training for different policies, run the following commands:
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy ppo --checkpoint-dir ppo_checkpoints --tune
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy dqn --checkpoint-dir dqn_checkpoints --tune
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a2c --checkpoint-dir a2c_checkpoints --tune
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a3c --checkpoint-dir a3c_checkpoints --tune
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy impala --checkpoint-dir impala_checkpoints --tune
-
-To train (or keep training from last checkpoint) the policies without tuning, omit the --tune argument:
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy ppo --checkpoint-dir ppo_checkpoints
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy dqn --checkpoint-dir dqn_checkpoints
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a2c --checkpoint-dir a2c_checkpoints
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a3c --checkpoint-dir a3c_checkpoints
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy impala --checkpoint-dir impala_checkpoints
-'''
-
 ##### EDIT THIS FUNCTION #####
 # Common configuration setup
 def setup_config(config):
@@ -39,7 +21,8 @@ def setup_config(config):
     config.framework(args.framework)
     config.rollouts(num_rollout_workers=4, num_envs_per_worker=2, rollout_fragment_length="auto", batch_mode="complete_episodes")
     config.resources(num_gpus=1 if torch.cuda.is_available() else 0)
-    print(f"Using {config.resources['num_gpus']} GPU(s) for training.")
+    gpu_count = 1 if torch.cuda.is_available() else 0
+    print(f"Using {gpu_count} GPU(s) for training.")
     return config
 
 env_config = {
