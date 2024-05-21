@@ -14,7 +14,7 @@ RUN pip install -r requirements.txt
 COPY . .
 
 # Stage 2: NVIDIA Jetson specific image
-FROM nvcr.io/nvidia/pytorch:23.05-py3 AS jetson
+FROM nvcr.io/nvidia/l4t-base:r35.1.0 AS jetson
 
 # Set the working directory inside the container
 WORKDIR /app
