@@ -22,6 +22,9 @@ ENV PYTHONPATH="/app/python_packages:${PYTHONPATH}"
 # Stage 2: NVIDIA Jetson specific image
 FROM nvcr.io/nvidia/l4t-base:r35.1.0 AS jetson
 
+# Install Python and pip
+RUN apt-get update && apt-get install -y python3 python3-pip
+
 # Set the working directory inside the container
 WORKDIR /app
 
@@ -32,7 +35,7 @@ COPY requirements.txt .
 RUN mkdir -p /app/python_packages
 
 # Remove torch from the requirements for Jetson and install the rest locally
-RUN sed -i '/torch/d' requirements.txt && pip install --no-cache-dir -r requirements.txt --target /app/python_packages
+RUN sed -i '/torch/d' requirements.txt && python3 -m pip install --no-cache-dir -r requirements.txt --target /app/python_packages
 
 # Copy the rest of the application code into the container
 COPY . .
