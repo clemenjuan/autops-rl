@@ -8,12 +8,7 @@ Make sure you have Docker installed on your system. Follow the instructions belo
 
 ### Docker Installation
 
-#### macOS
-
-1. Download and install Docker Desktop from [here](https://www.docker.com/products/docker-desktop).
-2. Follow the installation instructions and start Docker Desktop.
-
-#### Windows
+#### macOS or Windows
 
 1. Download and install Docker Desktop from [here](https://www.docker.com/products/docker-desktop).
 2. Follow the installation instructions and start Docker Desktop.
@@ -94,7 +89,7 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
 6. Pull the compatible PyTorch Docker image:
 
     ```sh
-    docker pull nvcr.io/nvidia/pytorch:23.06-py3
+    docker pull nvcr.io/nvidia/pytorch:23.05-py3
     ```
 
 
@@ -155,7 +150,7 @@ nvidia-smi
 python -c "import torch; print(torch.cuda.is_available())"
 ``` 
 
-By following these steps, you can ensure that your Docker container on NVIDIA Jetson with JetPack 5.1.x has access to CUDA 11.4 and PyTorch 2.1.0a.
+By following these steps, you can ensure that your Docker container on NVIDIA Jetson with JetPack 5.1.x has access to CUDA 11.4 and PyTorch 2.0.0.
 
 ### Running Your Scripts
 
