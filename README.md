@@ -66,7 +66,16 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
     sudo systemctl restart docker
     ``` 
 
-4.	Configure Docker to use NVIDIA runtime by creating or editing /etc/docker/daemon.json (sudo nano /etc/docker/daemon.json):
+4. Mount and configure Docker to use SD card (adjust the device name as necessary):
+
+    ```sh
+    sudo mkdir -p /mnt/sdcard
+    sudo mount /dev/mmcblk1p1 /mnt/sdcard
+    sudo mkdir -p /mnt/sdcard/docker
+    sudo nano /etc/docker/daemon.json
+    ``` 
+
+5.	Configure Docker to use NVIDIA runtime by creating or editing /etc/docker/daemon.json (sudo nano /etc/docker/daemon.json):
 
     ```json
     {
@@ -76,17 +85,19 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
         "runtimeArgs": []
         }
     },
-    "default-runtime": "nvidia"
+    "default-runtime": "nvidia",
+    "data-root": "/mnt/sdcard/docker"
     }
     ```
 
-5. Then restart Docker:
+6. Then restart Docker and verify configuration:
 
     ```sh
     sudo systemctl restart docker
+    docker info | grep "Docker Root Dir"
     ``` 
 
-6. Pull the compatible PyTorch Docker image:
+7. Pull the compatible PyTorch Docker image:
 
     ```sh
     sudo docker pull nvcr.io/nvidia/l4t-base:r35.1.0
@@ -137,10 +148,11 @@ docker run --rm -it --shm-size=2gb -v %cd%:/app masterthesis_clemente
 ```
 
 
-#### On NVIDIA Jetson
+#### On NVIDIA Jetson (with GPU support)
 
 ```sh
 sudo docker run --rm -it --shm-size=2gb --runtime=nvidia --gpus all -v $(pwd):/app masterthesis_clemente:jetson /bin/bash
+sudo docker run -it --rm --net=host --runtime nvidia -e DISPLAY=$DISPLAY -v /tmp/.X11-unix/:/tmp/.X11-unix -v $(pwd):/app masterthesis_clemente:jetson /bin/bash
 ``` 
 
 And verify CUDA and PyTorch availability inside the container:
