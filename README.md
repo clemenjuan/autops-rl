@@ -114,7 +114,7 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
 - For NVIDIA Jetson:
 
     ```sh
-    docker build --target jetson -t masterthesis_clemente:jetson .
+    sudo docker build --target jetson -t masterthesis_clemente:jetson .
     ``` 
     
 
@@ -140,7 +140,7 @@ docker run --rm -it --shm-size=2gb -v %cd%:/app masterthesis_clemente
 #### On NVIDIA Jetson
 
 ```sh
-docker run --rm -it --shm-size=2gb --runtime=nvidia --gpus all -v $(pwd):/app masterthesis_clemente:jetson /bin/bash
+sudo docker run --rm -it --shm-size=2gb --runtime=nvidia --gpus all -v $(pwd):/app masterthesis_clemente:jetson /bin/bash
 ``` 
 
 And verify CUDA and PyTorch availability inside the container:
