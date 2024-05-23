@@ -8,10 +8,10 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Create a local directory for Python packages
-RUN mkdir -p /app/python_packages
+# RUN mkdir -p /app/python_packages
 
 # Install the required Python packages for general use into the local directory
-RUN pip install --no-cache-dir -r requirements.txt --target /app/python_packages
+RUN pip install -r requirements.txt
 
 # Copy the rest of the application code into the container
 COPY . .
@@ -32,10 +32,10 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Create a local directory for Python packages
-RUN mkdir -p /app/python_packages
+# RUN mkdir -p /app/python_packages
 
 # Remove torch from the requirements for Jetson and install the rest locally
-RUN sed -i '/torch/d' requirements.txt && python3 -m pip install --no-cache-dir -r requirements.txt --target /app/python_packages
+RUN pip install -r requirements.txt
 
 # Copy the rest of the application code into the container
 COPY . .

@@ -134,6 +134,34 @@ def train_policy(config, policy_name, checkpoint_dir):
             print(f"Stopping {policy_name.upper()} training as it reached the reward threshold.")
             break
 
+def inspect_policy(config, policy_name, checkpoint_dir):
+    algorithm = config.build()
+    
+    checkpoint_path = os.path.join(checkpoint_dir, policy_name)
+    latest_checkpoint = get_latest_checkpoint(checkpoint_path)
+    
+    if latest_checkpoint:
+        algorithm.restore(latest_checkpoint)
+    
+    # Get the policy object
+    policy = algorithm.get_policy()
+    
+    # Access the model
+    model = policy.model
+    
+    # Print the model's structure
+    # print(model)
+
+    # Print details of each layer and parameters
+    print("\nModel's named children (layers):")
+    for name, child in model.named_children():
+        print(f"Layer name: {name}, Layer details: {child}")
+    
+    print("\nModel's named parameters:")
+    for name, param in model.named_parameters():
+        print(f"Parameter name: {name}, Parameter details: {param.size()}")
+
+
 if args.tune:
     if args.policy == "ppo":
         analysis = tune.run(
@@ -213,12 +241,17 @@ if args.tune:
         train_policy(impala_config, "impala_policy", args.checkpoint_dir)
 else:
     if args.policy == "ppo":
+        inspect_policy(ppo_config, "ppo_policy", args.checkpoint_dir)
         train_policy(ppo_config, "ppo_policy", args.checkpoint_dir)
     elif args.policy == "dqn":
+        inspect_policy(dqn_config, "dqn_policy", args.checkpoint_dir)
         train_policy(dqn_config, "dqn_policy", args.checkpoint_dir)
     elif args.policy == "a2c":
+        inspect_policy(a2c_config, "a2c_policy", args.checkpoint_dir)
         train_policy(a2c_config, "a2c_policy", args.checkpoint_dir)
     elif args.policy == "a3c":
+        inspect_policy(a3c_config, "a3c_policy", args.checkpoint_dir)
         train_policy(a3c_config, "a3c_policy", args.checkpoint_dir)
     elif args.policy == "impala":
+        inspect_policy(impala_config, "impala_policy", args.checkpoint_dir)
         train_policy(impala_config, "impala_policy", args.checkpoint_dir)
