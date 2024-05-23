@@ -94,7 +94,7 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
 
     ```sh
     sudo systemctl restart docker
-    docker info | grep "Docker Root Dir"
+    sudo docker info | grep "Docker Root Dir"
     ``` 
 
 7. Pull the compatible PyTorch Docker image:
@@ -158,7 +158,7 @@ And verify CUDA and PyTorch availability inside the container:
 
 ```sh
 nvidia-smi
-python -c "import torch; print(torch.cuda.is_available())"
+python3 -c "import torch; print(torch.cuda.is_available())"
 ``` 
 
 By following these steps, you can ensure that your Docker container on NVIDIA Jetson with JetPack 5.1.x has access to CUDA 11.4 and PyTorch 2.0.0.
