@@ -241,17 +241,17 @@ if args.tune:
         train_policy(impala_config, "impala_policy", args.checkpoint_dir)
 else:
     if args.policy == "ppo":
-        inspect_policy(ppo_config, "ppo_policy", args.checkpoint_dir)
+        # inspect_policy(ppo_config, "ppo_policy", args.checkpoint_dir)
         train_policy(ppo_config, "ppo_policy", args.checkpoint_dir)
     elif args.policy == "dqn":
-        inspect_policy(dqn_config, "dqn_policy", args.checkpoint_dir)
+        # inspect_policy(dqn_config, "dqn_policy", args.checkpoint_dir)
         train_policy(dqn_config, "dqn_policy", args.checkpoint_dir)
     elif args.policy == "a2c":
-        inspect_policy(a2c_config, "a2c_policy", args.checkpoint_dir)
+        # inspect_policy(a2c_config, "a2c_policy", args.checkpoint_dir)
         train_policy(a2c_config, "a2c_policy", args.checkpoint_dir)
     elif args.policy == "a3c":
-        inspect_policy(a3c_config, "a3c_policy", args.checkpoint_dir)
+        # inspect_policy(a3c_config, "a3c_policy", args.checkpoint_dir)
         train_policy(a3c_config, "a3c_policy", args.checkpoint_dir)
     elif args.policy == "impala":
-        inspect_policy(impala_config, "impala_policy", args.checkpoint_dir)
+        # inspect_policy(impala_config, "impala_policy", args.checkpoint_dir)
         train_policy(impala_config, "impala_policy", args.checkpoint_dir)
