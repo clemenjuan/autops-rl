@@ -87,12 +87,19 @@ def compute_statistics_from_npy(folder, relevant_attributes):
             file_path = os.path.join(sim_dir, f"{attr}.npy")
             if os.path.isfile(file_path):
                 data = np.load(file_path)
-                # If data is multi-dimensional, take the mean across all dimensions
-                mean_value = np.mean(data) if data.ndim > 0 else data.item()
+                if attr in ['adjacency_matrix', 'contacts_matrix', 'global_observation_status_matrix', 'data_matrix']:
+                    # Average over all elements in the matrix
+                    mean_value = np.mean(data)
+                else:
+                    # If data is multi-dimensional, take the mean across all dimensions
+                    mean_value = np.mean(data) if data.ndim > 0 else data.item()
                 all_values.append(mean_value)
+                # print(f"Simulation: {sim_dir}, Attribute: {attr}, Mean Value: {mean_value}")
         
         # Compute the mean across all simulations for this attribute
-        statistics[attr] = np.mean(all_values)
+        overall_mean = np.mean(all_values)
+        statistics[attr] = overall_mean
+        # print(f"Attribute: {attr}, All Values: {all_values}, Overall Mean: {overall_mean}")
     
     # Write the overall means to a single CSV
     csv_file = os.path.join(folder, "averages.csv")
@@ -100,7 +107,9 @@ def compute_statistics_from_npy(folder, relevant_attributes):
         writer = csv.writer(file)
         writer.writerow(["Attribute", "Average"])
         for attr, avg_value in statistics.items():
-            writer.writerow([attr, avg_value])
+            writer.writerow([attr, f"{avg_value:.2f}"])  # Explicitly format as floating point with 2 decimal places
+
+    return statistics
 
     return statistics
 
