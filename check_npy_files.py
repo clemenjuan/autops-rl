@@ -1,7 +1,7 @@
 import os
 import numpy as np
 
-folder = "Results/PPO"  # Path to the folder containing simulation results
+folder = "Results/MonteCarlo"  # Path to the folder containing simulation results
 
 def check_npy_files(folder):
     simulation_dirs = [os.path.join(folder, d) for d in os.listdir(folder) if 'simulation_' in d and os.path.isdir(os.path.join(folder, d))]

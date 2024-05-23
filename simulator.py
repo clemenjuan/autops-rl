@@ -82,6 +82,7 @@ class Simulator():
                 # print(f"Starting communication checks for observer {i}")
                 for j, other_observer in enumerate(self.observer_satellites):
                     if i == j:
+                        observer.update_adjacency_matrix(i, j) # Update adjacency matrix for self communication
                         continue  # Skip self communication
 
                     communication_done = False
