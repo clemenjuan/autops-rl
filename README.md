@@ -151,8 +151,7 @@ docker run --rm -it --shm-size=2gb -v %cd%:/app masterthesis_clemente
 #### On NVIDIA Jetson (with GPU support)
 
 ```sh
-sudo docker run --rm -it --shm-size=2gb --runtime=nvidia --gpus all -v $(pwd):/app masterthesis_clemente:jetson /bin/bash
-sudo docker run -it --rm --net=host --runtime nvidia -e DISPLAY=$DISPLAY -v /tmp/.X11-unix/:/tmp/.X11-unix -v $(pwd):/app masterthesis_clemente:jetson /bin/bash
+sudo docker run -it --rm --shm-size=2gb --runtime nvidia --network host -v $(pwd):/app masterthesis_clemente:jetson /bin/bash
 ``` 
 
 And verify CUDA and PyTorch availability inside the container:
