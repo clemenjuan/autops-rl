@@ -99,6 +99,8 @@ def test_policy(config, policy_name, checkpoint_dir, num_simulations):
         while env.agents:
             step_start_time = time.time()
             actions = {agent: algorithm.compute_single_action(observation[agent]) for agent in env.agents}
+            compute_action_time = time.time() - step_start_time
+            compute_action_time *= 1e3  # Convert to milliseconds
             for agent, action in actions.items():
                 action_counts.setdefault(agent, []).append(action)
 
@@ -106,6 +108,9 @@ def test_policy(config, policy_name, checkpoint_dir, num_simulations):
             total_reward += sum(rewards.values())
             step_end_time = time.time()
             step_duration = step_end_time - step_start_time
+
+            # if env.simulator.time_step_number % 10000 == 0:
+                # print(f"Computed actions in {compute_action_time} ms")
 
             if any(terminated.values()) or any(truncated.values()):
                 print("Episode finished")
@@ -141,7 +146,7 @@ def test_policy(config, policy_name, checkpoint_dir, num_simulations):
             log_summary_results(data_summary, results_folder)
 
         if plot_flag:
-            plot(matrices, results_folder_plots, total_duration, total_reward)
+            plot(matrices, results_folder_plots, total_duration, total_reward, env.simulator.time_step_number)
     
     if write_to_csv_file_flag:
         compute_statistics_from_npy(results_folder, relevant_attributes)

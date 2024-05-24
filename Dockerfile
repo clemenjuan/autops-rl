@@ -23,7 +23,7 @@ ENV PYTHONPATH="/app/python_packages:${PYTHONPATH}"
 FROM nvcr.io/nvidia/l4t-pytorch:r35.2.1-pth2.0-py3 AS jetson
  
 # Install Python and pip
-RUN apt-get update && apt-get install -y python3 python3-pip
+# RUN apt-get update && apt-get install -y python3 python3-pip
  
 # Set the working directory inside the container
 WORKDIR /app

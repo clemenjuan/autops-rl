@@ -55,7 +55,7 @@ class Satellite(ABC):
             epsys = {
                 'EnergyStorage': 84*3600,    #From Endurosat battery pack [W]*[s]=[J]
                 'SolarPanelSize': 0.2*0.3, # deployable solar panels 6U solar panel area [m2]
-                'EnergyAvailable': 60*3600,
+                'EnergyAvailable': random.randint(20,70)*3600,
                 'Efficiency': 0.2,  # Efficiency of the solar panels
                 'SolarConstant': 1370 # W/m2, Solar constant
                 # prod = area * efficiency * solarconstant
@@ -79,7 +79,7 @@ class Satellite(ABC):
         if DataHand is None:
             DataHand = {
                 'DataStorage': 8*64e9, # Maximum storage onboard. 8*[bytes]=[bites], from ISISpace bus
-                'StorageAvailable': 6*64e9, # Storage available for observation
+                'StorageAvailable': random.uniform(2,7) *64e9, # Storage available for observation
                 'DataSize': 52, # Data package size per satellite in bytes
             }
         
