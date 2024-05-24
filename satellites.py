@@ -625,7 +625,7 @@ class ObserverSatellite(Satellite):
                 # print(f"Data transmitted: {data_transmitted:.2f} bits, Data to transmit: {data_to_transmit:.2f} bits")
                 # Update data matrices in the Simulator
                 self.update_data_matrix(index, other_satellite_index, volume_of_data)
-                reward_step += 100 # Reward for successful communication step
+                reward_step += 1 # Reward for successful communication step
 
                 print(f"{self.name} is communicating with {other_satellite.name}")
 
@@ -644,9 +644,16 @@ class ObserverSatellite(Satellite):
                     
                     # Mark data as successfully shared and reset the flag
                     self.has_new_data[other_satellite_index] = False
+
+                    for i in range(len(self.has_new_data)):
+                        if self.has_new_data[i] == True and other_satellite.has_new_data[i] == False:
+                            other_satellite.has_new_data[i] = True # Set flag to indicate new data
+                        if self.has_new_data[i] == False and other_satellite.has_new_data[i] == True:
+                            self.has_new_data[i] = True # Set flag to indicate new data
+
                     # print(f"Data successfully transmitted from {self.name} to {other_satellite.name}")
                     # print(f"Adjacency matrix: \n{self.adjacency_matrix_acc[index]}")
-                    reward_step += 1000  # Reward for successful complete communication
+                    reward_step += 100  # Reward for successful complete communication
                     print(f"Data successfully transmitted from {self.name} to {other_satellite.name}")
                     print(f"Data transmitted: {data_to_transmit / 8} Bytes")
                     communication_done = True
@@ -673,7 +680,7 @@ class ObserverSatellite(Satellite):
                 if pointing_accuracy > 0:
                     if self.observation_status_matrix[target_index] == 3:
                         # implement penalty for trying to observe an already observed target
-                        reward_step -= 0.1
+                        reward_step -= 1
                         observation_done = True
                     # Update cumulative pointing accuracy and counts
                     self.cumulative_pointing_accuracy[index,target_index] += pointing_accuracy
@@ -683,6 +690,7 @@ class ObserverSatellite(Satellite):
                     self.update_contacts_matrix(index, target_index)
                     # Update observation time
                     self.observation_time_matrix[target_index] += time_step  # Assuming time_step is in seconds
+                    reward_step += 1  # Reward for successful observation step
                     print(f"{self.name} is observing {target.name}")
                 else:
                     if self.observation_counts[target_index] > 0 and self.observation_status_matrix[target_index] == 2 and self.cumulative_pointing_accuracy[index,target_index] > 0:

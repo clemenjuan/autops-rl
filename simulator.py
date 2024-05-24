@@ -75,7 +75,7 @@ class Simulator():
                 # Calculate the sum of accumulated adjacency
                 sum_of_adjacency_acc = np.sum(self.adjacency_matrix_acc[i]) * observer.DataHand['DataSize'] * 8  # in bits
                 # Calculate the total data to transmit
-                data_to_transmit = data_size + sum_of_contacts + sum_of_adjacency # - sum_of_contacts_acc - sum_of_adjacency_acc
+                data_to_transmit = data_size + sum_of_contacts + sum_of_contacts_acc + sum_of_adjacency_acc
                 data_to_transmit = max(data_to_transmit, 0)
                 # print(f"Data to transmit: {data_to_transmit} bits")
 
