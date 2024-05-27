@@ -29,7 +29,7 @@ FROM nvcr.io/nvidia/l4t-pytorch:r35.2.1-pth2.0-py3 AS jetson
 WORKDIR /app
  
 # Copy the requirements.txt file into the container
-COPY requirements.txt .
+COPY requirements-jetson.txt .
  
 # Create a local directory for Python packages
 # RUN mkdir -p /app/python_packages
