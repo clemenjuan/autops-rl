@@ -20,8 +20,8 @@ def setup_config(config):
     config.environment(env=env_name, env_config=env_config, disable_env_checking=True)
     config.framework(args.framework)
     config.rollouts(num_rollout_workers=4, num_envs_per_worker=2, rollout_fragment_length="auto", batch_mode="complete_episodes")
-    config.resources(num_gpus=1 if torch.cuda.is_available() else 0)
     gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
+    config.resources(num_gpus=gpu_count)
     print(f"Using {gpu_count} GPU(s) for training.")
     return config
 

@@ -1,5 +1,8 @@
 # Stage 1: Base image for general use with Python 3.11.6
 FROM python:3.11.6-slim AS base
+
+# Set PYTHONWARNINGS to ignore DeprecationWarnings
+ENV PYTHONWARNINGS="ignore::DeprecationWarning"
  
 # Set the working directory inside the container
 WORKDIR /app
@@ -17,10 +20,13 @@ RUN pip install -r requirements.txt
 COPY . .
  
 # Set the PYTHONPATH environment variable to include the local packages directory
-ENV PYTHONPATH="/app/python_packages:${PYTHONPATH}"
+# ENV PYTHONPATH="/app/python_packages:${PYTHONPATH}"
  
 # Stage 2: NVIDIA Jetson specific image
 FROM nvcr.io/nvidia/l4t-pytorch:r35.2.1-pth2.0-py3 AS jetson
+
+# Set PYTHONWARNINGS to ignore DeprecationWarnings
+ENV PYTHONWARNINGS="ignore::DeprecationWarning"
  
 # Install Python and pip
 # RUN apt-get update && apt-get install -y python3 python3-pip
@@ -41,7 +47,7 @@ RUN pip install -r requirements-jetson.txt
 COPY . .
  
 # Set the PYTHONPATH environment variable to include the local packages directory
-ENV PYTHONPATH="/app/python_packages:${PYTHONPATH}"
+# ENV PYTHONPATH="/app/python_packages:${PYTHONPATH}"
  
 # Final stage: Default to using the base image for general use
 FROM base
