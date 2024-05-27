@@ -11,7 +11,7 @@ COPY requirements.txt .
 RUN mkdir -p /app/python_packages
  
 # Install the required Python packages for general use into the local directory
-RUN pip install -r requirements.txt --target=/app/python_packages
+RUN pip install -r requirements.txt --target=/app/python_packages --no-cache-dir
  
 # Copy the rest of the application code into the container
 COPY . .
@@ -35,7 +35,7 @@ COPY requirements-jetson.txt .
 RUN mkdir -p /app/python_packages
  
 # Install requirements for Jetson locally
-RUN pip install -r requirements-jetson.txt --target=/app/python_packages
+RUN pip install -r requirements-jetson.txt --target=/app/python_packages --no-cache-dir
 
 # Copy the rest of the application code into the container
 COPY . .
