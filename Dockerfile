@@ -1,8 +1,5 @@
 # Stage 1: Base image for general use with Python 3.11.6
 FROM python:3.11.6-slim AS base
-
-# Set PYTHONWARNINGS to ignore DeprecationWarnings
-ENV PYTHONWARNINGS="ignore::DeprecationWarning"
  
 # Set the working directory inside the container
 WORKDIR /app
@@ -24,9 +21,6 @@ COPY . .
  
 # Stage 2: NVIDIA Jetson specific image
 FROM nvcr.io/nvidia/l4t-pytorch:r35.2.1-pth2.0-py3 AS jetson
-
-# Set PYTHONWARNINGS to ignore DeprecationWarnings
-ENV PYTHONWARNINGS="ignore::DeprecationWarning"
  
 # Install Python and pip
 # RUN apt-get update && apt-get install -y python3 python3-pip

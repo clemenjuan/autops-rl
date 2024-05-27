@@ -36,6 +36,7 @@ env_config = {
 
 os.environ["RAY_verbose_spill_logs"] = "0"
 os.environ["RAY_DEDUP_LOGS"] = "0"
+os.environ["PYTHONWARNINGS"] = "ignore"
 
 # Argument parsing setup
 parser = argparse.ArgumentParser()
