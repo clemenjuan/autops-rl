@@ -19,7 +19,7 @@ from FSS_env import FSS_env
 def setup_config(config):
     config.environment(env=env_name, env_config=env_config, disable_env_checking=True)
     config.framework(args.framework)
-    config.rollouts(num_rollout_workers=4, num_envs_per_worker=2, rollout_fragment_length="auto", batch_mode="complete_episodes")
+    config.rollouts(num_rollout_workers=4, num_envs_per_worker=1, rollout_fragment_length="auto", batch_mode="complete_episodes")
     gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
     config.resources(num_gpus=gpu_count)
     print(f"Using {gpu_count} GPU(s) for training.")
@@ -42,7 +42,7 @@ os.environ["PYTHONWARNINGS"] = "ignore"
 parser = argparse.ArgumentParser()
 parser.add_argument("--framework", choices=["tf", "tf2", "torch"], default="torch", help="The DL framework specifier.")
 parser.add_argument("--stop-iters", type=int, default=20, help="Number of iterations to train.")
-parser.add_argument("--stop-reward", type=float, default=500000.0, help="Reward at which we stop training.")
+parser.add_argument("--stop-reward", type=float, default=1000000.0, help="Reward at which we stop training.")
 parser.add_argument("--policy", choices=["ppo", "dqn", "a2c", "a3c", "impala"], required=True, help="Policy to train.")
 parser.add_argument("--checkpoint-dir", type=str, default="checkpoints", help="Directory to save checkpoints.")
 parser.add_argument("--tune", action="store_true", help="Whether to perform hyperparameter tuning.")
@@ -58,11 +58,11 @@ env_name = "FSS_env-v0"
 register_env(env_name, lambda config: env_creator(env_config))
 
 
-# Configuration for PPO
+# Configuration for PPO - https://github.com/llSourcell/Unity_ML_Agents/blob/master/docs/best-practices-ppo.md#
 ppo_config = setup_config(PPOConfig())
 ppo_config.training(
-    vf_loss_coeff=0.01, num_sgd_iter=6, train_batch_size=1024,
-    lr=tune.loguniform(1e-4, 1e-2) if args.tune else 1e-3,  # Set a default value if not tuning
+    vf_loss_coeff=0.01, num_sgd_iter=6, train_batch_size=512,
+    lr=tune.loguniform(1e-5, 1e-3) if args.tune else 1e-3,  # Set a default value if not tuning
     gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99,
     use_gae=True, lambda_=tune.uniform(0.9, 1.0) if args.tune else 0.95,
     clip_param=0.2, entropy_coeff=0.01, sgd_minibatch_size=64,

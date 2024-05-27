@@ -137,21 +137,21 @@ To start an interactive session inside the Docker container, use the following c
 #### On macOS and Linux
 
 ```sh
-docker run --rm -it --shm-size=2gb -v $(pwd):/app masterthesis_clemente
+docker run --rm -it --shm-size=6gb -v $(pwd):/app masterthesis_clemente
 ```
 
 
 #### On Windows (Command Prompt or PowerShell)
 
 ```sh
-docker run --rm -it --shm-size=2gb -v %cd%:/app masterthesis_clemente
+docker run --rm -it --shm-size=6gb -v %cd%:/app masterthesis_clemente
 ```
 
 
 #### On NVIDIA Jetson (with GPU support)
 
 ```sh
-sudo docker run -it --rm --shm-size=2gb --runtime nvidia --network host -v $(pwd):/app masterthesis_clemente:jetson /bin/bash
+sudo docker run -it --rm --runtime nvidia --network host -v $(pwd):/app masterthesis_clemente:jetson /bin/bash
 ``` 
 
 And verify CUDA and PyTorch availability inside the container:
