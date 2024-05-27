@@ -14,6 +14,7 @@ from ray.tune.logger import pretty_print
 from FSS_env import FSS_env
 
 
+
 ##### EDIT THIS FUNCTION #####
 # Common configuration setup
 def setup_config(config):
@@ -186,6 +187,17 @@ if args.tune:
             name="dqn_experiment",
             checkpoint_at_end=False
         )
+    elif args.policy == "impala":
+        analysis = tune.run(
+            "IMPALA",
+            config=impala_config.to_dict(),
+            num_samples=10,
+            metric="episode_reward_mean",
+            mode="max",
+            local_dir=args.checkpoint_dir,
+            name="impala_experiment",
+            checkpoint_at_end=False
+        )
     elif args.policy == "a2c":
         analysis = tune.run(
             "A2C",
@@ -208,17 +220,6 @@ if args.tune:
             name="a3c_experiment",
             checkpoint_at_end=False
         )
-    elif args.policy == "impala":
-        analysis = tune.run(
-            "IMPALA",
-            config=impala_config.to_dict(),
-            num_samples=10,
-            metric="episode_reward_mean",
-            mode="max",
-            local_dir=args.checkpoint_dir,
-            name="impala_experiment",
-            checkpoint_at_end=False
-        )
 
     # Get the best hyperparameters
     best_config = analysis.best_config
@@ -231,15 +232,15 @@ if args.tune:
     elif args.policy == "dqn":
         dqn_config.update_from_dict(best_config)
         train_policy(dqn_config, "dqn_policy", args.checkpoint_dir)
+    elif args.policy == "impala":
+        impala_config.update_from_dict(best_config)
+        train_policy(impala_config, "impala_policy", args.checkpoint_dir)
     elif args.policy == "a2c":
         a2c_config.update_from_dict(best_config)
         train_policy(a2c_config, "a2c_policy", args.checkpoint_dir)
     elif args.policy == "a3c":
         a3c_config.update_from_dict(best_config)
         train_policy(a3c_config, "a3c_policy", args.checkpoint_dir)
-    elif args.policy == "impala":
-        impala_config.update_from_dict(best_config)
-        train_policy(impala_config, "impala_policy", args.checkpoint_dir)
 else:
     if args.policy == "ppo":
         # inspect_policy(ppo_config, "ppo_policy", args.checkpoint_dir)
@@ -247,12 +248,12 @@ else:
     elif args.policy == "dqn":
         # inspect_policy(dqn_config, "dqn_policy", args.checkpoint_dir)
         train_policy(dqn_config, "dqn_policy", args.checkpoint_dir)
+    elif args.policy == "impala":
+        # inspect_policy(impala_config, "impala_policy", args.checkpoint_dir)
+        train_policy(impala_config, "impala_policy", args.checkpoint_dir)
     elif args.policy == "a2c":
         # inspect_policy(a2c_config, "a2c_policy", args.checkpoint_dir)
         train_policy(a2c_config, "a2c_policy", args.checkpoint_dir)
     elif args.policy == "a3c":
         # inspect_policy(a3c_config, "a3c_policy", args.checkpoint_dir)
         train_policy(a3c_config, "a3c_policy", args.checkpoint_dir)
-    elif args.policy == "impala":
-        # inspect_policy(impala_config, "impala_policy", args.checkpoint_dir)
-        train_policy(impala_config, "impala_policy", args.checkpoint_dir)

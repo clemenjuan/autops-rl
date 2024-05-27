@@ -6,8 +6,8 @@ ray==2.10.0
 ray[tune]==2.10.0
 torch==2.0.0
 typer==0.7.0
+dm_tree
 tree
-dm_tree==0.1.8
 scikit-image
 lz4
 gputil==1.4.0

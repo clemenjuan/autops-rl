@@ -119,13 +119,13 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
 - For general use:
 
     ```sh
-    docker build -t masterthesis_clemente .
+    docker build --no-cache -t masterthesis_clemente .
     ```
 
 - For NVIDIA Jetson:
 
     ```sh
-    sudo docker build --target jetson -t masterthesis_clemente:jetson .
+    sudo docker build --no-cache --target jetson -t masterthesis_clemente:jetson .
     ``` 
     
 
@@ -137,21 +137,21 @@ To start an interactive session inside the Docker container, use the following c
 #### On macOS and Linux
 
 ```sh
-docker run --rm -it --shm-size=6gb -v $(pwd):/app masterthesis_clemente
+docker run -e PYTHONWARNINGS="ignore::DeprecationWarning" --rm -it --shm-size=6gb -v $(pwd):/app masterthesis_clemente
 ```
 
 
 #### On Windows (Command Prompt or PowerShell)
 
 ```sh
-docker run --rm -it --shm-size=6gb -v %cd%:/app masterthesis_clemente
+docker run -e PYTHONWARNINGS="ignore::DeprecationWarning" --rm -it --shm-size=6gb -v %cd%:/app masterthesis_clemente
 ```
 
 
 #### On NVIDIA Jetson (with GPU support)
 
 ```sh
-sudo docker run -it --rm --runtime nvidia --network host -v $(pwd):/app masterthesis_clemente:jetson /bin/bash
+sudo docker run -e PYTHONWARNINGS="ignore::DeprecationWarning" -it --rm --runtime nvidia --network host -v $(pwd):/app masterthesis_clemente:jetson /bin/bash
 ``` 
 
 And verify CUDA and PyTorch availability inside the container:
