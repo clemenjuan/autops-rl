@@ -35,7 +35,7 @@ COPY requirements.txt .
 # RUN mkdir -p /app/python_packages
  
 # Remove torch from the requirements for Jetson and install the rest locally
-RUN sed -i '/torch/d' requirements.txt && pip install -r requirements.txt
+RUN pip install -r requirements-jetson.txt
 
 # Copy the rest of the application code into the container
 COPY . .

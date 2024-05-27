@@ -21,7 +21,7 @@ def setup_config(config):
     config.framework(args.framework)
     config.rollouts(num_rollout_workers=4, num_envs_per_worker=2, rollout_fragment_length="auto", batch_mode="complete_episodes")
     config.resources(num_gpus=1 if torch.cuda.is_available() else 0)
-    gpu_count = 1 if torch.cuda.is_available() else 0
+    gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
     print(f"Using {gpu_count} GPU(s) for training.")
     return config
 
@@ -60,7 +60,7 @@ register_env(env_name, lambda config: env_creator(env_config))
 # Configuration for PPO
 ppo_config = setup_config(PPOConfig())
 ppo_config.training(
-    vf_loss_coeff=0.01, num_sgd_iter=6, train_batch_size=env_config["duration"],
+    vf_loss_coeff=0.01, num_sgd_iter=6, train_batch_size=1024,
     lr=tune.loguniform(1e-4, 1e-2) if args.tune else 1e-3,  # Set a default value if not tuning
     gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99,
     use_gae=True, lambda_=tune.uniform(0.9, 1.0) if args.tune else 0.95,
