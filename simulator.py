@@ -110,7 +110,7 @@ class Simulator():
                 
                 observer.processing_time += max_steps * self.time_step
                 power_consumption = observer.power_consumption_rates["communication"]
-                storage_consumption = observer.storage_consumption_rates["communication"] # needs fixing 
+                storage_consumption = observer.storage_consumption_rates["communication"] # not implemented
                 observer.epsys['EnergyAvailable'] -= power_consumption * self.time_step * max_steps
                 observer.DataHand['StorageAvailable'] -= total_data_transmitted # in bits
                 # print(f"Data transmitted: {total_data_transmitted}, Storage available: {observer.DataHand['StorageAvailable']}")
@@ -137,7 +137,7 @@ class Simulator():
 
                 
                 observer.epsys['EnergyAvailable'] -= power_consumption * self.time_step * steps
-                observer.DataHand['StorageAvailable'] -= storage_consumption * self.time_step * (steps-1)
+                observer.DataHand['StorageAvailable'] -= storage_consumption * self.time_step * steps
                 observer.processing_time += steps * self.time_step
 
             if observer.epsys['EnergyAvailable'] < 0 or observer.DataHand['StorageAvailable'] < 0:

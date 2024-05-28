@@ -181,31 +181,31 @@ Training for different policies (PPO, DQN, A2C, A3C, IMPALA). Edit the configura
 To perform hyperparameter tuning and training for different policies, run the following commands (customizables):
 
 ```python
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy ppo --checkpoint-dir ppo_checkpoints --tune
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy dqn --checkpoint-dir dqn_checkpoints --tune
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a2c --checkpoint-dir a2c_checkpoints --tune
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a3c --checkpoint-dir a3c_checkpoints --tune
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy impala --checkpoint-dir impala_checkpoints --tune
+python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy ppo --checkpoint-dir ppo_checkpoints --tune
+python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy dqn --checkpoint-dir dqn_checkpoints --tune
+python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy a2c --checkpoint-dir a2c_checkpoints --tune
+python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy a3c --checkpoint-dir a3c_checkpoints --tune
+python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy impala --checkpoint-dir impala_checkpoints --tune
 ```
 
 If you only want to train the policies without tuning, omit the --tune argument (also customizables):
 
 ```python
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy ppo --checkpoint-dir ppo_checkpoints
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy dqn --checkpoint-dir dqn_checkpoints
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a2c --checkpoint-dir a2c_checkpoints
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a3c --checkpoint-dir a3c_checkpoints
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy impala --checkpoint-dir impala_checkpoints
+python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy ppo --checkpoint-dir ppo_checkpoints
+python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy dqn --checkpoint-dir dqn_checkpoints
+python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy a2c --checkpoint-dir a2c_checkpoints
+python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy a3c --checkpoint-dir a3c_checkpoints
+python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy impala --checkpoint-dir impala_checkpoints
 ```
 
 Finally, if you want to train from a previous checkpoint, run the following commands (of course customize them according to your needs):
 
 ```python
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy ppo --checkpoint-dir ppo_checkpoints/ppo_policy
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy dqn --checkpoint-dir dqn_checkpoints/dqn_policy
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a2c --checkpoint-dir a2c_checkpoints/a2c_policy
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy a3c --checkpoint-dir a3c_checkpoints/a3c_policy
-python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy impala --checkpoint-dir impala_checkpoints/impala_policy
+python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy ppo --checkpoint-dir ppo_checkpoints/ppo_policy
+python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy dqn --checkpoint-dir dqn_checkpoints/dqn_policy
+python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy a2c --checkpoint-dir a2c_checkpoints/a2c_policy
+python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy a3c --checkpoint-dir a3c_checkpoints/a3c_policy
+python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy impala --checkpoint-dir impala_checkpoints/impala_policy
 ```
 
 

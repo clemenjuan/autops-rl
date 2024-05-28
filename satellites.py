@@ -79,7 +79,7 @@ class Satellite(ABC):
         if DataHand is None:
             DataHand = {
                 'DataStorage': 8*64e9, # Maximum storage onboard. 8*[bytes]=[bites], from ISISpace bus
-                'StorageAvailable': random.uniform(2,7) *64e9, # Storage available for observation
+                'StorageAvailable': random.uniform(2,7) * 64e9, # Storage available for observation
                 'DataSize': 52, # Data package size per satellite in bytes
             }
         
@@ -390,7 +390,7 @@ class ObserverSatellite(Satellite):
         }
         self.storage_consumption_rates = {
             "observation": 1024*1024*8,  # Storage consumption rate during observation - 1 Mbits/s
-            "communication": 1,  # Storage consumption rate during communication
+            "communication": 0,  # Storage consumption rate during communication
         }
         self.current_power_consumption = 0  # Current power consumption
 
@@ -625,7 +625,7 @@ class ObserverSatellite(Satellite):
                 # print(f"Data transmitted: {data_transmitted:.2f} bits, Data to transmit: {data_to_transmit:.2f} bits")
                 # Update data matrices in the Simulator
                 self.update_data_matrix(index, other_satellite_index, volume_of_data)
-                reward_step += 1 # Reward for successful communication step
+                reward_step += 0.1 # Reward for successful communication step
 
                 print(f"{self.name} is communicating with {other_satellite.name}")
 
@@ -653,7 +653,7 @@ class ObserverSatellite(Satellite):
 
                     # print(f"Data successfully transmitted from {self.name} to {other_satellite.name}")
                     # print(f"Adjacency matrix: \n{self.adjacency_matrix_acc[index]}")
-                    reward_step += 100  # Reward for successful complete communication
+                    reward_step += 10  # Reward for successful complete communication
                     print(f"Data successfully transmitted from {self.name} to {other_satellite.name}")
                     print(f"Data transmitted: {data_to_transmit / 8} Bytes")
                     communication_done = True
@@ -707,7 +707,7 @@ class ObserverSatellite(Satellite):
                             self.has_new_data[:] = True
                             self.cumulative_pointing_accuracy[index,target_index] = 0  # Reset cumulative pointing accuracy
                             self.observation_counts[target_index] = 0  # Reset target counts
-                            reward_step += 1000*self.pointing_accuracy_avg[index,target_index] # Reward for successful observation
+                            reward_step += 5000*self.pointing_accuracy_avg[index,target_index] # Reward for successful observation
                             observation_done = True
                             print(f"{self.name} successfully observed {target.name} with pointing accuracy: {self.pointing_accuracy_avg[index,target_index]}")
                         else:
