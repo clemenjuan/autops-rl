@@ -114,9 +114,8 @@ def get_latest_checkpoint(checkpoint_dir):
 def train_policy(config, policy_name, checkpoint_dir):
     algorithm = config.build()
 
-    checkpoint_path = os.path.join(checkpoint_dir, policy_name)
+    checkpoint_path = os.path.join(checkpoint_dir, policy_name) #, "default_policy")
     os.makedirs(checkpoint_path, exist_ok=True)
-
     latest_checkpoint = get_latest_checkpoint(checkpoint_path)
 
     if latest_checkpoint:
