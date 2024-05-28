@@ -104,22 +104,25 @@ impala_config.training(
 def get_latest_checkpoint(checkpoint_dir):
     if not os.path.exists(checkpoint_dir):
         return None
-    checkpoints = [os.path.join(checkpoint_dir, name) for name in os.listdir(checkpoint_dir)]
-    checkpoints = [path for path in checkpoints if os.path.isdir(path)]
-    if not checkpoints:
+    checkpoint_files = [os.path.join(checkpoint_dir, name) for name in os.listdir(checkpoint_dir)]
+    checkpoint_files = [path for path in checkpoint_files if os.path.isfile(path) and 'algorithm_state' in path]
+    if not checkpoint_files:
         return None
-    return max(checkpoints, key=os.path.getctime)
+    return max(checkpoint_files, key=os.path.getctime)
 
 # Function to train a policy
 def train_policy(config, policy_name, checkpoint_dir):
     algorithm = config.build()
 
-    checkpoint_path = os.path.join(checkpoint_dir, policy_name) #, "default_policy")
-    os.makedirs(checkpoint_path, exist_ok=True)
-    latest_checkpoint = get_latest_checkpoint(checkpoint_path)
+    # Set paths
+    algorithm_checkpoint_path = os.path.join(checkpoint_dir, policy_name)
+    policy_checkpoint_path = os.path.join(algorithm_checkpoint_path, "policies", "default_policy")
+    os.makedirs(algorithm_checkpoint_path, exist_ok=True)
 
-    if latest_checkpoint:
-        algorithm.restore(latest_checkpoint)
+    # Restore algorithm checkpoint
+    latest_algorithm_checkpoint = get_latest_checkpoint(policy_checkpoint_path)
+    if latest_algorithm_checkpoint:
+        algorithm.restore(latest_algorithm_checkpoint)
 
     for i in range(args.stop_iters):
         print(f"== {policy_name.upper()} Iteration {i} ==")
@@ -128,7 +131,7 @@ def train_policy(config, policy_name, checkpoint_dir):
         print(pretty_print(result))
         print(f"Time taken for training {policy_name.upper()}: ", time.time() - start_time)
         
-        checkpoint = algorithm.save(checkpoint_path)
+        checkpoint = algorithm.save(algorithm_checkpoint_path)
         print(f"Checkpoint saved at {checkpoint}")
 
         if result["episode_reward_mean"] >= args.stop_reward:
