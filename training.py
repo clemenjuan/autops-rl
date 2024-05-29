@@ -72,7 +72,7 @@ ppo_config = setup_config(PPOConfig())
 ppo_config.training(
     vf_loss_coeff=0.01, 
     num_sgd_iter=10, # num_sgd_iter: Number of SGD iterations in each outer loop (i.e., number of epochs to execute per train batch).
-    train_batch_size=search_space["train_batch_size"] if args.tune else 512, 
+    train_batch_size=search_space["train_batch_size"] if args.tune else 128, 
     lr=search_space["lr"] if args.tune else 1e-3,  # Set a default value if not tuning
     gamma=search_space["gamma"] if args.tune else 0.99,
     use_gae=True, 

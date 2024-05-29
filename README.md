@@ -52,27 +52,13 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
     ``` 
 
 
-
-2.	Install NVIDIA Container Toolkit:
-
-    ```sh
-    sudo apt-get install -y nvidia-container-toolkit
-    sudo systemctl restart docker
-    ```
-
-
-4. Then restart Docker and verify configuration:
+2. Then restart Docker and verify configuration:
 
     ```sh
     sudo systemctl restart docker
     sudo docker info | grep "Docker Root Dir"
     ``` 
 
-5. Pull the compatible PyTorch Docker image:
-
-    ```sh
-    sudo docker pull nvcr.io/nvidia/pytorch:24.05-py3
-    ```
 
 
 
@@ -122,7 +108,7 @@ docker run -e PYTHONWARNINGS="ignore::DeprecationWarning" --rm -it --shm-size=6g
 #### On NVIDIA Jetson (with GPU support)
 
 ```sh
-sudo docker run -e PYTHONWARNINGS="ignore::DeprecationWarning" -it --rm --runtime nvidia --network host -v $(pwd):/app masterthesis_clemente:jetson /bin/bash
+sudo docker run -e PYTHONWARNINGS="ignore::DeprecationWarning" -it --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 --runtime nvidia --network host -v $(pwd):/app masterthesis_clemente:jetson /bin/bash
 ``` 
 
 And verify CUDA and PyTorch availability inside the container:
