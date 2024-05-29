@@ -20,7 +20,7 @@ from FSS_env import FSS_env
 def setup_config(config):
     config.environment(env=env_name, env_config=env_config, disable_env_checking=True)
     config.framework(args.framework)
-    config.rollouts(num_rollout_workers=4, num_envs_per_worker=1, rollout_fragment_length="auto", batch_mode="complete_episodes")
+    config.rollouts(num_rollout_workers=4, num_envs_per_worker=2, batch_mode="complete_episodes") #, rollout_fragment_length="auto")
     gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
     config.resources(num_gpus=gpu_count)
     print(f"Using {gpu_count} GPU(s) for training.")
@@ -42,9 +42,9 @@ os.environ["PYTHONWARNINGS"] = "ignore"
 # Argument parsing setup
 parser = argparse.ArgumentParser()
 parser.add_argument("--framework", choices=["tf", "tf2", "torch"], default="torch", help="The DL framework specifier.")
-parser.add_argument("--stop-iters", type=int, default=20, help="Number of iterations to train.")
-parser.add_argument("--stop-reward", type=float, default=1000000.0, help="Reward at which we stop training.")
-parser.add_argument("--policy", choices=["ppo", "dqn", "a2c", "a3c", "impala"], required=True, help="Policy to train.")
+parser.add_argument("--stop-iters", type=int, default=50, help="Number of iterations to train.")
+parser.add_argument("--stop-reward", type=float, default=1000000, help="Reward at which we stop training.")
+parser.add_argument("--policy", choices=["ppo", "dqn", "a2c", "a3c", "impala"], default="ppo", required=True, help="Policy to train.")
 parser.add_argument("--checkpoint-dir", type=str, default="checkpoints", help="Directory to save checkpoints.")
 parser.add_argument("--tune", action="store_true", help="Whether to perform hyperparameter tuning.")
 args = parser.parse_args()
@@ -58,15 +58,32 @@ env_name = "FSS_env-v0"
 
 register_env(env_name, lambda config: env_creator(env_config))
 
+# Serch space configurations
+search_space = {
+    "fcnet_hiddens": tune.choice([[64, 64], [128, 128], [256, 256]]),
+    "lr": tune.loguniform(1e-5, 1e-3),
+    "gamma": tune.uniform(0.9, 0.99),
+    "lambda": tune.uniform(0.9, 1.0),
+    "train_batch_size": tune.choice([512, 1024, 2048]),
+}
 
 # Configuration for PPO - https://github.com/llSourcell/Unity_ML_Agents/blob/master/docs/best-practices-ppo.md#
 ppo_config = setup_config(PPOConfig())
 ppo_config.training(
-    vf_loss_coeff=0.01, num_sgd_iter=6, train_batch_size=512,
-    lr=tune.loguniform(1e-5, 1e-3) if args.tune else 1e-3,  # Set a default value if not tuning
-    gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99,
-    use_gae=True, lambda_=tune.uniform(0.9, 1.0) if args.tune else 0.95,
-    clip_param=0.2, entropy_coeff=0.01, sgd_minibatch_size=64,
+    vf_loss_coeff=0.01, 
+    num_sgd_iter=10, # num_sgd_iter: Number of SGD iterations in each outer loop (i.e., number of epochs to execute per train batch).
+    train_batch_size=search_space["train_batch_size"] if args.tune else 512, 
+    lr=search_space["lr"] if args.tune else 1e-3,  # Set a default value if not tuning
+    gamma=search_space["gamma"] if args.tune else 0.99,
+    use_gae=True, 
+    lambda_=search_space["lambda"] if args.tune else 0.95,
+    clip_param=0.2, 
+    entropy_coeff=0.01, 
+    sgd_minibatch_size=64,
+    model={
+        "fcnet_hiddens": search_space["fcnet_hiddens"] if args.tune else [64, 64],
+        "fcnet_activation": "relu",
+    }
 )
 
 # Configuration for DQN

@@ -51,56 +51,27 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
     sudo apt-get install -y docker.io
     ``` 
 
-2. Verify CUDA installation:
-
-    ```sh
-    nvcc --version
-    nvidia-smi
-    ``` 
 
 
-3.	Install NVIDIA Container Toolkit:
+2.	Install NVIDIA Container Toolkit:
 
     ```sh
     sudo apt-get install -y nvidia-container-toolkit
     sudo systemctl restart docker
-    ``` 
-
-4. Mount and configure Docker to use SD card (adjust the device name as necessary):
-
-    ```sh
-    sudo mkdir -p /mnt/sdcard
-    sudo mount /dev/mmcblk1p1 /mnt/sdcard
-    sudo mkdir -p /mnt/sdcard/docker
-    sudo nano /etc/docker/daemon.json
-    ``` 
-
-5.	Configure Docker to use NVIDIA runtime by creating or editing /etc/docker/daemon.json (sudo nano /etc/docker/daemon.json):
-
-    ```json
-    {
-    "runtimes": {
-        "nvidia": {
-        "path": "nvidia-container-runtime",
-        "runtimeArgs": []
-        }
-    },
-    "default-runtime": "nvidia",
-    "data-root": "/mnt/sdcard/docker"
-    }
     ```
 
-6. Then restart Docker and verify configuration:
+
+4. Then restart Docker and verify configuration:
 
     ```sh
     sudo systemctl restart docker
     sudo docker info | grep "Docker Root Dir"
     ``` 
 
-7. Pull the compatible PyTorch Docker image:
+5. Pull the compatible PyTorch Docker image:
 
     ```sh
-    sudo docker pull nvcr.io/nvidia/l4t-pytorch:r35.2.1-pth2.0-py3
+    sudo docker pull nvcr.io/nvidia/pytorch:24.05-py3
     ```
 
 
@@ -177,25 +148,32 @@ python3 FSS_env.py
 
 #### Train Agents
 
-Training for different policies (PPO, DQN, A2C, A3C, IMPALA). Edit the configuration setup at the beginning of training.py to include gpu resources, more satellites or add more parallelism to the training process. 
-To perform hyperparameter tuning and training for different policies, run the following commands (customizables):
+Training for different policies (PPO, DQN, A2C, A3C, IMPALA) can be configured by editing the setup at the beginning of training.py. This includes specifying GPU resources, the number of satellites, or adding more parallelism to the training process.
 
+##### Available arguments
+When running `training.py`, you can customize the training process using the following arguments:
+
+- `--framework`: Specifies the deep learning framework. Choices are `tf`, `tf2`, or `torch`. Default is `torch`.
+- `--stop-iters`: The number of iterations to train. Default is `50`.
+- `--stop-reward`: The reward threshold at which training stops. Default is `1000000.0`.
+- `--policy`: The policy to train. Choices are `ppo`, `dqn`, `a2c`, `a3c`, or `impala`. Default is `ppo`.
+- `--checkpoint-dir`: Directory to save checkpoints. Default is `checkpoints`.
+- `--tune`: Whether to perform hyperparameter tuning. This is a flag argument.
+
+##### Example Commands
+To perform hyperparameter tuning and training for different policies, use the following commands. Customize them with the arguments mentioned above:
 ```python
-python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy ppo --checkpoint-dir ppo_checkpoints --tune
-python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy dqn --checkpoint-dir dqn_checkpoints --tune
-python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy a2c --checkpoint-dir a2c_checkpoints --tune
-python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy a3c --checkpoint-dir a3c_checkpoints --tune
-python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy impala --checkpoint-dir impala_checkpoints --tune
+python3 training.py --policy ppo --tune
+
+python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy dqn --checkpoint-dir dqn_checkpoints --tune
 ```
 
-If you only want to train the policies without tuning or keep training from latest checkpoint, omit the --tune argument (also customizables):
+To train the policies without hyperparameter tuning or to continue training from the latest checkpoint, omit the --tune argument:
 
 ```python
-python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy ppo --checkpoint-dir ppo_checkpoints
-python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy dqn --checkpoint-dir dqn_checkpoints
-python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy a2c --checkpoint-dir a2c_checkpoints
-python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy a3c --checkpoint-dir a3c_checkpoints
-python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --policy impala --checkpoint-dir impala_checkpoints
+python3 training.py --policy ppo
+
+python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy dqn --checkpoint-dir dqn_checkpoints
 ```
 
 
@@ -203,7 +181,7 @@ python3 training.py --framework torch --stop-iters 20 --stop-reward 1000000 --po
 To test the trained policies, you can run the following commands:
 
 ```python
-python3 main.py --framework torch --policy ppo --checkpoint-dir ppo_checkpoints/ppo_policy
+python3 main.py --policy ppo --checkpoint-dir checkpoints/ppo_policy
 ``` 
 
 

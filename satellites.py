@@ -384,9 +384,9 @@ class ObserverSatellite(Satellite):
         self.max_pointing_accuracy_avg_sat = np.zeros(num_targets, dtype=np.float32)  # Track maximum pointing accuracy for each target
         # Add power consumption rates (in Watts)
         self.power_consumption_rates = {
-            "standby": 7,  # Standby mode
-            "communication": 10,  # During communication
-            "observation": 10,  # During observation
+            "standby": 7 + 10,  # Standby mode
+            "communication": 10 + 10,  # During communication
+            "observation": 10 + 10,  # During observation
         }
         self.storage_consumption_rates = {
             "observation": 1024*1024*8,  # Storage consumption rate during observation - 1 Mbits/s
@@ -690,7 +690,7 @@ class ObserverSatellite(Satellite):
                     self.update_contacts_matrix(index, target_index)
                     # Update observation time
                     self.observation_time_matrix[target_index] += time_step  # Assuming time_step is in seconds
-                    reward_step += 1  # Reward for successful observation step
+                    reward_step += 100  # Reward for successful observation step
                     print(f"{self.name} is observing {target.name}")
                 else:
                     if self.observation_counts[target_index] > 0 and self.observation_status_matrix[target_index] == 2 and self.cumulative_pointing_accuracy[index,target_index] > 0:
@@ -707,7 +707,7 @@ class ObserverSatellite(Satellite):
                             self.has_new_data[:] = True
                             self.cumulative_pointing_accuracy[index,target_index] = 0  # Reset cumulative pointing accuracy
                             self.observation_counts[target_index] = 0  # Reset target counts
-                            reward_step += 5000*self.pointing_accuracy_avg[index,target_index] # Reward for successful observation
+                            reward_step += 1000*self.pointing_accuracy_avg[index,target_index] # Reward for successful observation
                             observation_done = True
                             print(f"{self.name} successfully observed {target.name} with pointing accuracy: {self.pointing_accuracy_avg[index,target_index]}")
                         else:

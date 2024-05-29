@@ -61,6 +61,7 @@ class Simulator():
                 if not observer.is_processing:
                     observer.epsys['EnergyAvailable'] -= power_consumption * self.time_step
                 # only reduce energy if the satellite is not processing (already deducted in the processing function)
+                # reward_step[agent] -= 0.01
             elif action == 1: # Communication
                 communication_done = False
                 max_steps = 0
