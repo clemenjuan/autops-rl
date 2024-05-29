@@ -15,7 +15,7 @@ RUN pip install --upgrade pip && \
 COPY . .
 
 # Stage 2: NVIDIA Jetson specific image
-FROM nvcr.io/nvidia/l4t-pytorch:r35.2.1-pth2.0-py3 AS jetson
+FROM nvcr.io/nvidia/pytorch:24.05-py3 AS jetson
 
 # Set the working directory inside the container
 WORKDIR /app

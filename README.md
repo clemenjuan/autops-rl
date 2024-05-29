@@ -90,13 +90,13 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
 - For general use:
 
     ```sh
-    docker build --no-cache -t masterthesis_clemente .
+    docker build -t masterthesis_clemente .
     ```
 
 - For NVIDIA Jetson:
 
     ```sh
-    sudo docker build --no-cache --target jetson -t masterthesis_clemente:jetson .
+    sudo docker build --target jetson -t masterthesis_clemente:jetson .
     ``` 
     
 
@@ -132,7 +132,7 @@ nvidia-smi
 python3 -c "import torch; print(torch.cuda.is_available())"
 ``` 
 
-By following these steps, you can ensure that your Docker container on NVIDIA Jetson with JetPack 5.1.x has access to CUDA 11.4 and PyTorch 2.0.0.
+By following these steps, you can ensure that your Docker container on NVIDIA Jetson with JetPack 6.x has access to CUDA and PyTorch.
 
 ### Running Your Scripts
 
