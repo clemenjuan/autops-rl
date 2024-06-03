@@ -14,8 +14,9 @@ RUN pip install --upgrade pip && \
 # Copy the rest of the application code into the container
 COPY . .
 
-# Stage 2: NVIDIA Jetson specific image
-FROM nvcr.io/nvidia/pytorch:24.05-py3 AS jetson
+# Stage 2: NVIDIA Jetson specific image (first for Jetpack 6.0 and second one for Jetpack 5.1.x)
+# FROM nvcr.io/nvidia/pytorch:24.05-py3 AS jetson
+FROM nvcr.io/nvidia/l4t-pytorch:r35.2.1-pth2.0-py3 AS jetson
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -24,8 +25,9 @@ WORKDIR /app
 COPY requirements-jetson.txt .
 
 # Install the required Python packages for Jetson globally
-RUN pip install --upgrade pip && \
-    pip install -r requirements-jetson.txt --no-cache-dir --verbose
+RUN pip install --upgrade pip
+
+RUN pip install -r requirements-jetson.txt --no-cache-dir --verbose
 
 # Copy the rest of the application code into the container
 COPY . .

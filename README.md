@@ -71,7 +71,7 @@ Ensure you have Docker installed and set up on your Jetson device. Use NVIDIA Do
    cd masterthesis_git
    ```
 
-2. Build the Docker image (might need sudo)
+2. Build the Docker image (might need sudo):
 
 - For general use:
 
@@ -115,10 +115,11 @@ And verify CUDA and PyTorch availability inside the container:
 
 ```sh
 nvidia-smi
+nvcc --version
 python3 -c "import torch; print(torch.cuda.is_available())"
 ``` 
 
-By following these steps, you can ensure that your Docker container on NVIDIA Jetson with JetPack 6.x has access to CUDA and PyTorch.
+By following these steps, you can ensure that your Docker container on NVIDIA Jetson with JetPack has access to CUDA and PyTorch.
 
 ### Running Your Scripts
 
@@ -147,6 +148,8 @@ When running `training.py`, you can customize the training process using the fol
 - `--tune`: Whether to perform hyperparameter tuning. This is a flag argument.
 
 ##### Example Commands
+If you get any error regarding ```"No module named 'x'"```, just run the command ```pip install -r requirements.txt``` or ```pip install -r requirements-jetson.txt``` inside the container.
+
 To perform hyperparameter tuning and training for different policies, use the following commands. Customize them with the arguments mentioned above:
 ```python
 python3 training.py --policy ppo --tune
