@@ -10,3 +10,4 @@ tree
 scikit-image
 lz4
 gputil==1.4.0
+pyarrow

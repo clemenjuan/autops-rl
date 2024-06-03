@@ -25,8 +25,9 @@ WORKDIR /app
 COPY requirements-jetson.txt .
 
 # Install the required Python packages for Jetson globally
-RUN pip install --upgrade pip && \
-    pip install -r requirements-jetson.txt --no-cache-dir --verbose
+RUN pip install --upgrade pip
+
+RUN pip install -r requirements-jetson.txt --no-cache-dir --verbose
 
 # Copy the rest of the application code into the container
 COPY . .
