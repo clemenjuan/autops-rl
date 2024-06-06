@@ -19,12 +19,13 @@ import pandas as pd
 
 ##### EDIT THIS FUNCTION #####
 # Common configuration setup
+# Resource allocation settings
 def setup_config(config):
     config.environment(env=env_name, env_config=env_config, disable_env_checking=True)
     config.framework(args.framework)
-    config.rollouts(num_rollout_workers=8, num_envs_per_worker=1, batch_mode="complete_episodes") #, rollout_fragment_length="auto")
+    config.rollouts(num_rollout_workers=4, num_envs_per_worker=1, batch_mode="complete_episodes") #, rollout_fragment_length="auto")
     gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
-    config.resources(num_gpus=gpu_count)
+    config.resources(num_gpus=gpu_count, num_gpus_per_worker=0, nums_cpus_per_worker=1)
     print(f"Using {gpu_count} GPU(s) for training.")
     return config
 
@@ -36,6 +37,11 @@ env_config = {
     "duration": 24*60*60
 }
 ###############################
+
+""" num_workers = 4  # Reduce the number of workers to allocate more CPU to training
+num_cpus_per_worker = 1  # Each worker uses 1 CPU
+num_gpus = 1  # Use the full GPU for training
+num_gpus_per_worker = 0  # Workers do not use the GPU """
 
 os.environ["RAY_verbose_spill_logs"] = "0"
 os.environ["RAY_DEDUP_LOGS"] = "0"
@@ -233,7 +239,6 @@ if args.tune:
             num_samples=30,
             metric="episode_reward_mean",
             mode="max",
-            resources_per_trial={"cpu": 1, "gpu": 0.1},
             max_concurrent_trials=10,
             local_dir=args.checkpoint_dir,
             name="ppo_experiment",
@@ -246,8 +251,7 @@ if args.tune:
             num_samples=30,
             metric="episode_reward_mean",
             mode="max",
-            resources_per_trial={"cpu": 1, "gpu": 0.1},
-            max_concurrent_trials=10,
+            max_concurrent_trials=5,
             local_dir=args.checkpoint_dir,
             name="dqn_experiment",
             checkpoint_at_end=False
@@ -259,8 +263,7 @@ if args.tune:
             num_samples=30,
             metric="episode_reward_mean",
             mode="max",
-            resources_per_trial={"cpu": 1, "gpu": 0.1},
-            max_concurrent_trials=10,
+            max_concurrent_trials=5,
             local_dir=args.checkpoint_dir,
             name="impala_experiment",
             checkpoint_at_end=False
@@ -272,8 +275,7 @@ if args.tune:
             num_samples=30,
             metric="episode_reward_mean",
             mode="max",
-            resources_per_trial={"cpu": 1, "gpu": 0.1},
-            max_concurrent_trials=10,
+            max_concurrent_trials=5,
             local_dir=args.checkpoint_dir,
             name="a2c_experiment",
             checkpoint_at_end=False
@@ -285,8 +287,7 @@ if args.tune:
             num_samples=30,
             metric="episode_reward_mean",
             mode="max",
-            resources_per_trial={"cpu": 1, "gpu": 0.1},
-            max_concurrent_trials=10,
+            max_concurrent_trials=5,
             local_dir=args.checkpoint_dir,
             name="a3c_experiment",
             checkpoint_at_end=False
