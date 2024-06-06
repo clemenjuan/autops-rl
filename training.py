@@ -34,7 +34,7 @@ def setup_config(config):
                      num_cpus_per_worker=num_cpus_per_worker, 
                      num_gpus_per_worker=0,
                      num_cpus_per_learner_worker=num_cpus_per_learner_worker, 
-                     num_gpus_per_learner=gpu_count)
+                     num_gpus_per_learner_worker=gpu_count)
     print(f"Using {gpu_count} GPU(s) for training.")
     return config
 
