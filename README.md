@@ -114,7 +114,6 @@ sudo docker run -e PYTHONWARNINGS="ignore::DeprecationWarning" -it --rm --gpus a
 And verify CUDA and PyTorch availability inside the container:
 
 ```sh
-nvidia-smi
 nvcc --version
 python3 -c "import torch; print(torch.cuda.is_available())"
 ``` 
@@ -146,10 +145,12 @@ When running `training.py`, you can customize the training process using the fol
 - `--policy`: The policy to train. Choices are `ppo`, `dqn`, `a2c`, `a3c`, or `impala`. Default is `ppo`.
 - `--checkpoint-dir`: Directory to save checkpoints. Default is `checkpoints`.
 - `--tune`: Whether to perform hyperparameter tuning. This is a flag argument.
+- `--resume`: Whether to resume training from the latest checkpoint.
 
 ##### Example Commands
-If you get any error regarding ```"No module named 'x'"```, just run the command ```pip install -r requirements.txt``` or ```pip install -r requirements-jetson.txt``` inside the container.
+If you get any error regarding ```"No module named 'x'"```, just manually run the command ```pip install -r requirements.txt``` or ```pip install -r requirements-jetson.txt``` inside the container.
 
+###### Hyperparameter search and training
 To perform hyperparameter tuning and training for different policies, use the following commands. Customize them with the arguments mentioned above:
 ```python
 python3 training.py --policy ppo --tune
@@ -157,7 +158,8 @@ python3 training.py --policy ppo --tune
 python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy dqn --checkpoint-dir dqn_checkpoints --tune
 ```
 
-To train the policies without hyperparameter tuning or to continue training from the latest checkpoint, omit the --tune argument:
+###### Directly Training
+To train the policies without hyperparameter tuning remove the --tune argument:
 
 ```python
 python3 training.py --policy ppo
@@ -165,9 +167,15 @@ python3 training.py --policy ppo
 python3 training.py --framework torch --stop-iters 20 --stop-reward 500000 --policy dqn --checkpoint-dir dqn_checkpoints
 ```
 
+###### Resume training from checkpoint
+To resume training from the latest checkpoint, you can use the --resume argument:
+```
+python3 training.py --policy ppo --resume
+```
+--checkpoint-dir checkpoints/ppo_policy
 
 #### Test Trained Agents
-To test the trained policies, you can run the following commands:
+To test the trained policies, you have the ```main.py```file:
 
 ```python
 python3 main.py --policy ppo --checkpoint-dir checkpoints/ppo_policy
