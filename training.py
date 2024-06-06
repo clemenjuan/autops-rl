@@ -21,11 +21,16 @@ import pandas as pd
 # Common configuration setup
 # Resource allocation settings
 def setup_config(config):
+    num_rollout_workers = 4 # Number of rollout workers (parallel actors for simulating environment interactions)
+    num_envs_per_worker = 1 # Number of environments per worker
+    num_cpus_per_worker = 1 # Number of CPUs per worker
+    num_cpus_per_local_worker = 8 # Number of CPUs per local worker (trainer)
+
     config.environment(env=env_name, env_config=env_config, disable_env_checking=True)
     config.framework(args.framework)
-    config.rollouts(num_rollout_workers=4, num_envs_per_worker=1, batch_mode="complete_episodes") #, rollout_fragment_length="auto")
+    config.rollouts(num_rollout_workers=num_rollout_workers, num_envs_per_worker=num_envs_per_worker, batch_mode="complete_episodes") #, rollout_fragment_length="auto")
     gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
-    config.resources(num_gpus=gpu_count, num_gpus_per_worker=0, num_cpus_per_worker=1)
+    config.resources(num_gpus=gpu_count, num_gpus_per_worker=0, num_cpus_per_worker=num_cpus_per_worker, num_cpus_per_local_worker=num_cpus_per_local_worker)
     print(f"Using {gpu_count} GPU(s) for training.")
     return config
 
@@ -37,11 +42,6 @@ env_config = {
     "duration": 24*60*60
 }
 ###############################
-
-""" num_workers = 4  # Reduce the number of workers to allocate more CPU to training
-num_cpus_per_worker = 1  # Each worker uses 1 CPU
-num_gpus = 1  # Use the full GPU for training
-num_gpus_per_worker = 0  # Workers do not use the GPU """
 
 os.environ["RAY_verbose_spill_logs"] = "0"
 os.environ["RAY_DEDUP_LOGS"] = "0"
