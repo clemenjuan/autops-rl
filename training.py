@@ -13,6 +13,8 @@ from ray.rllib.algorithms.impala import ImpalaConfig
 from ray.tune.registry import register_env
 from ray.tune.logger import pretty_print
 from FSS_env import FSS_env
+import json
+import pandas as pd
 
 
 
@@ -169,6 +171,22 @@ def train_policy_from_checkpoint(config, policy_name, checkpoint_dir, algorithm_
             print(f"Stopping {policy_name.upper()} training as it reached the reward threshold.")
             break
 
+def save_best_config(best_config, config_dir):
+    best_config_path = os.path.join(config_dir, "best_config.json")
+    with open(best_config_path, "w") as f:
+        json.dump(best_config, f, indent=4)
+    print(f"Best configuration saved to {best_config_path}")
+
+def save_hyperparameter_results(analysis, config_dir):
+    trials_data = []
+    for trial in analysis.trials:
+        trials_data.append(trial.metric_analysis["episode_reward_mean"])
+
+    df = pd.DataFrame(trials_data)
+    hyperparam_results_path = os.path.join(config_dir, "hyperparameter_results.csv")
+    df.to_csv(hyperparam_results_path, index=False)
+    print(f"Hyperparameter search results saved to {hyperparam_results_path}")
+
 
 
 def inspect_policy(config, policy, checkpoint_dir):
@@ -266,6 +284,10 @@ if args.tune:
     # Get the best hyperparameters
     best_config = analysis.best_config
     print(f"Best config: {best_config}")
+
+    # Save the best configuration and hyperparameter search results
+    save_best_config(best_config, args.checkpoint_dir)
+    save_hyperparameter_results(analysis, args.checkpoint_dir)
 
     # Train the policy with the best hyperparameters
     if args.policy == "ppo":
