@@ -17,7 +17,6 @@ import json
 import pandas as pd
 
 
-
 ##### EDIT THIS FUNCTION #####
 # Common configuration setup
 def setup_config(config):
@@ -25,7 +24,7 @@ def setup_config(config):
     config.framework(args.framework)
     config.rollouts(num_rollout_workers=8, num_envs_per_worker=1, batch_mode="complete_episodes") #, rollout_fragment_length="auto")
     gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
-    config.resources(num_gpus=gpu_count)
+    config.resources(num_cpus=12, num_gpus=gpu_count)
     print(f"Using {gpu_count} GPU(s) for training.")
     return config
 
@@ -61,6 +60,8 @@ def env_creator(env_config):
 env_name = "FSS_env-v0"
 
 register_env(env_name, lambda config: env_creator(env_config))
+
+ray.init(num_cpus=12, num_gpus=1)
 
 # Serch space configurations
 search_space = {
@@ -232,6 +233,8 @@ if args.tune:
             num_samples=30,
             metric="episode_reward_mean",
             mode="max",
+            resources_per_trial={"cpu": 1, "gpu": 0.1},
+            max_concurrent_trials=10,
             local_dir=args.checkpoint_dir,
             name="ppo_experiment",
             checkpoint_at_end=False
@@ -243,6 +246,8 @@ if args.tune:
             num_samples=30,
             metric="episode_reward_mean",
             mode="max",
+            resources_per_trial={"cpu": 1, "gpu": 0.1},
+            max_concurrent_trials=10,
             local_dir=args.checkpoint_dir,
             name="dqn_experiment",
             checkpoint_at_end=False
@@ -254,6 +259,8 @@ if args.tune:
             num_samples=30,
             metric="episode_reward_mean",
             mode="max",
+            resources_per_trial={"cpu": 1, "gpu": 0.1},
+            max_concurrent_trials=10,
             local_dir=args.checkpoint_dir,
             name="impala_experiment",
             checkpoint_at_end=False
@@ -265,6 +272,8 @@ if args.tune:
             num_samples=30,
             metric="episode_reward_mean",
             mode="max",
+            resources_per_trial={"cpu": 1, "gpu": 0.1},
+            max_concurrent_trials=10,
             local_dir=args.checkpoint_dir,
             name="a2c_experiment",
             checkpoint_at_end=False
@@ -276,6 +285,8 @@ if args.tune:
             num_samples=30,
             metric="episode_reward_mean",
             mode="max",
+            resources_per_trial={"cpu": 1, "gpu": 0.1},
+            max_concurrent_trials=10,
             local_dir=args.checkpoint_dir,
             name="a3c_experiment",
             checkpoint_at_end=False
