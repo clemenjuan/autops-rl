@@ -239,7 +239,7 @@ if args.tune:
             num_samples=30,
             metric="episode_reward_mean",
             mode="max",
-            max_concurrent_trials=10,
+            max_concurrent_trials=5,
             local_dir=args.checkpoint_dir,
             name="ppo_experiment",
             checkpoint_at_end=False
