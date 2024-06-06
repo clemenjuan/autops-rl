@@ -24,13 +24,13 @@ def setup_config(config):
     num_rollout_workers = 10 # Number of rollout workers (parallel actors for simulating environment interactions)
     num_envs_per_worker = 1 # Number of environments per worker
     num_cpus_per_worker = 1 # Number of CPUs per worker
-    num_cpus_per_learner_worker = 10 # Number of CPUs per local worker (trainer)
+    num_cpus_per_learner_worker = 1 # Number of CPUs per local worker (trainer) - leave 1 and use GPU
 
     config.environment(env=env_name, env_config=env_config, disable_env_checking=True)
     config.framework(args.framework)
     config.rollouts(num_rollout_workers=num_rollout_workers, num_envs_per_worker=num_envs_per_worker, batch_mode="complete_episodes") #, rollout_fragment_length="auto")
     gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
-    config.resources(num_gpus=gpu_count,  
+    config.resources(num_gpus=gpu_count,
                      num_cpus_per_worker=num_cpus_per_worker, 
                      num_gpus_per_worker=0,
                      num_cpus_per_learner_worker=num_cpus_per_learner_worker, 
