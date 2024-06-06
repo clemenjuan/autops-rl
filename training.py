@@ -21,7 +21,7 @@ import pandas as pd
 # Common configuration setup
 # Resource allocation settings
 def setup_config(config):
-    num_rollout_workers = 12 # Number of rollout workers (parallel actors for simulating environment interactions)
+    num_rollout_workers = 11 # Number of rollout workers (parallel actors for simulating environment interactions)
     num_envs_per_worker = 1 # Number of environments per worker
     num_cpus_per_worker = 1 # Number of CPUs per worker
     num_cpus_per_learner_worker = 11 # Number of CPUs per local worker (trainer)
