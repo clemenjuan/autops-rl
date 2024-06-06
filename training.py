@@ -30,7 +30,11 @@ def setup_config(config):
     config.framework(args.framework)
     config.rollouts(num_rollout_workers=num_rollout_workers, num_envs_per_worker=num_envs_per_worker, batch_mode="complete_episodes") #, rollout_fragment_length="auto")
     gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
-    config.resources(num_gpus=gpu_count, num_gpus_per_worker=0, num_cpus_per_worker=num_cpus_per_worker, num_cpus_per_learner_worker=num_cpus_per_learner_worker)
+    config.resources(num_gpus=gpu_count,  
+                     num_cpus_per_worker=num_cpus_per_worker, 
+                     num_gpus_per_worker=0,
+                     num_cpus_per_learner_worker=num_cpus_per_learner_worker, 
+                     num_gpus_per_learner=gpu_count)
     print(f"Using {gpu_count} GPU(s) for training.")
     return config
 
