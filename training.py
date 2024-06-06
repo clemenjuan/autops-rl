@@ -21,7 +21,7 @@ from FSS_env import FSS_env
 def setup_config(config):
     config.environment(env=env_name, env_config=env_config, disable_env_checking=True)
     config.framework(args.framework)
-    config.rollouts(num_rollout_workers=6, num_envs_per_worker=2, batch_mode="complete_episodes") #, rollout_fragment_length="auto")
+    config.rollouts(num_rollout_workers=8, num_envs_per_worker=1, batch_mode="complete_episodes") #, rollout_fragment_length="auto")
     gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
     config.resources(num_gpus=gpu_count)
     print(f"Using {gpu_count} GPU(s) for training.")
@@ -119,16 +119,6 @@ impala_config.training(
     gamma=tune.uniform(0.9, 0.99) if args.tune else 0.99,
 )
 
-# Function to get the latest checkpoint path
-def get_latest_checkpoint(checkpoint_dir):
-    if not os.path.exists(checkpoint_dir):
-        return None
-    checkpoint_files = [os.path.join(checkpoint_dir, name) for name in os.listdir(checkpoint_dir)]
-    checkpoint_files = [path for path in checkpoint_files if os.path.isfile(path) and 'algorithm_state' in path]
-    if not checkpoint_files:
-        return None
-    return max(checkpoint_files, key=os.path.getctime)
-
 # Function to train a policy
 def train_policy(config, policy_name, checkpoint_dir):
     algorithm = config.build()
@@ -144,7 +134,7 @@ def train_policy(config, policy_name, checkpoint_dir):
         print(pretty_print(result))
         print(f"Time taken for training {policy_name.upper()}: ", time.time() - start_time)
         
-        if i % 5 == 0:
+        if i>0 and i % 5 == 0:
             checkpoint = algorithm.save(algorithm_checkpoint_path)
             print(f"Checkpoint saved at {checkpoint}")
 
@@ -152,12 +142,17 @@ def train_policy(config, policy_name, checkpoint_dir):
             print(f"Stopping {policy_name.upper()} training as it reached the reward threshold.")
             break
 
-def train_policy_from_checkpoint(config, policy_name, checkpoint_dir, policy_checkpoint_path):
+def train_policy_from_checkpoint(config, policy_name, checkpoint_dir, algorithm_checkpoint_path):
+    # Initialize the algorithm
     algorithm = config.build()
-    my_restored_policy = Policy.from_checkpoint(policy_checkpoint_path)
-    print("Using policy: ", my_restored_policy)
 
-    algorithm_checkpoint_path = os.path.join(checkpoint_dir, policy_name)
+    # Restore the algorithm from the last checkpoint
+    algorithm.restore(algorithm_checkpoint_path)
+    print(f"Restored algorithm from checkpoint: {algorithm_checkpoint_path}")
+
+    # Validate the restoration by checking the state of the algorithm
+    restored_policy = algorithm.get_policy()
+    print("Restored policy configuration: ", restored_policy.config)
 
     for i in range(args.stop_iters):
         print(f"== {policy_name.upper()} Iteration {i} ==")
@@ -166,8 +161,8 @@ def train_policy_from_checkpoint(config, policy_name, checkpoint_dir, policy_che
         print(pretty_print(result))
         print(f"Time taken for training {policy_name.upper()}: ", time.time() - start_time)
         
-        if i % 5 == 0:
-            checkpoint = algorithm.save(algorithm_checkpoint_path)
+        if i > 0 and i % 5 == 0:
+            checkpoint = algorithm.save(checkpoint_dir)
             print(f"Checkpoint saved at {checkpoint}")
 
         if result["episode_reward_mean"] >= args.stop_reward:
@@ -176,12 +171,18 @@ def train_policy_from_checkpoint(config, policy_name, checkpoint_dir, policy_che
 
 
 
-
-def inspect_policy(config, policy):
+def inspect_policy(config, policy, checkpoint_dir):
     algorithm = config.build()
-    
-    checkpoint_path = os.path.join(checkpoint_dir, policy_name)
-    latest_checkpoint = get_latest_checkpoint(checkpoint_path)
+
+    algorithm_checkpoint_path = os.path.join(checkpoint_dir, policy_name)
+
+    # Restore the algorithm from the last checkpoint
+    algorithm.restore(algorithm_checkpoint_path)
+    print(f"Restored algorithm from checkpoint: {algorithm_checkpoint_path}")
+
+    # Validate the restoration by checking the state of the algorithm
+    restored_policy = algorithm.get_policy()
+    print("Restored policy configuration: ", restored_policy.config)
     
     if latest_checkpoint:
         algorithm.restore(latest_checkpoint)
@@ -210,7 +211,7 @@ if args.tune:
         analysis = tune.run(
             "PPO",
             config=ppo_config.to_dict(),
-            num_samples=10,
+            num_samples=30,
             metric="episode_reward_mean",
             mode="max",
             local_dir=args.checkpoint_dir,
@@ -221,7 +222,7 @@ if args.tune:
         analysis = tune.run(
             "DQN",
             config=dqn_config.to_dict(),
-            num_samples=10,
+            num_samples=30,
             metric="episode_reward_mean",
             mode="max",
             local_dir=args.checkpoint_dir,
@@ -232,7 +233,7 @@ if args.tune:
         analysis = tune.run(
             "IMPALA",
             config=impala_config.to_dict(),
-            num_samples=10,
+            num_samples=30,
             metric="episode_reward_mean",
             mode="max",
             local_dir=args.checkpoint_dir,
@@ -243,7 +244,7 @@ if args.tune:
         analysis = tune.run(
             "A2C",
             config=a2c_config.to_dict(),
-            num_samples=10,
+            num_samples=30,
             metric="episode_reward_mean",
             mode="max",
             local_dir=args.checkpoint_dir,
@@ -254,7 +255,7 @@ if args.tune:
         analysis = tune.run(
             "A3C",
             config=a3c_config.to_dict(),
-            num_samples=10,
+            num_samples=30,
             metric="episode_reward_mean",
             mode="max",
             local_dir=args.checkpoint_dir,
@@ -284,25 +285,25 @@ if args.tune:
         train_policy(a3c_config, "a3c_policy", args.checkpoint_dir)
 elif args.resume:
     if args.policy == "ppo":
-        policy_path = os.path.join(args.checkpoint_dir, "ppo_policy")
-        policy_checkpoint_path = os.path.join(policy_path, "policies", "default_policy")
-        train_policy_from_checkpoint(ppo_config,"ppo_policy", args.checkpoint_dir, policy_checkpoint_path)
+        algorithm_path = os.path.join(args.checkpoint_dir, "ppo_policy")
+        policy_checkpoint_path = os.path.join(algorithm_path, "policies", "default_policy")
+        train_policy_from_checkpoint(ppo_config,"ppo_policy", args.checkpoint_dir, algorithm_path)
     elif args.policy == "dqn":
-        policy_path = os.path.join(args.checkpoint_dir, "dqn_policy")
-        policy_checkpoint_path = os.path.join(policy_path, "policies", "default_policy")
-        train_policy_from_checkpoint(dqn_config, "dqn_policy", args.checkpoint_dir, policy_checkpoint_path)
+        algorithm_path = os.path.join(args.checkpoint_dir, "dqn_policy")
+        policy_checkpoint_path = os.path.join(algorithm_path, "policies", "default_policy")
+        train_policy_from_checkpoint(dqn_config, "dqn_policy", args.checkpoint_dir, algorithm_path)
     elif args.policy == "impala":
-        policy_path = os.path.join(args.checkpoint_dir, "impala_policy")
-        policy_checkpoint_path = os.path.join(policy_path, "policies", "default_policy")
-        train_policy_from_checkpoint(impala_config, "impala_policy", args.checkpoint_dir, policy_checkpoint_path)
+        algorithm_path = os.path.join(args.checkpoint_dir, "impala_policy")
+        policy_checkpoint_path = os.path.join(algorithm_path, "policies", "default_policy")
+        train_policy_from_checkpoint(impala_config, "impala_policy", args.checkpoint_dir, algorithm_path)
     elif args.policy == "a2c":
-        policy_path = os.path.join(args.checkpoint_dir, "a2c_policy")
-        policy_checkpoint_path = os.path.join(policy_path, "policies", "default_policy")
-        train_policy_from_checkpoint(a2c_config, "a2c_policy", args.checkpoint_dir, policy_checkpoint_path)
+        algorithm_path = os.path.join(args.checkpoint_dir, "a2c_policy")
+        policy_checkpoint_path = os.path.join(algorithm_path, "policies", "default_policy")
+        train_policy_from_checkpoint(a2c_config, "a2c_policy", args.checkpoint_dir, algorithm_path)
     elif args.policy == "a3c":
-        policy_path = os.path.join(args.checkpoint_dir, "a3c_policy")
-        policy_checkpoint_path = os.path.join(policy_path, "policies", "default_policy")
-        train_policy_from_checkpoint(a3c_config, "a3c_policy", args.checkpoint_dir, policy_checkpoint_path)
+        algorithm_path = os.path.join(args.checkpoint_dir, "a3c_policy")
+        policy_checkpoint_path = os.path.join(algorithm_path, "policies", "default_policy")
+        train_policy_from_checkpoint(a3c_config, "a3c_policy", args.checkpoint_dir, algorithm_path)
 else:
     if args.policy == "ppo":
         # inspect_policy(ppo_config, "ppo_policy", args.checkpoint_dir)
