@@ -263,7 +263,7 @@ class FSS_env(MultiAgentEnv):
 if __name__ == "__main__":
     ### Example of how to use the environment for a Monte Carlo simulation
     ############################ EDIT HERE ############################
-    num_simulations = 10  # desired number of simulations
+    num_simulations = 100  # desired number of simulations
     num_targets = 10 # Number of target satellites
     num_observers = 10 # Number of observer satellites
     simulator_type = 'everyone' # choose from 'centralized', 'decentralized', or 'everyone'
