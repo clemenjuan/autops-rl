@@ -236,6 +236,22 @@ def inspect_policy(config, policy, checkpoint_dir):
     for name, param in model.named_parameters():
         print(f"Parameter name: {name}, Parameter details: {param.size()}")
 
+def train_rl(config, algo_config_cls):
+    algo_config = algo_config_cls().update_from_dict(config)
+    algo = algo_config.build()
+    
+    for i in range(config["iterations"]):
+        result = algo.train()
+        tune.report(mean_reward=result["episode_reward_mean"])
+        
+        if i % 10 == 0:
+            with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
+                algo.save_checkpoint(temp_checkpoint_dir)
+                checkpoint = tune.Checkpoint.from_directory(temp_checkpoint_dir)
+                tune.report(mean_reward=result["episode_reward_mean"], checkpoint=checkpoint)
+    
+    algo.stop()
+
 
 if args.tune:
     # Hyperparameter tuning setup
@@ -244,44 +260,45 @@ if args.tune:
         metric_columns=["episode_reward_mean", "episode_len_mean", "timesteps_total"]
     )
     scheduler = ASHAScheduler(
-        max_t=200000, # maximum timesteps per trial
+        max_t=200000,  # maximum timesteps per trial
         grace_period=10000,  # minimum timesteps before a trial can be stopped
         reduction_factor=2  # halving the number of trials
     )
 
+    algorithm_config_cls = eval(f"{args.policy.upper()}Config")
+    param_space = eval(f"{args.policy}_config").to_dict()
+    param_space["iterations"] = 100  # Number of iterations for each trial
+
     tuner = Tuner(
-        tune.with_resources(
-            args.policy.upper(),  # use the policy name as a string, e.g., "PPO"
-            resources={"cpu": 1, "gpu": 1}  # adjust resources based on your setup
-        ),
+        tune.with_parameters(train_rl, algo_config_cls=algorithm_config_cls),
         tune_config=TuneConfig(
             metric="episode_reward_mean",
             mode="max",
             scheduler=scheduler,
             num_samples=30,
         ),
-        param_space=eval(f"{args.policy}_config").to_dict(),
+        param_space=param_space,
         run_config=tune.RunConfig(
             local_dir=args.checkpoint_dir,
             name=f"{args.policy}_experiment",
             progress_reporter=reporter,
-            time_budget_s=3600 * 24 * 7  # total time budget in seconds
+            time_budget_s=3600 * 24 * 7  # total time budget in seconds (7 days)
         )
     )
+
     results = tuner.fit()
 
     # Get the best hyperparameters
-    best_config = analysis.best_config
+    best_result = results.get_best_result("episode_reward_mean", "max")
+    best_config = best_result.config
     print(f"Best config: {best_config}")
 
     # Save the best configuration and hyperparameter search results
     save_best_config(best_config, args.checkpoint_dir)
-    save_hyperparameter_results(analysis, args.checkpoint_dir)
+    save_hyperparameter_results(results, args.checkpoint_dir)
 
     # Train the policy with the best hyperparameters
     best_policy_config = eval(f"{args.policy}_config").update_from_dict(best_config)
-    print(f"Training {args.policy.upper()} policy with the best hyperparameters.Config:")
-    print(best_policy_config)
     train_policy(best_policy_config, f"{args.policy}_policy", args.checkpoint_dir)
 elif args.resume:
     if args.policy == "ppo":
