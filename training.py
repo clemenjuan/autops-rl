@@ -4,9 +4,6 @@ import argparse
 import ray
 import torch
 from ray import air, tune
-from ray.tune import CLIReporter, Tuner, TuneConfig
-import tempfile
-from ray import train
 from ray.tune.schedulers import ASHAScheduler
 from ray.rllib.policy.policy import Policy
 from ray.rllib.algorithms.dqn import DQNConfig
@@ -28,7 +25,7 @@ def setup_config(config):
     num_rollout_workers = 10 # Number of rollout workers (parallel actors for simulating environment interactions)
     num_envs_per_worker = 1 # Number of environments per worker
     num_cpus_per_worker = 1 # Number of CPUs per worker
-    num_cpus_per_learner_worker = 1 # Number of CPUs per local worker (trainer) - just 1 and use GPU
+    num_cpus_per_learner_worker = 1 # Number of CPUs per local worker (trainer) - leave 1 and use GPU
 
     config.environment(env=env_name, env_config=env_config, disable_env_checking=True)
     config.framework(args.framework)
@@ -238,83 +235,106 @@ def inspect_policy(config, policy, checkpoint_dir):
     for name, param in model.named_parameters():
         print(f"Parameter name: {name}, Parameter details: {param.size()}")
 
-
-def train_rl(config, algo_config_cls):
-    algo_config = algo_config_cls().update_from_dict(config)
-    algo = algo_config.build()
-    
-    # Load existing checkpoint if available
-    if train.get_checkpoint():
-        checkpoint = train.get_checkpoint()
-        with checkpoint.as_directory() as checkpoint_dir:
-            algo.restore_checkpoint(checkpoint_dir)
-    
-    for i in range(config["iterations"]):
-        result = algo.train()
-        tune.report(mean_reward=result["episode_reward_mean"])
-        
-        if i % 10 == 0:
-            with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
-                algo.save_checkpoint(temp_checkpoint_dir)
-                checkpoint = train.Checkpoint.from_directory(temp_checkpoint_dir)
-                tune.report(mean_reward=result["episode_reward_mean"], checkpoint=checkpoint)
-    
-    algo.stop()
-
+# Jetson ~1M iterations per day
+scheduler = ASHAScheduler(
+        metric="episode_reward_mean",
+        mode="max",
+        max_t=200000, # maximum number of training iterations
+        grace_period=10000, # minimum number of training iterations
+        reduction_factor=2, # factor to reduce the number of trials
+    )
 
 if args.tune:
-    # Hyperparameter tuning setup
-    # Jetson ~ 1M steps per day (1057531)
-    reporter = CLIReporter(
-        metric_columns=["episode_reward_mean", "episode_len_mean", "timesteps_total"]
-    )
-    scheduler = ASHAScheduler(
-        max_t=200000,  # maximum timesteps per trial
-        grace_period=10000,  # minimum timesteps before a trial can be stopped
-        reduction_factor=2  # halving the number of trials
-    )
-
-    algorithm_config_cls = eval(f"{args.policy.upper()}Config")
-    param_space = eval(f"{args.policy}_config").to_dict()
-    param_space["iterations"] = args.stop_iters  # Number of iterations for each trial
-
-    tuner = tune.Tuner(
-        tune.with_resources(
-            tune.with_parameters(train_rl, algo_config_cls=algorithm_config_cls),
-            resources={"cpu": 1, "gpu": 1}  # adjust resources based on your setup
-        ),
-        tune_config=tune.TuneConfig(
-            metric="mean_reward",
+    if args.policy == "ppo":
+        analysis = tune.run(
+            "PPO",
+            config=ppo_config.to_dict(),
+            num_samples=30,
+            metric="episode_reward_mean",
             mode="max",
             scheduler=scheduler,
-            num_samples=30,
-        ),
-        param_space=param_space,
-        run_config=train.RunConfig(
+            max_concurrent_trials=5,
             local_dir=args.checkpoint_dir,
-            name=f"{args.policy}_experiment",
-            progress_reporter=reporter,
-            # time_budget_s=3600 * 24 * 7  # total time budget in seconds (7 days)
+            name="ppo_experiment",
+            checkpoint_at_end=False
         )
-        resources_per_trial=PlacementGroupFactory(
-            [{'CPU': 1.0, 'GPU': 1.0}] + [{'CPU': 1.0}] * (10)  # 10 rollout workers + 1 trainer
+    elif args.policy == "dqn":
+        analysis = tune.run(
+            "DQN",
+            config=dqn_config.to_dict(),
+            num_samples=30,
+            metric="episode_reward_mean",
+            mode="max",
+            scheduler=scheduler,
+            max_concurrent_trials=5,
+            local_dir=args.checkpoint_dir,
+            name="dqn_experiment",
+            checkpoint_at_end=False
         )
-    )
-
-    results = tuner.fit()
+    elif args.policy == "impala":
+        analysis = tune.run(
+            "IMPALA",
+            config=impala_config.to_dict(),
+            num_samples=30,
+            metric="episode_reward_mean",
+            mode="max",
+            scheduler=scheduler,
+            max_concurrent_trials=5,
+            local_dir=args.checkpoint_dir,
+            name="impala_experiment",
+            checkpoint_at_end=False
+        )
+    elif args.policy == "a2c":
+        analysis = tune.run(
+            "A2C",
+            config=a2c_config.to_dict(),
+            num_samples=30,
+            metric="episode_reward_mean",
+            mode="max",
+            scheduler=scheduler,
+            max_concurrent_trials=5,
+            local_dir=args.checkpoint_dir,
+            name="a2c_experiment",
+            checkpoint_at_end=False
+        )
+    elif args.policy == "a3c":
+        analysis = tune.run(
+            "A3C",
+            config=a3c_config.to_dict(),
+            num_samples=30,
+            metric="episode_reward_mean",
+            mode="max",
+            scheduler=scheduler,
+            max_concurrent_trials=5,
+            local_dir=args.checkpoint_dir,
+            name="a3c_experiment",
+            checkpoint_at_end=False
+        )
 
     # Get the best hyperparameters
-    best_result = results.get_best_result("mean_reward", "max")
-    best_config = best_result.config
+    best_config = analysis.best_config
     print(f"Best config: {best_config}")
 
     # Save the best configuration and hyperparameter search results
     save_best_config(best_config, args.checkpoint_dir)
-    save_hyperparameter_results(results, args.checkpoint_dir)
+    save_hyperparameter_results(analysis, args.checkpoint_dir)
 
     # Train the policy with the best hyperparameters
-    best_policy_config = eval(f"{args.policy}_config").update_from_dict(best_config)
-    train_policy(best_policy_config, f"{args.policy}_policy", args.checkpoint_dir)
+    if args.policy == "ppo":
+        ppo_config.update_from_dict(best_config)
+        train_policy(ppo_config, "ppo_policy", args.checkpoint_dir)
+    elif args.policy == "dqn":
+        dqn_config.update_from_dict(best_config)
+        train_policy(dqn_config, "dqn_policy", args.checkpoint_dir)
+    elif args.policy == "impala":
+        impala_config.update_from_dict(best_config)
+        train_policy(impala_config, "impala_policy", args.checkpoint_dir)
+    elif args.policy == "a2c":
+        a2c_config.update_from_dict(best_config)
+        train_policy(a2c_config, "a2c_policy", args.checkpoint_dir)
+    elif args.policy == "a3c":
+        a3c_config.update_from_dict(best_config)
+        train_policy(a3c_config, "a3c_policy", args.checkpoint_dir)
 elif args.resume:
     if args.policy == "ppo":
         algorithm_path = os.path.join(args.checkpoint_dir, "ppo_policy")
