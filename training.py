@@ -281,7 +281,7 @@ if args.tune:
     tuner = tune.Tuner(
         tune.with_resources(
             tune.with_parameters(train_rl, algo_config_cls=algorithm_config_cls),
-            resources={"cpu": 2, "gpu": 1}  # adjust resources based on your setup
+            resources={"cpu": 1, "gpu": 1}  # adjust resources based on your setup
         ),
         tune_config=tune.TuneConfig(
             metric="mean_reward",
@@ -294,7 +294,10 @@ if args.tune:
             local_dir=args.checkpoint_dir,
             name=f"{args.policy}_experiment",
             progress_reporter=reporter,
-            time_budget_s=3600 * 24 * 7  # total time budget in seconds (7 days)
+            # time_budget_s=3600 * 24 * 7  # total time budget in seconds (7 days)
+        )
+        resources_per_trial=PlacementGroupFactory(
+            [{'CPU': 1.0, 'GPU': 1.0}] + [{'CPU': 1.0}] * (10)  # 10 rollout workers + 1 trainer
         )
     )
 
