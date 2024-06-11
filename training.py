@@ -5,6 +5,8 @@ import ray
 import torch
 from ray import air, tune
 from ray.tune import CLIReporter, Tuner, TuneConfig
+import tempfile
+from ray import train
 from ray.tune.schedulers import ASHAScheduler
 from ray.rllib.policy.policy import Policy
 from ray.rllib.algorithms.dqn import DQNConfig
@@ -236,9 +238,16 @@ def inspect_policy(config, policy, checkpoint_dir):
     for name, param in model.named_parameters():
         print(f"Parameter name: {name}, Parameter details: {param.size()}")
 
+
 def train_rl(config, algo_config_cls):
     algo_config = algo_config_cls().update_from_dict(config)
     algo = algo_config.build()
+    
+    # Load existing checkpoint if available
+    if train.get_checkpoint():
+        checkpoint = train.get_checkpoint()
+        with checkpoint.as_directory() as checkpoint_dir:
+            algo.restore_checkpoint(checkpoint_dir)
     
     for i in range(config["iterations"]):
         result = algo.train()
@@ -247,7 +256,7 @@ def train_rl(config, algo_config_cls):
         if i % 10 == 0:
             with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
                 algo.save_checkpoint(temp_checkpoint_dir)
-                checkpoint = tune.Checkpoint.from_directory(temp_checkpoint_dir)
+                checkpoint = train.Checkpoint.from_directory(temp_checkpoint_dir)
                 tune.report(mean_reward=result["episode_reward_mean"], checkpoint=checkpoint)
     
     algo.stop()
@@ -267,18 +276,21 @@ if args.tune:
 
     algorithm_config_cls = eval(f"{args.policy.upper()}Config")
     param_space = eval(f"{args.policy}_config").to_dict()
-    param_space["iterations"] = 100  # Number of iterations for each trial
+    param_space["iterations"] = args.stop_iters  # Number of iterations for each trial
 
-    tuner = Tuner(
-        tune.with_parameters(train_rl, algo_config_cls=algorithm_config_cls),
-        tune_config=TuneConfig(
-            metric="episode_reward_mean",
+    tuner = tune.Tuner(
+        tune.with_resources(
+            tune.with_parameters(train_rl, algo_config_cls=algorithm_config_cls),
+            resources={"cpu": 2, "gpu": 1}  # adjust resources based on your setup
+        ),
+        tune_config=tune.TuneConfig(
+            metric="mean_reward",
             mode="max",
             scheduler=scheduler,
             num_samples=30,
         ),
         param_space=param_space,
-        run_config=tune.RunConfig(
+        run_config=train.RunConfig(
             local_dir=args.checkpoint_dir,
             name=f"{args.policy}_experiment",
             progress_reporter=reporter,
@@ -289,7 +301,7 @@ if args.tune:
     results = tuner.fit()
 
     # Get the best hyperparameters
-    best_result = results.get_best_result("episode_reward_mean", "max")
+    best_result = results.get_best_result("mean_reward", "max")
     best_config = best_result.config
     print(f"Best config: {best_config}")
 
