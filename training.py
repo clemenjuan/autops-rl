@@ -18,8 +18,17 @@ import json
 import pandas as pd
 
 
-##### EDIT THIS FUNCTION #####
+##### EDIT THIS PART ################################
 # Common configuration setup
+# Environment configurations
+env_config = {
+    "num_targets": 10, 
+    "num_observers": 10, 
+    "simulator_type": 'everyone', 
+    "time_step": 1, 
+    "duration": 24*60*60
+}
+
 # Resource allocation settings
 def setup_config(config):
     num_rollout_workers = 10 # Number of rollout workers (parallel actors for simulating environment interactions)
@@ -39,14 +48,24 @@ def setup_config(config):
     print(f"Using {gpu_count} GPU(s) for training.")
     return config
 
-env_config = {
-    "num_targets": 10, 
-    "num_observers": 10, 
-    "simulator_type": 'everyone', 
-    "time_step": 1, 
-    "duration": 24*60*60
+# Serch space configurations
+search_space = {
+    "fcnet_hiddens": tune.choice([[64, 64], [128, 128], [256, 256], [64, 64, 64]]),
+    "lr": tune.loguniform(1e-5, 1e-3),
+    "gamma": tune.uniform(0.9, 0.99),
+    "lambda": tune.uniform(0.9, 1.0),
+    "train_batch_size": tune.choice([256, 512, 1024]),
 }
-###############################
+
+# Jetson ~1M iterations per day
+scheduler = ASHAScheduler(
+        metric="episode_reward_mean",
+        mode="max",
+        max_t=200000, # maximum number of training iterations
+        grace_period=10000, # minimum number of training iterations
+        reduction_factor=2, # factor to reduce the number of trials
+    )
+#####################################################
 
 os.environ["RAY_verbose_spill_logs"] = "0"
 os.environ["RAY_DEDUP_LOGS"] = "0"
@@ -73,15 +92,6 @@ env_name = "FSS_env-v0"
 register_env(env_name, lambda config: env_creator(env_config))
 
 ray.init(num_cpus=12, num_gpus=1)
-
-# Serch space configurations
-search_space = {
-    "fcnet_hiddens": tune.choice([[64, 64], [128, 128], [256, 256]]),
-    "lr": tune.loguniform(1e-5, 1e-3),
-    "gamma": tune.uniform(0.9, 0.99),
-    "lambda": tune.uniform(0.9, 1.0),
-    "train_batch_size": tune.choice([512, 1024, 2048]),
-}
 
 # Configuration for PPO - https://github.com/llSourcell/Unity_ML_Agents/blob/master/docs/best-practices-ppo.md#
 ppo_config = setup_config(PPOConfig())
@@ -199,50 +209,6 @@ def save_hyperparameter_results(analysis, config_dir):
     df.to_csv(hyperparam_results_path, index=False)
     print(f"Hyperparameter search results saved to {hyperparam_results_path}")
 
-
-
-def inspect_policy(config, policy, checkpoint_dir):
-    algorithm = config.build()
-
-    algorithm_checkpoint_path = os.path.join(checkpoint_dir, policy_name)
-
-    # Restore the algorithm from the last checkpoint
-    algorithm.restore(algorithm_checkpoint_path)
-    print(f"Restored algorithm from checkpoint: {algorithm_checkpoint_path}")
-
-    # Validate the restoration by checking the state of the algorithm
-    restored_policy = algorithm.get_policy()
-    print("Restored policy configuration: ", restored_policy.config)
-    
-    if latest_checkpoint:
-        algorithm.restore(latest_checkpoint)
-    
-    # Get the policy object
-    policy = algorithm.get_policy()
-    
-    # Access the model
-    model = policy.model
-    
-    # Print the model's structure
-    # print(model)
-
-    # Print details of each layer and parameters
-    print("\nModel's named children (layers):")
-    for name, child in model.named_children():
-        print(f"Layer name: {name}, Layer details: {child}")
-    
-    print("\nModel's named parameters:")
-    for name, param in model.named_parameters():
-        print(f"Parameter name: {name}, Parameter details: {param.size()}")
-
-# Jetson ~1M iterations per day
-scheduler = ASHAScheduler(
-        metric="episode_reward_mean",
-        mode="max",
-        max_t=200000, # maximum number of training iterations
-        grace_period=10000, # minimum number of training iterations
-        reduction_factor=2, # factor to reduce the number of trials
-    )
 
 if args.tune:
     if args.policy == "ppo":
@@ -362,3 +328,38 @@ else:
     elif args.policy == "a3c":
         # inspect_policy(a3c_config, "a3c_policy", args.checkpoint_dir)
         train_policy(a3c_config, "a3c_policy", args.checkpoint_dir)
+
+
+""" def inspect_policy(config, policy, checkpoint_dir):
+    algorithm = config.build()
+
+    algorithm_checkpoint_path = os.path.join(checkpoint_dir, policy_name)
+
+    # Restore the algorithm from the last checkpoint
+    algorithm.restore(algorithm_checkpoint_path)
+    print(f"Restored algorithm from checkpoint: {algorithm_checkpoint_path}")
+
+    # Validate the restoration by checking the state of the algorithm
+    restored_policy = algorithm.get_policy()
+    print("Restored policy configuration: ", restored_policy.config)
+    
+    if latest_checkpoint:
+        algorithm.restore(latest_checkpoint)
+    
+    # Get the policy object
+    policy = algorithm.get_policy()
+    
+    # Access the model
+    model = policy.model
+    
+    # Print the model's structure
+    # print(model)
+
+    # Print details of each layer and parameters
+    print("\nModel's named children (layers):")
+    for name, child in model.named_children():
+        print(f"Layer name: {name}, Layer details: {child}")
+    
+    print("\nModel's named parameters:")
+    for name, param in model.named_parameters():
+        print(f"Parameter name: {name}, Parameter details: {param.size()}") """
