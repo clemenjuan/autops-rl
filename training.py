@@ -18,8 +18,7 @@ import json
 import pandas as pd
 
 
-##### EDIT THIS PART ################################
-# Common configuration setup
+##### EDIT HERE ################################
 # Environment configurations
 env_config = {
     "num_targets": 10, 
@@ -30,23 +29,12 @@ env_config = {
 }
 
 # Resource allocation settings
-def setup_config(config):
-    num_rollout_workers = 10 # Number of rollout workers (parallel actors for simulating environment interactions)
-    num_envs_per_worker = 1 # Number of environments per worker
-    num_cpus_per_worker = 1 # Number of CPUs per worker
-    num_cpus_per_learner_worker = 1 # Number of CPUs per local worker (trainer) - leave 1 and use GPU
-
-    config.environment(env=env_name, env_config=env_config, disable_env_checking=True)
-    config.framework(args.framework)
-    config.rollouts(num_rollout_workers=num_rollout_workers, num_envs_per_worker=num_envs_per_worker, batch_mode="complete_episodes") #, rollout_fragment_length="auto")
-    gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
-    config.resources(num_gpus=gpu_count,
-                     num_cpus_per_worker=num_cpus_per_worker, 
-                     num_gpus_per_worker=0,
-                     num_cpus_per_learner_worker=num_cpus_per_learner_worker, 
-                     num_gpus_per_learner_worker=gpu_count)
-    print(f"Using {gpu_count} GPU(s) for training.")
-    return config
+resources = {
+    "num_rollout_workers" : 10, # Number of rollout workers (parallel actors for simulating environment interactions)
+    "num_envs_per_worker" : 1, # Number of environments per worker
+    "num_cpus_per_worker" : 1, # Number of CPUs per worker
+    "num_cpus_per_learner_worker" : 1, # Number of CPUs per local worker (trainer) - leave 1 and use GPU
+}
 
 # Serch space configurations
 search_space = {
@@ -57,7 +45,7 @@ search_space = {
     "train_batch_size": tune.choice([256, 512, 1024]),
 }
 
-# Jetson ~1M iterations per day
+# Hyperparameter search scheduler - Jetson ~1M iterations per day
 scheduler = ASHAScheduler(
         metric="episode_reward_mean",
         mode="max",
@@ -85,6 +73,19 @@ args = parser.parse_args()
 def env_creator(env_config):
     env = FSS_env(**env_config)
     return env
+
+def setup_config(config):
+    config.environment(env=env_name, env_config=env_config, disable_env_checking=True)
+    config.framework(args.framework)
+    config.rollouts(num_rollout_workers=resources["num_rollout_workers"], num_envs_per_worker=resources["num_envs_per_worker"], batch_mode="complete_episodes") #, rollout_fragment_length="auto")
+    gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
+    config.resources(num_gpus=gpu_count,
+                     num_cpus_per_worker=resources["num_cpus_per_worker"], 
+                     num_gpus_per_worker=0,
+                     num_cpus_per_learner_worker=resources["num_cpus_per_learner_worker"], 
+                     num_gpus_per_learner_worker=gpu_count)
+    print(f"Using {gpu_count} GPU(s) for training.")
+    return config
 
 # Register environment
 env_name = "FSS_env-v0"
