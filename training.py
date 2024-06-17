@@ -42,15 +42,15 @@ search_space = {
     "lr": tune.loguniform(1e-5, 1e-3),
     "gamma": tune.uniform(0.9, 0.99),
     "lambda": tune.uniform(0.9, 1.0),
-    "train_batch_size": tune.choice([256, 512, 1024]),
+    "train_batch_size": tune.choice([128, 256, 512]),
 }
 
-# Hyperparameter search scheduler - Jetson ~1M iterations per day
+# Hyperparameter search scheduler - Jetson ~16 iterations per day
 scheduler = ASHAScheduler(
         metric="episode_reward_mean",
         mode="max",
-        max_t=200000, # maximum number of training iterations
-        grace_period=10000, # minimum number of training iterations
+        max_t=20, # maximum number of training iterations
+        grace_period=10, # minimum number of training iterations
         reduction_factor=2, # factor to reduce the number of trials
     )
 #####################################################
