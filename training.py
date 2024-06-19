@@ -29,19 +29,21 @@ env_config = {
     "duration": 24*60*60
 }
 
-epochs = 10 # number of epochs to execute per training iteration
+epochs = 20 # per training iteration - increase gradually when training
 metric = "episode_reward_mean"
 mode = "max"
+num_paralle_trainers = 5
 
 # Resource allocation settings
 # GPUs are automatically detected and used if available
 resources = {
-    "num_rollout_workers" : 10, # Number of rollout workers (parallel actors for simulating environment interactions)
+    "num_rollout_workers" : 5, # Number of rollout workers (parallel actors for simulating environment interactions)
     "num_envs_per_worker" : 4, # Number of environments per worker
     "num_cpus_per_worker" : 1, # Number of CPUs per worker
     "num_gpus_per_worker" : 0, # Number of GPUs per worker - only CPU simulations
+    "num_learner_workers" : num_paralle_trainers, # Number of learner workers (parallel actors for training)
     "num_cpus_per_learner_worker" : 1, # Number of CPUs per local worker (trainer) =1!!!!! 
-    "num_gpus_per_learner_worker" : gpu_count, # Number of GPUs per local worker (trainer)
+    "num_gpus_per_learner_worker" : gpu_count/num_paralle_trainers, # Number of GPUs per local worker (trainer)
 }
 
 # Serch space configurations
@@ -102,6 +104,7 @@ def setup_config(config):
     config.resources(num_gpus=gpu_count,
                      num_cpus_per_worker=resources["num_cpus_per_worker"], 
                      num_gpus_per_worker=resources["num_gpus_per_worker"],
+                     num_learner_workers=resources["num_learner_workers"]
                      num_cpus_per_learner_worker=resources["num_cpus_per_learner_worker"], 
                      num_gpus_per_learner_worker=resources["num_gpus_per_learner_worker"]
                      )
@@ -226,6 +229,9 @@ def train_policy_from_checkpoint(config, policy_name, checkpoint_dir, algorithm_
             break
 
 def save_best_config(best_config, config_dir):
+    # Ensure the directory exists
+    os.makedirs(config_dir, exist_ok=True)
+
     best_config_path = os.path.join(config_dir, "best_config.json")
     with open(best_config_path, "w") as f:
         json.dump(best_config, f, indent=4)
@@ -241,6 +247,9 @@ def save_hyperparameter_results(analysis, config_dir):
         trials_data.append(trial_result)
 
     df = pd.DataFrame(trials_data)
+    
+    # Ensure the directory exists
+    os.makedirs(config_dir, exist_ok=True)
     hyperparam_results_path = os.path.join(config_dir, "hyperparameter_results.csv")
     df.to_csv(hyperparam_results_path, index=False)
     print(f"Hyperparameter search results saved to {hyperparam_results_path}")
