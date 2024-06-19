@@ -30,6 +30,8 @@ env_config = {
 }
 
 epochs = 10 # number of epochs to execute per training iteration
+metric = "episode_reward_mean"
+mode = "max"
 
 # Resource allocation settings
 # GPUs are automatically detected and used if available
@@ -59,8 +61,8 @@ max_concurrent_trials = 5
 scheduler = ASHAScheduler(
         # metric="learner/default_policy/learner_stats/loss",
         # mode="min",  # minimize the loss
-        metric="episode_reward_mean",
-        mode="max", # maximize the reward
+        metric=metric,
+        mode=mode, # maximize the reward
         max_t=15, # maximum number of training iterations - Exploration ~10-20, Exploitation ~30-50
         grace_period=10, # minimum number of training iterations
         reduction_factor=2, # factor to reduce the number of trials
@@ -302,7 +304,7 @@ if args.tune:
         )
 
     # Get the best hyperparameters
-    best_config = analysis.best_config
+    best_config = analysis.get_best_config(metric, mode)
     print(f"Best config: {best_config}")
 
     # Save the best configuration and hyperparameter search results
