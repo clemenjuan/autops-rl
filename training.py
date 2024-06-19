@@ -30,8 +30,8 @@ env_config = {
 }
 
 epochs = 40 # per training iteration - increase gradually when training
-metric = "episode_reward_mean"
-mode = "max"
+metric = "loss"
+mode = "min"
 num_parallel_trainers = 6
 
 # Resource allocation settings
@@ -61,8 +61,6 @@ max_concurrent_trials = 5
 
 # Scheduler - Jetson ~16 iterations per day - 90 mins per iteration
 scheduler = ASHAScheduler(
-        # metric="learner/default_policy/learner_stats/loss",
-        # mode="min",  # minimize the loss
         metric=metric,
         mode=mode, # maximize the reward
         max_t=15, # maximum number of training iterations - Exploration ~10-20, Exploitation ~30-50
@@ -333,7 +331,7 @@ if args.tune:
     best_config = analysis.get_best_config(metric, mode)
     print("Best trial config: {}".format(best_result.config))
     print("Best trial final average reward: {}".format(
-        best_result.metrics[metric]))
+        best_result.metrics["episode_reward_mean"]))
     print("Best trial final validation loss: {}".format(
         best_result.metrics["loss"]))
     print("Best trial final validation accuracy: {}".format(
