@@ -108,7 +108,7 @@ docker run -e PYTHONWARNINGS="ignore::DeprecationWarning" --rm -it --shm-size=6g
 #### On NVIDIA Jetson (with GPU support)
 
 ```sh
-sudo docker run -e PYTHONWARNINGS="ignore::DeprecationWarning" -it --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 --runtime nvidia --network host -v $(pwd):/app masterthesis_clemente:jetson /bin/bash
+sudo docker run -e PYTHONWARNINGS="ignore::DeprecationWarning" -it --rm --gpus all --ipc=host --ulimit memlock=-1 --ulimit stack=67108864 --runtime nvidia --network host -v $(pwd):/app masterthesis_clemente:jetsonv2 /bin/bash
 ``` 
 
 And verify CUDA and PyTorch availability inside the container:

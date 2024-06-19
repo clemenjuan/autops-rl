@@ -3,7 +3,7 @@ import time
 import argparse
 import ray
 import torch
-from ray import air, tune
+from ray import air, tune, train
 from ray.tune.schedulers import ASHAScheduler
 from ray.rllib.policy.policy import Policy
 from ray.rllib.algorithms.dqn import DQNConfig
@@ -16,9 +16,10 @@ from ray.tune.logger import pretty_print
 from FSS_env import FSS_env
 import json
 import pandas as pd
+gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
 
 
-##### EDIT HERE ################################
+##### EDIT HERE ##########################################################
 # Environment configurations
 env_config = {
     "num_targets": 10, 
@@ -28,32 +29,49 @@ env_config = {
     "duration": 24*60*60
 }
 
+epochs = 10 # number of epochs to execute per training iteration
+
 # Resource allocation settings
+# GPUs are automatically detected and used if available
 resources = {
-    "num_rollout_workers" : 10, # Number of rollout workers (parallel actors for simulating environment interactions)
-    "num_envs_per_worker" : 1, # Number of environments per worker
+    "num_rollout_workers" : 5, # Number of rollout workers (parallel actors for simulating environment interactions)
+    "num_envs_per_worker" : 4, # Number of environments per worker
     "num_cpus_per_worker" : 1, # Number of CPUs per worker
-    "num_cpus_per_learner_worker" : 1, # Number of CPUs per local worker (trainer) - leave 1 and use GPU
+    "num_gpus_per_worker" : 0, # Number of GPUs per worker - only CPU simulations
+    "num_cpus_per_learner_worker" : 5, # Number of CPUs per local worker (trainer) - needs minimum 1, but it uses GPUs
+    "num_gpus_per_learner_worker" : gpu_count if gpu_count > 0 else 0, # Number of GPUs per local worker (trainer)
 }
 
 # Serch space configurations
 search_space = {
-    "fcnet_hiddens": tune.choice([[64, 64], [128, 128], [256, 256], [64, 64, 64]]),
+    "fcnet_hiddens": tune.choice([[128, 128], [256, 256], [64, 64, 64]]),
     "lr": tune.loguniform(1e-5, 1e-3),
     "gamma": tune.uniform(0.9, 0.99),
     "lambda": tune.uniform(0.9, 1.0),
-    "train_batch_size": tune.choice([128, 256, 512]),
+    "train_batch_size": tune.choice([512, 1024]),
 }
 
-# Hyperparameter search scheduler - Jetson ~16 iterations per day
+# Hyperparameter search
+num_samples_per_policy = 20
+max_concurrent_trials = 5
+
+# Scheduler - Jetson ~16 iterations per day - 90 mins per iteration
 scheduler = ASHAScheduler(
+        # metric="learner/default_policy/learner_stats/loss",
+        # mode="min",  # minimize the loss
         metric="episode_reward_mean",
-        mode="max",
-        max_t=20, # maximum number of training iterations
+        mode="max", # maximize the reward
+        max_t=15, # maximum number of training iterations - Exploration ~10-20, Exploitation ~30-50
         grace_period=10, # minimum number of training iterations
         reduction_factor=2, # factor to reduce the number of trials
     )
-#####################################################
+
+###########################################################################
+
+
+
+
+
 
 os.environ["RAY_verbose_spill_logs"] = "0"
 os.environ["RAY_DEDUP_LOGS"] = "0"
@@ -77,13 +95,14 @@ def env_creator(env_config):
 def setup_config(config):
     config.environment(env=env_name, env_config=env_config, disable_env_checking=True)
     config.framework(args.framework)
-    config.rollouts(num_rollout_workers=resources["num_rollout_workers"], num_envs_per_worker=resources["num_envs_per_worker"], batch_mode="complete_episodes") #, rollout_fragment_length="auto")
+    config.rollouts(num_rollout_workers=resources["num_rollout_workers"], num_envs_per_worker=resources["num_envs_per_worker"], batch_mode="complete_episodes", rollout_fragment_length="auto")
     gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
     config.resources(num_gpus=gpu_count,
                      num_cpus_per_worker=resources["num_cpus_per_worker"], 
-                     num_gpus_per_worker=0,
+                     num_gpus_per_worker=resources["num_gpus_per_worker"],
                      num_cpus_per_learner_worker=resources["num_cpus_per_learner_worker"], 
-                     num_gpus_per_learner_worker=gpu_count)
+                     num_gpus_per_learner_worker=resources["num_gpus_per_learner_worker"]
+                     )
     print(f"Using {gpu_count} GPU(s) for training.")
     return config
 
@@ -92,13 +111,13 @@ env_name = "FSS_env-v0"
 
 register_env(env_name, lambda config: env_creator(env_config))
 
-ray.init(num_cpus=12, num_gpus=1)
+ray.init()
 
 # Configuration for PPO - https://github.com/llSourcell/Unity_ML_Agents/blob/master/docs/best-practices-ppo.md#
 ppo_config = setup_config(PPOConfig())
 ppo_config.training(
     vf_loss_coeff=0.01, 
-    num_sgd_iter=10, # num_sgd_iter: Number of SGD iterations in each outer loop (i.e., number of epochs to execute per train batch).
+    num_sgd_iter=epochs, # number of epochs to execute per iteration
     train_batch_size=search_space["train_batch_size"] if args.tune else 512, 
     lr=search_space["lr"] if args.tune else 1e-3,  # Set a default value if not tuning
     gamma=search_space["gamma"] if args.tune else 0.99,
@@ -156,6 +175,11 @@ def train_policy(config, policy_name, checkpoint_dir):
         print(f"== {policy_name.upper()} Iteration {i} ==")
         start_time = time.time()
         result = algorithm.train()
+
+        # Log the loss function
+        if 'learner' in result['info']:
+            print(f"Loss: {result['info']['learner']['default_policy']['learner_stats']['loss']}")
+
         print(pretty_print(result))
         print(f"Time taken for training {policy_name.upper()}: ", time.time() - start_time)
         
@@ -183,6 +207,11 @@ def train_policy_from_checkpoint(config, policy_name, checkpoint_dir, algorithm_
         print(f"== {policy_name.upper()} Iteration {i} ==")
         start_time = time.time()
         result = algorithm.train()
+
+        # Log the loss function
+        if 'learner' in result['info']:
+            print(f"Loss: {result['info']['learner']['default_policy']['learner_stats']['loss']}")
+
         print(pretty_print(result))
         print(f"Time taken for training {policy_name.upper()}: ", time.time() - start_time)
         
@@ -203,7 +232,11 @@ def save_best_config(best_config, config_dir):
 def save_hyperparameter_results(analysis, config_dir):
     trials_data = []
     for trial in analysis.trials:
-        trials_data.append(trial.metric_analysis["episode_reward_mean"])
+        trial_result = {
+            "episode_reward_mean": trial.metric_analysis["episode_reward_mean"],
+            "loss": trial.metric_analysis.get("learner/default_policy/learner_stats/loss", None)
+        }
+        trials_data.append(trial_result)
 
     df = pd.DataFrame(trials_data)
     hyperparam_results_path = os.path.join(config_dir, "hyperparameter_results.csv")
@@ -216,9 +249,9 @@ if args.tune:
         analysis = tune.run(
             "PPO",
             config=ppo_config.to_dict(),
-            num_samples=30,
+            num_samples=num_samples_per_policy,
             scheduler=scheduler,
-            max_concurrent_trials=5,
+            max_concurrent_trials=max_concurrent_trials,
             local_dir=args.checkpoint_dir,
             name="ppo_experiment",
             checkpoint_at_end=False
@@ -227,9 +260,9 @@ if args.tune:
         analysis = tune.run(
             "DQN",
             config=dqn_config.to_dict(),
-            num_samples=30,
+            num_samples=num_samples_per_policy,
             scheduler=scheduler,
-            max_concurrent_trials=5,
+            max_concurrent_trials=max_concurrent_trials,
             local_dir=args.checkpoint_dir,
             name="dqn_experiment",
             checkpoint_at_end=False
@@ -238,9 +271,9 @@ if args.tune:
         analysis = tune.run(
             "IMPALA",
             config=impala_config.to_dict(),
-            num_samples=30,
+            num_samples=num_samples_per_policy,
             scheduler=scheduler,
-            max_concurrent_trials=5,
+            max_concurrent_trials=max_concurrent_trials,
             local_dir=args.checkpoint_dir,
             name="impala_experiment",
             checkpoint_at_end=False
@@ -249,9 +282,9 @@ if args.tune:
         analysis = tune.run(
             "A2C",
             config=a2c_config.to_dict(),
-            num_samples=30,
+            num_samples=num_samples_per_policy,
             scheduler=scheduler,
-            max_concurrent_trials=5,
+            max_concurrent_trials=max_concurrent_trials,
             local_dir=args.checkpoint_dir,
             name="a2c_experiment",
             checkpoint_at_end=False
@@ -260,9 +293,9 @@ if args.tune:
         analysis = tune.run(
             "A3C",
             config=a3c_config.to_dict(),
-            num_samples=30,
+            num_samples=num_samples_per_policy,
             scheduler=scheduler,
-            max_concurrent_trials=5,
+            max_concurrent_trials=max_concurrent_trials,
             local_dir=args.checkpoint_dir,
             name="a3c_experiment",
             checkpoint_at_end=False
