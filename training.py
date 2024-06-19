@@ -29,21 +29,21 @@ env_config = {
     "duration": 24*60*60
 }
 
-epochs = 20 # per training iteration - increase gradually when training
+epochs = 40 # per training iteration - increase gradually when training
 metric = "episode_reward_mean"
 mode = "max"
-num_paralle_trainers = 6
+num_parallel_trainers = 6
 
 # Resource allocation settings
 # GPUs are automatically detected and used if available
 resources = {
-    "num_rollout_workers" : 5, # Number of rollout workers (parallel actors for simulating environment interactions)
+    "num_rollout_workers" : 10, # Number of rollout workers (parallel actors for simulating environment interactions)
     "num_envs_per_worker" : 4, # Number of environments per worker
     "num_cpus_per_worker" : 1, # Number of CPUs per worker
     "num_gpus_per_worker" : 0, # Number of GPUs per worker - only CPU simulations
-    "num_learner_workers" : num_paralle_trainers, # Number of learner workers (parallel actors for training)
+    "num_learner_workers" : num_parallel_trainers, # Number of learner workers (parallel actors for training)
     "num_cpus_per_learner_worker" : 1, # Number of CPUs per local worker (trainer) =1!!!!! 
-    "num_gpus_per_learner_worker" : gpu_count/num_paralle_trainers, # Number of GPUs per local worker (trainer)
+    "num_gpus_per_learner_worker" : gpu_count/num_parallel_trainers, # Number of GPUs per local worker (trainer)
 }
 
 # Serch space configurations
@@ -329,28 +329,26 @@ if args.tune:
 
     # Get the best hyperparameters
     best_config = analysis.get_best_config(metric, mode)
-    print(f"Best config: {best_config}")
+    print("Best trial config: {}".format(best_result.config))
+    print("Best trial final average reward: {}".format(
+        best_result.metrics[metric]))
+    print("Best trial final validation loss: {}".format(
+        best_result.metrics["loss"]))
+    print("Best trial final validation accuracy: {}".format(
+        best_result.metrics["accuracy"]))
 
-    # Save the best configuration and hyperparameter search results
-    save_best_config(best_config, args.checkpoint_dir)
-    save_hyperparameter_results(analysis, args.checkpoint_dir)
 
     # Train the policy with the best hyperparameters
     if args.policy == "ppo":
-        ppo_config.update_from_dict(best_config)
-        train_policy(ppo_config, "ppo_policy", args.checkpoint_dir)
+        train_policy(best_config, "ppo_policy", args.checkpoint_dir)
     elif args.policy == "dqn":
-        dqn_config.update_from_dict(best_config)
-        train_policy(dqn_config, "dqn_policy", args.checkpoint_dir)
+        train_policy(best_config, "dqn_policy", args.checkpoint_dir)
     elif args.policy == "impala":
-        impala_config.update_from_dict(best_config)
-        train_policy(impala_config, "impala_policy", args.checkpoint_dir)
+        train_policy(best_config, "impala_policy", args.checkpoint_dir)
     elif args.policy == "a2c":
-        a2c_config.update_from_dict(best_config)
-        train_policy(a2c_config, "a2c_policy", args.checkpoint_dir)
+        train_policy(best_config, "a2c_policy", args.checkpoint_dir)
     elif args.policy == "a3c":
-        a3c_config.update_from_dict(best_config)
-        train_policy(a3c_config, "a3c_policy", args.checkpoint_dir)
+        train_policy(best_config, "a3c_policy", args.checkpoint_dir)
 elif args.resume:
     if args.policy == "ppo":
         algorithm_path = os.path.join(args.checkpoint_dir, "ppo_policy")
