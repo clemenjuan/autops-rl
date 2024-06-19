@@ -34,12 +34,12 @@ epochs = 10 # number of epochs to execute per training iteration
 # Resource allocation settings
 # GPUs are automatically detected and used if available
 resources = {
-    "num_rollout_workers" : 5, # Number of rollout workers (parallel actors for simulating environment interactions)
+    "num_rollout_workers" : 10, # Number of rollout workers (parallel actors for simulating environment interactions)
     "num_envs_per_worker" : 4, # Number of environments per worker
     "num_cpus_per_worker" : 1, # Number of CPUs per worker
     "num_gpus_per_worker" : 0, # Number of GPUs per worker - only CPU simulations
-    "num_cpus_per_learner_worker" : 5, # Number of CPUs per local worker (trainer) - needs minimum 1, but it uses GPUs
-    "num_gpus_per_learner_worker" : gpu_count if gpu_count > 0 else 0, # Number of GPUs per local worker (trainer)
+    "num_cpus_per_learner_worker" : 1, # Number of CPUs per local worker (trainer) =1!!!!! 
+    "num_gpus_per_learner_worker" : gpu_count, # Number of GPUs per local worker (trainer)
 }
 
 # Serch space configurations
@@ -111,7 +111,7 @@ env_name = "FSS_env-v0"
 
 register_env(env_name, lambda config: env_creator(env_config))
 
-ray.init()
+ray.init(num_gpus=gpu_count)
 
 # Configuration for PPO - https://github.com/llSourcell/Unity_ML_Agents/blob/master/docs/best-practices-ppo.md#
 ppo_config = setup_config(PPOConfig())
