@@ -144,8 +144,9 @@ When running `training.py`, you can customize the training process using the fol
 - `--stop-reward`: The reward threshold at which training stops. Default is `1000000.0`.
 - `--policy`: The policy to train. Choices are `ppo`, `dqn`, `a2c`, `a3c`, or `impala`. Default is `ppo`.
 - `--checkpoint-dir`: Directory to save checkpoints. Default is `checkpoints`.
-- `--tune`: Whether to perform hyperparameter tuning. This is a flag argument.
 - `--resume`: Whether to resume training from the latest checkpoint.
+- `--tune`: Whether to perform hyperparameter tuning (Exploration Hyperparameter Search). This is a flag argument.
+- `--fine-tune`: performs hyperparameter tuning and then trains the best one (Exploitation Hyperparameter Search). This is a flag argument.
 
 ##### Example Commands
 If you get any error regarding ```"No module named 'x'"```, just manually run the command ```pip install -r requirements.txt``` or ```pip install -r requirements-jetson.txt``` inside the container.

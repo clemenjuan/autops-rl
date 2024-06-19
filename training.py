@@ -88,8 +88,10 @@ parser.add_argument("--stop-iters", type=int, default=50, help="Number of iterat
 parser.add_argument("--stop-reward", type=float, default=1000000, help="Reward at which we stop training.")
 parser.add_argument("--policy", choices=["ppo", "dqn", "a2c", "a3c", "impala"], default="ppo", required=True, help="Policy to train.")
 parser.add_argument("--checkpoint-dir", type=str, default="checkpoints", help="Directory to save checkpoints.")
-parser.add_argument("--tune", action="store_true", help="Whether to perform hyperparameter tuning.")
 parser.add_argument("--resume", action="store_true", help="Whether to resume training from a checkpoint.")
+parser.add_argument("--tune", action="store_true", help="Whether to perform hyperparameter tuning.")
+parser.add_argument("--fine-tuning", action="store_true", help="Whether to fine-tune and train the best policy after hyperparameter tuning.")
+
 args = parser.parse_args()
 
 def env_creator(env_config):
@@ -338,17 +340,18 @@ if args.tune:
         best_result.metrics["accuracy"]))
 
 
-    # Train the policy with the best hyperparameters
-    if args.policy == "ppo":
-        train_policy(best_config, "ppo_policy", args.checkpoint_dir)
-    elif args.policy == "dqn":
-        train_policy(best_config, "dqn_policy", args.checkpoint_dir)
-    elif args.policy == "impala":
-        train_policy(best_config, "impala_policy", args.checkpoint_dir)
-    elif args.policy == "a2c":
-        train_policy(best_config, "a2c_policy", args.checkpoint_dir)
-    elif args.policy == "a3c":
-        train_policy(best_config, "a3c_policy", args.checkpoint_dir)
+    # Train the policy with the best hyperparameters after exploration search
+    if args.fine-tuning:
+        if args.policy == "ppo":
+            train_policy(best_config, "ppo_policy", args.checkpoint_dir)
+        elif args.policy == "dqn":
+            train_policy(best_config, "dqn_policy", args.checkpoint_dir)
+        elif args.policy == "impala":
+            train_policy(best_config, "impala_policy", args.checkpoint_dir)
+        elif args.policy == "a2c":
+            train_policy(best_config, "a2c_policy", args.checkpoint_dir)
+        elif args.policy == "a3c":
+            train_policy(best_config, "a3c_policy", args.checkpoint_dir)
 elif args.resume:
     if args.policy == "ppo":
         algorithm_path = os.path.join(args.checkpoint_dir, "ppo_policy")
