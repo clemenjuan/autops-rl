@@ -32,7 +32,7 @@ env_config = {
 epochs = 20 # per training iteration - increase gradually when training
 metric = "episode_reward_mean"
 mode = "max"
-num_paralle_trainers = 5
+num_paralle_trainers = 6
 
 # Resource allocation settings
 # GPUs are automatically detected and used if available
@@ -104,7 +104,7 @@ def setup_config(config):
     config.resources(num_gpus=gpu_count,
                      num_cpus_per_worker=resources["num_cpus_per_worker"], 
                      num_gpus_per_worker=resources["num_gpus_per_worker"],
-                     num_learner_workers=resources["num_learner_workers"]
+                     num_learner_workers=resources["num_learner_workers"],
                      num_cpus_per_learner_worker=resources["num_cpus_per_learner_worker"], 
                      num_gpus_per_learner_worker=resources["num_gpus_per_learner_worker"]
                      )
@@ -231,10 +231,25 @@ def train_policy_from_checkpoint(config, policy_name, checkpoint_dir, algorithm_
 def save_best_config(best_config, config_dir):
     # Ensure the directory exists
     os.makedirs(config_dir, exist_ok=True)
+    
+    # Filter out non-serializable parts of the configuration
+    def make_serializable(config):
+        if isinstance(config, dict):
+            return {k: make_serializable(v) for k, v in config.items()}
+        elif isinstance(config, list):
+            return [make_serializable(v) for v in config]
+        elif isinstance(config, set):
+            return list(make_serializable(v) for v in config)
+        elif hasattr(config, '__dict__'):
+            return make_serializable(vars(config))
+        else:
+            return config
+    
+    serializable_config = make_serializable(best_config)
 
     best_config_path = os.path.join(config_dir, "best_config.json")
     with open(best_config_path, "w") as f:
-        json.dump(best_config, f, indent=4)
+        json.dump(serializable_config, f, indent=4)
     print(f"Best configuration saved to {best_config_path}")
 
 def save_hyperparameter_results(analysis, config_dir):
@@ -247,7 +262,7 @@ def save_hyperparameter_results(analysis, config_dir):
         trials_data.append(trial_result)
 
     df = pd.DataFrame(trials_data)
-    
+
     # Ensure the directory exists
     os.makedirs(config_dir, exist_ok=True)
     hyperparam_results_path = os.path.join(config_dir, "hyperparameter_results.csv")
