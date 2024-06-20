@@ -50,21 +50,23 @@ resources = {
 # Serch space configurations
 search_space = {
     "fcnet_hiddens": tune.choice([[128, 128], [256, 256], [64, 64, 64]]),
+    "num_sgd_iter": tune.choice(10, 30, 50),
     "lr": tune.loguniform(1e-5, 1e-3),
     "gamma": tune.uniform(0.9, 0.99),
     "lambda": tune.uniform(0.9, 1.0),
-    "train_batch_size": tune.choice([512, 1024]),
+    "train_batch_size": tune.choice([10000, 20000, 40000]),
+    "sgd_minibatch_size": tune.choice([128, 512, 2048]),
 }
 
 # Hyperparameter search
-num_samples_per_policy = 20
+num_samples_per_policy = 30
 max_concurrent_trials = 5
 
-# Scheduler - Jetson ~16 iterations per day - 90 mins per iteration
+# Scheduler - Jetson ~16 iterations per day - 90 mins per iteration (complete episodes)
 scheduler = ASHAScheduler(
         metric=metric,
         mode=mode, # maximize the reward
-        max_t=15, # maximum number of training iterations - Exploration ~10-20, Exploitation ~30-50
+        max_t=20, # maximum number of training iterations - Exploration ~10-20, Exploitation ~30-50
         grace_period=10, # minimum number of training iterations
         reduction_factor=2, # factor to reduce the number of trials
     )
@@ -126,15 +128,15 @@ ray.init(num_gpus=gpu_count)
 ppo_config = setup_config(PPOConfig())
 ppo_config.training(
     vf_loss_coeff=0.01, 
-    num_sgd_iter=epochs, # number of epochs to execute per iteration
-    train_batch_size=search_space["train_batch_size"] if args.tune else 512, 
+    num_sgd_iter=search_space["num_sgd_iter"] if args.tune else epochs, # number of epochs to execute per iteration
+    train_batch_size=search_space["train_batch_size"] if args.tune else 10000, 
     lr=search_space["lr"] if args.tune else 1e-3,  # Set a default value if not tuning
     gamma=search_space["gamma"] if args.tune else 0.99,
     use_gae=True, 
     lambda_=search_space["lambda"] if args.tune else 0.95,
     clip_param=0.2, 
     entropy_coeff=0.01, 
-    sgd_minibatch_size=64,
+    sgd_minibatch_size=search_space["sgd_minibatch_size"] if args.tune else 128,
     model={
         "fcnet_hiddens": search_space["fcnet_hiddens"] if args.tune else [64, 64],
         "fcnet_activation": "relu",
@@ -184,10 +186,6 @@ def train_policy(config, policy_name, checkpoint_dir):
         print(f"== {policy_name.upper()} Iteration {i} ==")
         start_time = time.time()
         result = algorithm.train()
-
-        # Log the loss function
-        if 'learner' in result['info']:
-            print(f"Loss: {result['info']['learner']['default_policy']['learner_stats']['loss']}")
 
         print(pretty_print(result))
         print(f"Time taken for training {policy_name.upper()}: ", time.time() - start_time)
@@ -332,7 +330,7 @@ if args.tune:
         )
 
     # Get the best hyperparameters
-    best_config = analysis.get_best_config(metric, mode)
+    best_result = analysis.get_best_config(metric, mode)
     print("Best trial config: {}".format(best_result.config))
     print("Best trial final average reward: {}".format(
         best_result.metrics["episode_reward_mean"]))
@@ -345,15 +343,15 @@ if args.tune:
     # Train the policy with the best hyperparameters after exploration search
     if args.fine-tuning:
         if args.policy == "ppo":
-            train_policy(best_config, "ppo_policy", args.checkpoint_dir)
+            train_policy(best_result, "ppo_policy", args.checkpoint_dir)
         elif args.policy == "dqn":
-            train_policy(best_config, "dqn_policy", args.checkpoint_dir)
+            train_policy(best_result, "dqn_policy", args.checkpoint_dir)
         elif args.policy == "impala":
-            train_policy(best_config, "impala_policy", args.checkpoint_dir)
+            train_policy(best_result, "impala_policy", args.checkpoint_dir)
         elif args.policy == "a2c":
-            train_policy(best_config, "a2c_policy", args.checkpoint_dir)
+            train_policy(best_result, "a2c_policy", args.checkpoint_dir)
         elif args.policy == "a3c":
-            train_policy(best_config, "a3c_policy", args.checkpoint_dir)
+            train_policy(best_result, "a3c_policy", args.checkpoint_dir)
 elif args.resume:
     if args.policy == "ppo":
         algorithm_path = os.path.join(args.checkpoint_dir, "ppo_policy")
