@@ -29,22 +29,20 @@ env_config = {
     "duration": 24*60*60
 }
 
-epochs = 40 # per training iteration - increase gradually when training
+epochs = 50 # per training iteration - increase gradually when training
 metric = "info/learner/default_policy/learner_stats/total_loss" # "episode_reward_mean"
 mode = "min"
-num_parallel_trainers = 1
-rollout_fragment_length = 1000 # episodes last in the order of 10000 steps
+rollout_fragment_length = 1000 # if set to 1000, with 5 envs per worker, data is given by workers in chunks of 5*1000 steps
 
 # Resource allocation settings
 # GPUs are automatically detected and used if available
 resources = {
     "num_rollout_workers" : 10, # Number of rollout workers (parallel actors for simulating environment interactions)
-    "num_envs_per_worker" : 4, # Number of environments per worker
+    "num_envs_per_worker" : 5, # Number of environments per worker
     "num_cpus_per_worker" : 1, # Number of CPUs per worker
     "num_gpus_per_worker" : 0, # Number of GPUs per worker - only CPU simulations
-    "num_learner_workers" : num_parallel_trainers, # Number of learner workers (parallel actors for training)
-    "num_cpus_per_learner_worker" : 1, # Number of CPUs per local worker (trainer) =1!!!!! 
-    "num_gpus_per_learner_worker" : gpu_count/num_parallel_trainers, # Number of GPUs per local worker (trainer)
+    "num_cpus_per_learner_worker" : 1, # Number of CPUs per local worker (trainer) =1!!!!!
+    "num_gpus_per_learner_worker" : gpu_count, # Number of GPUs per local worker (trainer)
 }
 
 # Serch space configurations
@@ -55,7 +53,7 @@ search_space = {
     "lr": tune.loguniform(1e-5, 1e-3),
     "gamma": tune.uniform(0.9, 0.99),
     "lambda": tune.uniform(0.9, 1.0),
-    "train_batch_size": tune.choice([10000, 20000, 40000, 80000]),
+    "train_batch_size": tune.choice([10000, 20000, 40000, 80000, 100000]),
     "sgd_minibatch_size": tune.choice([100, 200, 500]),
 }
 
