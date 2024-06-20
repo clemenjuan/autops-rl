@@ -30,9 +30,10 @@ env_config = {
 }
 
 epochs = 40 # per training iteration - increase gradually when training
-metric = "loss"
+metric = "info/learner/default_policy/learner_stats/total_loss" # "episode_reward_mean"
 mode = "min"
-num_parallel_trainers = 6
+num_parallel_trainers = 1
+rollout_fragment_length = "auto"
 
 # Resource allocation settings
 # GPUs are automatically detected and used if available
@@ -99,7 +100,10 @@ def env_creator(env_config):
 def setup_config(config):
     config.environment(env=env_name, env_config=env_config, disable_env_checking=True)
     config.framework(args.framework)
-    config.rollouts(num_rollout_workers=resources["num_rollout_workers"], num_envs_per_worker=resources["num_envs_per_worker"], batch_mode="complete_episodes", rollout_fragment_length="auto")
+    config.rollouts(num_rollout_workers=resources["num_rollout_workers"],
+                     num_envs_per_worker=resources["num_envs_per_worker"],
+                     batch_mode="truncate_episodes",
+                     rollout_fragment_length=rollout_fragment_length)
     gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
     config.resources(num_gpus=gpu_count,
                      num_cpus_per_worker=resources["num_cpus_per_worker"], 
