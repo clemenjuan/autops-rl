@@ -49,13 +49,13 @@ resources = {
 
 # Serch space configurations
 search_space = {
-    "fcnet_hiddens": tune.choice([[128, 128], [256, 256], [64, 64, 64]]),
-    "num_sgd_iter": tune.choice(10, 30, 50),
+    "fcnet_hiddens": tune.choice([[65,64], [128, 128], [256, 256], [64, 64, 64]]),
+    "num_sgd_iter": tune.choice([10, 30]),
     "lr": tune.loguniform(1e-5, 1e-3),
     "gamma": tune.uniform(0.9, 0.99),
     "lambda": tune.uniform(0.9, 1.0),
-    "train_batch_size": tune.choice([10000, 20000, 40000]),
-    "sgd_minibatch_size": tune.choice([128, 512, 2048]),
+    "train_batch_size": tune.choice([512, 1024, 2048]),
+    "sgd_minibatch_size": tune.choice([64, 128, 256]),
 }
 
 # Hyperparameter search
