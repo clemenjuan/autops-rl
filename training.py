@@ -33,7 +33,7 @@ epochs = 40 # per training iteration - increase gradually when training
 metric = "info/learner/default_policy/learner_stats/total_loss" # "episode_reward_mean"
 mode = "min"
 num_parallel_trainers = 1
-rollout_fragment_length = "auto"
+rollout_fragment_length = 1000 # episodes last in the order of 10000 steps
 
 # Resource allocation settings
 # GPUs are automatically detected and used if available
@@ -48,14 +48,15 @@ resources = {
 }
 
 # Serch space configurations
+# iteration = (num_sgd_iter * (train_batch_size / sgd_minibatch_size) -> consider increasing your training batch size, that value will be constrained by system and gpu memory
 search_space = {
-    "fcnet_hiddens": tune.choice([[65,64], [128, 128], [256, 256], [64, 64, 64]]),
+    "fcnet_hiddens": tune.choice([[64,64], [128, 128], [256, 256], [64, 64, 64]]),
     "num_sgd_iter": tune.choice([10, 30]),
     "lr": tune.loguniform(1e-5, 1e-3),
     "gamma": tune.uniform(0.9, 0.99),
     "lambda": tune.uniform(0.9, 1.0),
-    "train_batch_size": tune.choice([512, 1024, 2048]),
-    "sgd_minibatch_size": tune.choice([64, 128, 256]),
+    "train_batch_size": tune.choice([10000, 20000, 40000, 80000]),
+    "sgd_minibatch_size": tune.choice([100, 200, 500]),
 }
 
 # Hyperparameter search
