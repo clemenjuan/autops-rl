@@ -54,9 +54,9 @@ class Satellite(ABC):
         if epsys is None: 
             epsys = {
                 'EnergyStorage': 84*3600,    #From Endurosat battery pack [W]*[s]=[J]
-                'SolarPanelSize': 0.2*0.3, # deployable solar panels 6U solar panel area [m2]
+                'SolarPanelSize': 0.4*0.3, # deployable solar panels 12U solar panel area [m2]
                 'EnergyAvailable': random.randint(20,70)*3600,
-                'Efficiency': 0.2,  # Efficiency of the solar panels
+                'Efficiency': 0.3,  # Efficiency of the solar panels
                 'SolarConstant': 1370 # W/m2, Solar constant
                 # prod = area * efficiency * solarconstant
             }
@@ -383,10 +383,10 @@ class ObserverSatellite(Satellite):
         self.cumulative_pointing_accuracy = np.zeros((num_observers,num_targets), dtype=np.float32)  # Track cumulative pointing accuracy for each target
         self.max_pointing_accuracy_avg_sat = np.zeros(num_targets, dtype=np.float32)  # Track maximum pointing accuracy for each target
         # Add power consumption rates (in Watts)
-        self.power_consumption_rates = {
-            "standby": 7 + 10,  # Standby mode
-            "communication": 10 + 10,  # During communication
-            "observation": 10 + 10,  # During observation
+        self.power_consumption_rates = { # Power consumption rates in Watts
+            "standby": 7.5,  # Standby mode
+            "communication": 9.3,  # During communication
+            "observation": 18.806,  # During observation
         }
         self.storage_consumption_rates = {
             "observation": 1024*1024*8,  # Storage consumption rate during observation - 1 Mbits/s

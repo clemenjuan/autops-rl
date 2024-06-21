@@ -29,39 +29,40 @@ env_config = {
     "duration": 24*60*60
 }
 
-epochs = 50 # per training iteration - increase gradually when training
-metric = "info/learner/default_policy/learner_stats/total_loss" # "episode_reward_mean"
-mode = "min"
-rollout_fragment_length = 1000 # if set to 1000, with 5 envs per worker, data is given by workers in chunks of 5*1000 steps
+metric = "episode_reward_mean" # "info/learner/default_policy/learner_stats/total_loss"
+mode = "max"
+rollout_fragment_length = 1000 
+# if set to 1000, 10 workers, with 5 envs per worker, data is given in chunks of 10 workers * 5 envs * 1000 steps_per_rollout = 50,000 steps, so train batch size has to be N*50,000
 
 # Resource allocation settings
 # GPUs are automatically detected and used if available
 resources = {
     "num_rollout_workers" : 10, # Number of rollout workers (parallel actors for simulating environment interactions)
-    "num_envs_per_worker" : 5, # Number of environments per worker
+    "num_envs_per_worker" : 2, # Number of environments per worker
     "num_cpus_per_worker" : 1, # Number of CPUs per worker
     "num_gpus_per_worker" : 0, # Number of GPUs per worker - only CPU simulations
+    "num_learner_workers" : 1, # For multi-gpu training, set number of workers greater than 1 and set num_gpus_per_learner_worker accordingly
     "num_cpus_per_learner_worker" : 1, # Number of CPUs per local worker (trainer) =1!!!!!
-    "num_gpus_per_learner_worker" : gpu_count, # Number of GPUs per local worker (trainer)
+    "num_gpus_per_learner_worker" : 1, # Number of GPUs per local worker (trainer)
 }
 
 # Serch space configurations
-# iteration = (num_sgd_iter * (train_batch_size / sgd_minibatch_size) -> consider increasing your training batch size, that value will be constrained by system and gpu memory
+# step iterations = (num_sgd_iter * (train_batch_size / sgd_minibatch_size) -> consider increasing your training batch size, that value will be constrained by system and gpu memory
 search_space = {
     "fcnet_hiddens": tune.choice([[64,64], [128, 128], [256, 256], [64, 64, 64]]),
     "num_sgd_iter": tune.choice([10, 30]),
     "lr": tune.loguniform(1e-5, 1e-3),
     "gamma": tune.uniform(0.9, 0.99),
     "lambda": tune.uniform(0.9, 1.0),
-    "train_batch_size": tune.choice([10000, 20000, 40000, 80000, 100000]),
-    "sgd_minibatch_size": tune.choice([100, 200, 500]),
+    "train_batch_size": tune.choice([10000, 20000, 50000]),
+    "sgd_minibatch_size": tune.choice([64, 128, 256, 512]),
 }
 
 # Hyperparameter search
 num_samples_per_policy = 30
 max_concurrent_trials = 5
 
-# Scheduler - Jetson ~16 iterations per day - 90 mins per iteration (complete episodes)
+# Scheduler - Jetson ~1M steps a day
 scheduler = ASHAScheduler(
         metric=metric,
         mode=mode, # maximize the reward
@@ -127,15 +128,15 @@ ray.init(num_gpus=gpu_count)
 ppo_config = setup_config(PPOConfig())
 ppo_config.training(
     vf_loss_coeff=0.01, 
-    num_sgd_iter=search_space["num_sgd_iter"] if args.tune else epochs, # number of epochs to execute per iteration
-    train_batch_size=search_space["train_batch_size"] if args.tune else 10000, 
+    num_sgd_iter=search_space["num_sgd_iter"] if args.tune else 10, # number of stochastic gradient descent iterations to execute per iteration
+    train_batch_size=search_space["train_batch_size"] if args.tune else 50000, 
     lr=search_space["lr"] if args.tune else 1e-3,  # Set a default value if not tuning
     gamma=search_space["gamma"] if args.tune else 0.99,
     use_gae=True, 
     lambda_=search_space["lambda"] if args.tune else 0.95,
     clip_param=0.2, 
     entropy_coeff=0.01, 
-    sgd_minibatch_size=search_space["sgd_minibatch_size"] if args.tune else 128,
+    sgd_minibatch_size=search_space["sgd_minibatch_size"] if args.tune else 100,
     model={
         "fcnet_hiddens": search_space["fcnet_hiddens"] if args.tune else [64, 64],
         "fcnet_activation": "relu",
