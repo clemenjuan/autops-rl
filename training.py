@@ -32,7 +32,7 @@ env_config = {
 metric = "episode_reward_mean" # "info/learner/default_policy/learner_stats/total_loss"
 mode = "max"
 batch_mode="complete_episodes" # "truncate_episodes" "complete_episodes"
-rollout_fragment_length = 1000
+rollout_fragment_length = "auto"
 # if set to 1000, 10 workers, with 5 envs per worker, data is given in chunks of 10 workers * 5 envs * 1000 steps_per_rollout = 50,000 steps, so train batch size has to be N*50,000
 
 # Resource allocation settings
