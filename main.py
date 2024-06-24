@@ -5,6 +5,7 @@ import argparse
 import ray
 import torch
 from ray import tune
+from ray.rllib.policy.policy import Policy
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.tune.registry import register_env
 from ray.tune.logger import pretty_print
@@ -14,7 +15,7 @@ from plotting import plot
 
 '''
 #### Usage ##############################
-python3 main.py --framework torch --policy ppo --checkpoint-dir ppo_checkpoints/ppo_policy
+python3 main.py --checkpoint-dir ppo_checkpoints/ppo_policy
 '''
 os.environ["RAY_verbose_spill_logs"] = "0"
 os.environ["RAY_DEDUP_LOGS"] = "0"
@@ -60,16 +61,13 @@ def get_latest_checkpoint(checkpoint_dir):
         return None
     return max(checkpoints, key=os.path.getctime)
 
-def test_policy(config, policy_name, checkpoint_dir, num_simulations):
-    algorithm = config.build()
+def test_policy(checkpoint_dir, num_simulations):
+    # Set paths
+    policy_checkpoint_path = os.path.join(checkpoint_dir, "policies", "default_policy")
 
-    checkpoint_path = os.path.join(checkpoint_dir, policy_name)
-    os.makedirs(checkpoint_path, exist_ok=True)
-
-    latest_checkpoint = get_latest_checkpoint(checkpoint_path)
-
-    if latest_checkpoint:
-        algorithm.restore(latest_checkpoint)
+    my_restored_policy = Policy.from_checkpoint(policy_checkpoint_path)
+    algorithm = ppo_config.build()
+    print("Using policy: ", my_restored_policy)
 
     results_folder = os.path.join("Results", "PPO")  # Updated folder name
     results_folder_plots = os.path.join(results_folder, "plots")
@@ -98,7 +96,10 @@ def test_policy(config, policy_name, checkpoint_dir, num_simulations):
 
         while env.agents:
             step_start_time = time.time()
-            actions = {agent: algorithm.compute_single_action(observation[agent]) for agent in env.agents}
+            # print(my_restored_policy.compute_single_action(observation[env.agents[0]]))
+            actions = {agent: my_restored_policy.compute_single_action(observation[agent])[0] for agent in env.agents}
+            # actions = {agent: algorithm.compute_single_action(observation[agent]) for agent in env.agents}
+            print(f"Actions: {actions}")
             compute_action_time = time.time() - step_start_time
             compute_action_time *= 1e3  # Convert to milliseconds
             for agent, action in actions.items():
@@ -153,4 +154,4 @@ def test_policy(config, policy_name, checkpoint_dir, num_simulations):
         print("Averages written to averages.csv")
 
 if __name__ == "__main__":
-    test_policy(ppo_config, "ppo_policy", args.checkpoint_dir, num_simulations=10)
+    test_policy(args.checkpoint_dir, num_simulations=100)
