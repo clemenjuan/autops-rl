@@ -17,6 +17,7 @@ from FSS_env import FSS_env
 import json
 import pandas as pd
 gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
+from ray.tune.execution.placement_groups import PlacementGroupFactory
 
 
 # Jetson (10 rw, 1 env, auto length, complete episodes, 11 cpu, 1 gpu)
@@ -40,18 +41,24 @@ mode = "max"
 batch_mode="complete_episodes" # "truncate_episodes" "complete_episodes"
 rollout_fragment_length = "auto"
 # if set to 1000, 10 workers, with 5 envs per worker, data is given in chunks of 10 workers * 5 envs * 1000 steps_per_rollout = 50,000 steps, so train batch size has to be N*50,000
+num_learner_workers = 4
+
 
 # Resource allocation settings
 # GPUs are automatically detected and used if available
 resources = {
     "num_rollout_workers" : 10, # Number of rollout workers (parallel actors for simulating environment interactions)
     "num_envs_per_worker" : 1, # Number of environments per worker
-    "num_cpus_per_worker" : 1, # Number of CPUs per worker
+    "num_cpus_per_worker" : 7, # Number of CPUs per worker
     "num_gpus_per_worker" : 0, # Number of GPUs per worker - only CPU simulations
-    "num_learner_workers" : 2, # For multi-gpu training, set number of workers greater than 1 and set num_gpus_per_learner_worker accordingly
+    "num_learner_workers" : num_learner_workers, # For multi-gpu training, set number of workers greater than 1 and set num_gpus_per_learner_worker accordingly
     "num_cpus_per_learner_worker" : 1, # Number of CPUs per local worker (trainer) =1!!!!!
     "num_gpus_per_learner_worker" : 1, # Number of GPUs per local worker (trainer)
 }
+
+resources_per_trial = PlacementGroupFactory(
+        [{"CPU": 1}] + [{"GPU": 1, "accelerator_type:A100": 1}] * num_learner_workers
+    )
 
 # Serch space configurations
 # step iterations = (num_sgd_iter * (train_batch_size / sgd_minibatch_size) -> consider increasing your training batch size, that value will be constrained by system and gpu memory
@@ -289,7 +296,8 @@ if args.tune:
             max_concurrent_trials=max_concurrent_trials,
             local_dir=args.checkpoint_dir,
             name="ppo_experiment",
-            checkpoint_at_end=False
+            checkpoint_at_end=False,
+            resources_per_trial=resources_per_trial
         )
     elif args.policy == "dqn":
         analysis = tune.run(
