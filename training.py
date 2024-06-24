@@ -19,7 +19,13 @@ import pandas as pd
 gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
 
 
-##### EDIT HERE ##########################################################
+# Jetson (10 rw, 1 env, auto length, complete episodes, 11 cpu, 1 gpu)
+# More than 162140 observations in 16214 env steps for episode 839967284702637949 are buffered in the sampler. 
+# If this is more than you expected, check that that you set a horizon on your environment correctly and that it terminates at some point. 
+# Note: In multi-agent environments, `rollout_fragment_length` sets the batch size based on (across-agents) environment steps, not the steps of individual agents, which can result in unexpectedly large batches.
+# Also, you may be waiting for your Env to terminate (batch_mode=`complete_episodes`). Make sure it does at some point.
+
+###### EDIT HERE ##########################################################
 # Environment configurations
 env_config = {
     "num_targets": 10, 
@@ -42,7 +48,7 @@ resources = {
     "num_envs_per_worker" : 1, # Number of environments per worker
     "num_cpus_per_worker" : 1, # Number of CPUs per worker
     "num_gpus_per_worker" : 0, # Number of GPUs per worker - only CPU simulations
-    "num_learner_workers" : 1, # For multi-gpu training, set number of workers greater than 1 and set num_gpus_per_learner_worker accordingly
+    "num_learner_workers" : 2, # For multi-gpu training, set number of workers greater than 1 and set num_gpus_per_learner_worker accordingly
     "num_cpus_per_learner_worker" : 1, # Number of CPUs per local worker (trainer) =1!!!!!
     "num_gpus_per_learner_worker" : 1, # Number of GPUs per local worker (trainer)
 }
@@ -51,17 +57,13 @@ resources = {
 # step iterations = (num_sgd_iter * (train_batch_size / sgd_minibatch_size) -> consider increasing your training batch size, that value will be constrained by system and gpu memory
 search_space = {
     "fcnet_hiddens": tune.choice([[64,64], [128, 128], [256, 256], [64, 64, 64]]),
-    "num_sgd_iter": tune.choice([10, 30]),
+    "num_sgd_iter": tune.choice([10, 30, 50]), # number of stochastic gradient descent iterations to execute per iteration
     "lr": tune.loguniform(1e-5, 1e-3),
     "gamma": tune.uniform(0.9, 0.99),
     "lambda": tune.uniform(0.9, 1.0),
-    "train_batch_size": tune.choice([10000, 20000, 50000]),
-    "sgd_minibatch_size": tune.choice([64, 128, 256]), # 512 in Jetson crashes
+    "train_batch_size": tune.choice([10000, 20000, 50000, 100000]),
+    "sgd_minibatch_size": tune.choice([32, 64, 128, 512]), # 512 in Jetson crashes
 }
-# Jetson Trials (10 rw, 2 envs, 500 rfl)
-#  status        gamma            lr     train_batch_size     sgd_minibatch_size     num_sgd_iter     lambda   model/fcnet_hiddens
-# ERROR      0.964138   0.000258366                20000                     64               10   0.97367    [256, 256]
-# ERROR      0.979715   0.000608935                10000                    512               30   0.973371   [64, 64]
 
 # Hyperparameter search
 num_samples_per_policy = 30
@@ -71,7 +73,7 @@ max_concurrent_trials = 5
 scheduler = ASHAScheduler(
         metric=metric,
         mode=mode, # maximize the reward
-        max_t=10, # maximum number of training iterations - Exploration ~10-20, Exploitation ~30-50
+        max_t=20, # maximum number of training iterations - Exploration ~10-20, Exploitation ~30-50
         grace_period=5, # minimum number of training iterations
         reduction_factor=2, # factor to reduce the number of trials
     )
