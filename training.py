@@ -17,7 +17,9 @@ from FSS_env import FSS_env
 import json
 import pandas as pd
 gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
-from ray.tune.execution.placement_groups import PlacementGroupFactory
+from torch.profiler import profile, record_function, ProfilerActivity
+from ray.rllib.algorithms.callbacks import DefaultCallbacks
+from ray.util.accelerators import NVIDIA_A100
 
 
 # Jetson (10 rw, 1 env, auto length, complete episodes, 11 cpu, 1 gpu)
@@ -38,10 +40,11 @@ env_config = {
 
 metric = "episode_reward_mean" # "info/learner/default_policy/learner_stats/total_loss"
 mode = "max"
-batch_mode="complete_episodes" # "truncate_episodes" "complete_episodes"
-rollout_fragment_length = "auto"
+batch_mode="truncate_episodes" # "truncate_episodes" "complete_episodes"
+batch_size = 8192
+rollout_fragment_length = "auto" # if batch_mode is “complete_episodes”, rollout_fragment_length is ignored
 # if set to 1000, 10 workers, with 5 envs per worker, data is given in chunks of 10 workers * 5 envs * 1000 steps_per_rollout = 50,000 steps, so train batch size has to be N*50,000
-num_learner_workers = 4
+num_learner_workers = 1 # parallel GPUs - not working in LRZ AI - only 1 local worker
 
 
 # Resource allocation settings
@@ -49,39 +52,42 @@ num_learner_workers = 4
 resources = {
     "num_rollout_workers" : 10, # Number of rollout workers (parallel actors for simulating environment interactions)
     "num_envs_per_worker" : 1, # Number of environments per worker
-    "num_cpus_per_worker" : 7, # Number of CPUs per worker
+    "num_cpus_per_worker" : 1, # Number of CPUs per worker
     "num_gpus_per_worker" : 0, # Number of GPUs per worker - only CPU simulations
-    "num_learner_workers" : num_learner_workers, # For multi-gpu training, set number of workers greater than 1 and set num_gpus_per_learner_worker accordingly
+    "num_learner_workers" : num_learner_workers, # For multi-gpu training change num_gpus_per_learner_worker
     "num_cpus_per_learner_worker" : 1, # Number of CPUs per local worker (trainer) =1!!!!!
     "num_gpus_per_learner_worker" : 1, # Number of GPUs per local worker (trainer)
 }
 
-resources_per_trial = PlacementGroupFactory(
-        [{"CPU": 1}] + [{"GPU": 1, "accelerator_type:A100": 1}] * num_learner_workers
-    )
 
 # Serch space configurations
 # step iterations = (num_sgd_iter * (train_batch_size / sgd_minibatch_size) -> consider increasing your training batch size, that value will be constrained by system and gpu memory
+""" beyond gamma and lr the rest are a waste to search for.
+
+And generally you want gamma to be high to explore sufficiently, 
+and lr to be a factor of how many steps you wish to learn everything before trying to improve 
+( i.e. if your exploration space is 84000 and the number of actions is 4 per then lr should be 1/(4*32000) at least ) """
 search_space = {
-    "fcnet_hiddens": tune.choice([[64,64], [128, 128], [256, 256], [64, 64, 64]]),
-    "num_sgd_iter": tune.choice([10, 30, 50]), # number of stochastic gradient descent iterations to execute per iteration
-    "lr": tune.loguniform(1e-5, 1e-3),
+    "fcnet_hiddens": tune.choice([[64, 64, 64], [128, 128, 128]]),
+    "lr": tune.loguniform(1e-7, 1e-3),
     "gamma": tune.uniform(0.9, 0.99),
     "lambda": tune.uniform(0.9, 1.0),
-    "train_batch_size": tune.choice([10000, 20000, 50000, 100000]),
-    "sgd_minibatch_size": tune.choice([32, 64, 128, 512]), # 512 in Jetson crashes
+    "train_batch_size": tune.choice([4096, 8192]),
+    "sgd_minibatch_size": tune.choice([128, 256, 1024, 2048]),
 }
 
 # Hyperparameter search
-num_samples_per_policy = 30
-max_concurrent_trials = 5
+num_samples_per_policy = 20 # random combinations of search space
+
+# iter_for_complete_episodes = env_config["duration"] // search_space["train_batch_size"]
 
 # Scheduler - Jetson ~1M steps a day
 scheduler = ASHAScheduler(
+        time_attr='training_iteration',
         metric=metric,
         mode=mode, # maximize the reward
-        max_t=20, # maximum number of training iterations - Exploration ~10-20, Exploitation ~30-50
-        grace_period=5, # minimum number of training iterations
+        max_t=20, # * iter_for_complete_episodes, # maximum number of training iterations - Exploration ~10-20, Exploitation ~30-50
+        grace_period=5, # * iter_for_complete_episodes, minimum number of training iterations
         reduction_factor=2, # factor to reduce the number of trials
     )
 
@@ -121,14 +127,15 @@ def setup_config(config):
                      batch_mode=batch_mode,
                      rollout_fragment_length=rollout_fragment_length)
     gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
-    config.resources(num_gpus=gpu_count,
+    print(f"Available GPU(s): {gpu_count}")
+    config.resources(
+                     num_gpus=gpu_count,
                      num_cpus_per_worker=resources["num_cpus_per_worker"], 
                      num_gpus_per_worker=resources["num_gpus_per_worker"],
                      num_learner_workers=resources["num_learner_workers"],
                      num_cpus_per_learner_worker=resources["num_cpus_per_learner_worker"], 
                      num_gpus_per_learner_worker=resources["num_gpus_per_learner_worker"]
                      )
-    print(f"Using {gpu_count} GPU(s) for training.")
     return config
 
 # Register environment
@@ -141,18 +148,18 @@ ray.init(num_gpus=gpu_count)
 # Configuration for PPO - https://github.com/llSourcell/Unity_ML_Agents/blob/master/docs/best-practices-ppo.md#
 ppo_config = setup_config(PPOConfig())
 ppo_config.training(
-    vf_loss_coeff=0.01, 
-    num_sgd_iter=search_space["num_sgd_iter"] if args.tune else 10, # number of stochastic gradient descent iterations to execute per iteration
-    train_batch_size=search_space["train_batch_size"] if args.tune else 50000, 
-    lr=search_space["lr"] if args.tune else 1e-3,  # Set a default value if not tuning
+    # vf_loss_coeff=0.01, 
+    # num_sgd_iter=30, # number of stochastic gradient descent iterations to execute per iteration
+    train_batch_size = search_space["train_batch_size"] if args.tune else batch_size,
+    lr=search_space["lr"] if args.tune else 1e-5,  # Set a default value if not tuning
     gamma=search_space["gamma"] if args.tune else 0.99,
     use_gae=True, 
-    lambda_=search_space["lambda"] if args.tune else 0.95,
-    clip_param=0.2, 
-    entropy_coeff=0.01, 
-    sgd_minibatch_size=search_space["sgd_minibatch_size"] if args.tune else 100,
+    lambda_= search_space["lambda"] if args.tune else 0.95,
+    # clip_param=0.2, 
+    # entropy_coeff=0.01, 
+    sgd_minibatch_size= search_space["sgd_minibatch_size"] if args.tune else 256,
     model={
-        "fcnet_hiddens": search_space["fcnet_hiddens"] if args.tune else [64, 64],
+        "fcnet_hiddens": [64, 64, 64], # 128x3 crashes in LRZ AI
         "fcnet_activation": "relu",
     }
 )
@@ -189,7 +196,9 @@ impala_config.training(
 )
 
 # Function to train a policy
+# @ray.remote(num_gpus=num_learner_workers, accelerator_type=NVIDIA_A100)
 def train_policy(config, policy_name, checkpoint_dir):
+    print(f"Using {gpu_count} GPU(s) for training.")
     algorithm = config.build()
 
     # Set paths
@@ -199,7 +208,15 @@ def train_policy(config, policy_name, checkpoint_dir):
     for i in range(args.stop_iters):
         print(f"== {policy_name.upper()} Iteration {i} ==")
         start_time = time.time()
-        result = algorithm.train()
+
+        # Use PyTorch Profiler to monitor GPU usage
+        with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True) as prof:
+            with record_function("model_training"):
+                result = algorithm.train()
+        
+        # Print profiling results
+        print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
+        prof.export_chrome_trace(os.path.join(checkpoint_dir, f"trace_{i}.json"))
 
         print(pretty_print(result))
         print(f"Time taken for training {policy_name.upper()}: ", time.time() - start_time)
@@ -212,6 +229,7 @@ def train_policy(config, policy_name, checkpoint_dir):
             print(f"Stopping {policy_name.upper()} training as it reached the reward threshold.")
             break
 
+# @ray.remote(num_gpus=num_learner_workers, accelerator_type=NVIDIA_A100)
 def train_policy_from_checkpoint(config, policy_name, checkpoint_dir, algorithm_checkpoint_path):
     # Initialize the algorithm
     algorithm = config.build()
@@ -230,8 +248,8 @@ def train_policy_from_checkpoint(config, policy_name, checkpoint_dir, algorithm_
         result = algorithm.train()
 
         # Log the loss function
-        if 'learner' in result['info']:
-            print(f"Loss: {result['info']['learner']['default_policy']['learner_stats']['loss']}")
+        # if 'learner' in result['info']:
+        #    print(f"Loss: {result['info']['learner']['default_policy']['learner_stats']['loss']}")
 
         print(pretty_print(result))
         print(f"Time taken for training {policy_name.upper()}: ", time.time() - start_time)
@@ -293,11 +311,9 @@ if args.tune:
             config=ppo_config.to_dict(),
             num_samples=num_samples_per_policy,
             scheduler=scheduler,
-            max_concurrent_trials=max_concurrent_trials,
             local_dir=args.checkpoint_dir,
             name="ppo_experiment",
-            checkpoint_at_end=False,
-            resources_per_trial=resources_per_trial
+            checkpoint_at_end=True
         )
     elif args.policy == "dqn":
         analysis = tune.run(
