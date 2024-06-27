@@ -2,6 +2,10 @@ import os
 from copy import copy
 import time
 
+import torch
+from torch import nn
+
+from ray import train, tune
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
@@ -96,7 +100,9 @@ class FSS_env(MultiAgentEnv):
         print(f"Sampled observation: {sample}")
         return sample
 
-    def reset(self, seed=None, options=None):
+    def reset(self, seed=None, options=None): 
+        # here 13173302.10772834; 1; 19200.0 are printed idk why
+
         self._step = 0
         # print("Resetting...")
         self.agents = copy(self.possible_agents)
@@ -259,6 +265,15 @@ class FSS_env(MultiAgentEnv):
                 )
         
         return observation
+    
+    def save_checkpoint(self, tmp_checkpoint_dir):
+        checkpoint_path = os.path.join(tmp_checkpoint_dir, "model.pth")
+        torch.save(self.model.state_dict(), checkpoint_path)
+        return tmp_checkpoint_dir
+
+    def load_checkpoint(self, tmp_checkpoint_dir):
+        checkpoint_path = os.path.join(tmp_checkpoint_dir, "model.pth")
+        self.model.load_state_dict(torch.load(checkpoint_path))
     
 if __name__ == "__main__":
     ### Example of how to use the environment for a Monte Carlo simulation
