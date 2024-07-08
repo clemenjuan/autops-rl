@@ -1,8 +1,7 @@
 import os
-import time
-import tempfile
 import argparse
 import torch
+import ray
 from ray import tune, train
 from ray.tune.schedulers import ASHAScheduler
 from ray.tune import TuneConfig
@@ -14,12 +13,9 @@ from ray.tune.logger import pretty_print
 from FSS_env import FSS_env
 import json
 import pandas as pd
-gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
-from torch.profiler import profile, record_function, ProfilerActivity
 from ray.util.accelerators import NVIDIA_A100
+from ray.train.torch import TorchTrainer
 from ray.train import ScalingConfig
-from ray.train.torch import TorchTrainer, get_device, get_devices
-from ray.train.data_parallel_trainer import DataParallelTrainer
 from ray.tune.search.bayesopt import BayesOptSearch
 import matplotlib.pyplot as plt
 
@@ -31,30 +27,30 @@ torch.backends.cudnn.allow_tf32 = True # Ensure mixed precision in the training 
 
 
 print("Starting training script")
-# ray.init(num_gpus=gpu_count)
-
-# Jetson (10 rw, 1 env, auto length, complete episodes, 11 cpu, 1 gpu)
-# More than 162140 observations in 16214 env steps for episode 839967284702637949 are buffered in the sampler. 
-# If this is more than you expected, check that that you set a horizon on your environment correctly and that it terminates at some point. 
-# Note: In multi-agent environments, `rollout_fragment_length` sets the batch size based on (across-agents) environment steps, not the steps of individual agents, which can result in unexpectedly large batches.
-# Also, you may be waiting for your Env to terminate (batch_mode=`complete_episodes`). Make sure it does at some point.
+gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
+ray.init(ignore_reinit_error=True, num_gpus=gpu_count)
 
 ###### EDIT HERE ##########################################################
 
 # Environment configurations
 env_config = {
-    "num_targets": 50, 
-    "num_observers": 50,
+    "num_targets": 20, 
+    "num_observers": 20,
     "simulator_type": 'everyone',
     "time_step": 1, 
     "duration": 20000 # 24*60*60
 }
 
-metric = "episode_reward_mean" # "info/learner/default_policy/learner_stats/total_loss"
+metric = "episode_reward_mean" # "mean_reward" # "episode_reward_mean" # "info/learner/default_policy/learner_stats/total_loss"
 mode = "max"
 batch_mode="complete_episodes" # "truncate_episodes" "complete_episodes"
-rollout_fragment_length = "auto" # if batch_mode is “complete_episodes”, rollout_fragment_length is ignored. Data is given in chunks of 10 workers * 5 envs * 1000 steps_per_rollout = 50,000 steps 
-num_learner_workers = 4 # parallel GPUs
+rollout_fragment_length = 16 # if batch_mode is “complete_episodes”, rollout_fragment_length is ignored. Data is given in chunks of 10 workers * 5 envs * 1000 steps_per_rollout = 50,000 steps 
+train_batch_size = 2**10
+sgd_minibatch_size = 32
+num_sgd_iter = 1
+num_learner_workers = 1 # parallel GPUs
+
+experiment_name = "FSS_env_PPO_train"
 
 # Resource allocation settings
 # GPUs are automatically detected and used if available
@@ -91,7 +87,6 @@ scheduler = ASHAScheduler(
     )
 
 search_alg = BayesOptSearch(
-    # search_space,
     metric=metric,
     mode=mode
     )
@@ -104,13 +99,11 @@ os.environ["PYTHONWARNINGS"] = "ignore"
 # Argument parsing setup
 parser = argparse.ArgumentParser()
 parser.add_argument("--framework", choices=["tf", "tf2", "torch"], default="torch", help="The DL framework specifier.")
-parser.add_argument("--stop-iters", type=int, default=10, help="Number of iterations to train.")
-# parser.add_argument("--stop-reward", type=float, default=1000000, help="Reward at which we stop training.")
-parser.add_argument("--policy", choices=["ppo", "dqn", "a2c", "a3c", "impala"], default="ppo", required=True, help="Policy to train.")
-parser.add_argument("--checkpoint-dir", type=str, default="checkpoints", help="Directory to save checkpoints.")
+parser.add_argument("--stop-iters", type=int, default=200, help="Number of iterations to train.")
+parser.add_argument("--policy", choices=["ppo", "dqn", "a3c"], default="ppo", required=True, help="Policy to train.")
+parser.add_argument("--checkpoint-dir", type=str, default="/mnt/checkpoints", help="Directory to save checkpoints.")
 parser.add_argument("--resume", action="store_true", help="Whether to resume training from a checkpoint.")
 parser.add_argument("--tune", action="store_true", help="Whether to perform hyperparameter tuning.")
-# parser.add_argument("--fine-tuning", action="store_true", help="Whether to fine-tune and train the best policy after hyperparameter tuning.")
 
 args = parser.parse_args()
 
@@ -118,7 +111,7 @@ def env_creator(env_config):
     env = FSS_env(**env_config)
     return env
     
-def setup_config(config, algo):
+def setup_config(algo):
     if algo == "PPO":
         algo_config = PPOConfig()
     elif algo == "A3C":
@@ -128,31 +121,38 @@ def setup_config(config, algo):
     algo_config = algo_config.environment(env="FSS_env-v0", env_config=env_config, disable_env_checking=True)
     algo_config = algo_config.framework(args.framework)
     algo_config = algo_config.experimental(_enable_new_api_stack=True)
-    algo_config = algo_config.training(
-        lr=config.get("lr", 1e-6),  # Set default if not tuning
-        gamma=config.get("gamma", 0.99),
-        use_gae=True, 
-        lambda_=config.get("lambda", 0.95),
-        model={
-            "fcnet_hiddens": [64, 64, 64],  # 128x3 crashes in LRZ AI
-            "fcnet_activation": "relu",
-        }
+    algo_config = algo_config.rollouts(
+        num_rollout_workers=resources["num_rollout_workers"],
+        num_envs_per_worker=resources["num_envs_per_worker"],
+        rollout_fragment_length=rollout_fragment_length,
+        batch_mode=batch_mode,
     )
+    algo_config = algo_config.resources(
+        num_gpus=gpu_count,
+        num_learner_workers=num_learner_workers,  # <- in most cases, set this value to the number of GPUs
+        num_gpus_per_learner_worker=resources["num_gpus_per_learner_worker"],  # <- set this to 1, if you have at least 1 GPU
+        num_cpus_for_local_worker=resources["num_cpus_per_learner_worker"],
+    )
+    
     return algo_config
     
 run_config = train.RunConfig(
+                verbose=1,
+                name=experiment_name,
                 checkpoint_config=train.CheckpointConfig(
                     num_to_keep=5,
                     checkpoint_score_attribute=metric,
                     checkpoint_score_order=mode
-                )
+                ),
+                stop={
+                    'training_iteration': args.stop_iters
+                },
             )
             
 scaling_config = ScalingConfig(
                 num_workers=resources["num_learner_workers"],
                 use_gpu=True,
-                resources_per_worker={"CPU": resources["num_cpus_per_worker"], "GPU": resources["num_gpus_per_worker"]},
-                trainer_resources={"CPU": resources["num_cpus_per_learner_worker"], "GPU": resources["num_gpus_per_learner_worker"]}
+                accelerator_type=NVIDIA_A100,
             )
             
 tune_config = tune.TuneConfig(
@@ -172,61 +172,89 @@ def train_func(config):
         algo = "A3C"
     elif args.policy == "dqn":
         algo = "DQN"
+        
+    algorithm_checkpoint_path = os.path.join(args.checkpoint_dir, algo)
+    
+    # Ensure the checkpoint directory exists
+    if not os.path.exists(algorithm_checkpoint_path):
+        try:
+            os.makedirs(algorithm_checkpoint_path)
+            print(f"Created directory: {algorithm_checkpoint_path}")
+        except Exception as e:
+            print(f"Failed to create directory: {algorithm_checkpoint_path} with error {e}")
 
     # print(f"Starting training function for {algo}")
     
-    algo_config = setup_config(config, algo)
+    # Extract hyperparameters from config and then stablish them according to search
+    lr = 6.38965e-05
+    gamma = 0.9745
+    lambda_ = 0.92
+    
+    algo_config = setup_config(algo)
+    
+    # Apply hyperparameters to algo_config
+    if args.policy == "ppo":
+        algo_config = algo_config.training(
+            lr=lr,
+            gamma=gamma,
+            lambda_=lambda_,
+            train_batch_size_per_learner=train_batch_size,
+            sgd_minibatch_size=sgd_minibatch_size,
+            num_sgd_iter=num_sgd_iter,
+            # uses_new_env_runners=True
+        )
 
     # Initialize the algorithm trainer
-    trainer = algo_config.build()
+    algorithm = algo_config.build()
     # print(f"Trainer built for {algo}")
 
     # Load checkpoint if available
     checkpoint = train.get_checkpoint()
+    print(f"Using checkpoint: {checkpoint}")
     if checkpoint:
         print("Restoring from checkpoint")
-        trainer.restore(checkpoint.path)
+        algorithm.from_checkpoint(checkpoint.path)
 
     # Training loop
     for i in range(args.stop_iters):
         # print(f"Starting iteration {i+1}/{args.stop_iters}")
-        with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True) as prof:
-            with record_function("model_training"):
-                result = trainer.train()
-                tune.report(mean_reward=result[metric])
-                # print(f"Iteration {i+1} completed, mean reward: {result[metric]}")
 
-                if (i + 1) % checkpoint_frequency == 0:
-                    with tempfile.TemporaryDirectory() as temp_checkpoint_dir:
-                        trainer.save_checkpoint(temp_checkpoint_dir)
-                        train.report(
-                            metrics={"mean_reward": result[metric]},
-                            checkpoint=train.Checkpoint.from_directory(temp_checkpoint_dir)
-                        )
-        
-        print(prof.key_averages().table(sort_by="cuda_time_total", row_limit=10))
-        prof.export_chrome_trace(os.path.join(args.checkpoint_dir, f"profile_trace_{i}.json"))
+        result = algorithm.train()
+        train.report(
+            metrics={"episode_reward_mean": result[metric]},
+        )
+        if i % checkpoint_frequency == 0:
+            try:
+                checkpoint = algorithm.save(algorithm_checkpoint_path)
+                print(f"Saving checkpoint at {algorithm_checkpoint_path}")
+                print(f"Checkpoint saved at {checkpoint}")
+                # List the files in the directory to verify
+                print(f"Checkpoint directory contents: {os.listdir(algorithm_checkpoint_path)}")
+            except Exception as e:
+                print(f"Failed to save checkpoint at {algorithm_checkpoint_path} with error {e}")
 
     print(f"Training function for {algo} completed")
+    
 
 def run_experiment(algo):
-    """ trainer = DataParallelTrainer(
-            train_loop_per_worker=lambda config: train_func(config, algo),
-            scaling_config=scaling_config,
-    ) """
-
-    tuner = tune.Tuner(
-        tune.with_resources(train_func, resources=tune.PlacementGroupFactory(
-            [{'CPU': resources["num_cpus_per_learner_worker"]}, {'GPU': resources["num_gpus_per_learner_worker"]}] 
-             + [{'CPU': resources["num_cpus_per_worker"]}] * resources["num_rollout_workers"]
-            )),
-        tune_config=tune_config,
-        run_config=run_config,
-        param_space=search_space,
+    trainer = TorchTrainer(
+        train_func,
+        scaling_config=scaling_config,
+        # run_config=run_config
     )
+    algo_config = setup_config(algo)
 
-    results = tuner.fit()
 
+    if args.tune:
+        tuner = tune.Tuner(
+            trainer,
+            tune_config=tune_config,
+            run_config=run_config,
+            param_space=search_space,
+        )
+        results = tuner.fit()
+    elif args.resume:
+        train_func(algo_config)
     return results
 
 
@@ -246,40 +274,19 @@ def evaluate_best_model(results, algo):
         trainer.restore(checkpoint_dir)
         # Evaluate or continue training
 
-def print_results(results):
-    dfs = {result.path: result.metrics_dataframe for result in results}
-    ax = None  # This plots everything on the same plot
-    for d in dfs.values():
-        ax = d[metric].plot(ax=ax, legend=False)
-    plt.show()
-    pretty_print(results)
 
 register_env("FSS_env-v0", lambda config: env_creator(env_config))
 print("Registered environment")
 
-if args.tune:
-    if args.policy == "ppo":
-        results = run_experiment("PPO")
-        print_results(results)
-    if args.policy == "a3c":
-        results = run_experiment("A3C")
-        print_results(results)
-    if args.policy == "dqn":
-        results = run_experiment("DQN")
-        print_results(results)
-    else:
-        print("Invalid policy specified. Please choose either 'ppo', 'a3c' or 'dqn'.")
 
-if args.resume:
-    # Resume training from a checkpoint
-    if args.policy == "ppo":
-        results = run_experiment("PPO")
-        evaluate_best_model(results, "PPO")
-    elif args.policy == "a3c":
-        results = run_experiment("A3C")
-        evaluate_best_model(results, "A3C")
-    elif args.policy == "dqn":
-        results = run_experiment("DQN")
-        evaluate_best_model(results, "DQN")
-    else:
-        print("Invalid policy specified. Please choose either 'ppo', 'a3c' or 'dqn'.")
+if args.policy == "ppo":
+    results = run_experiment("PPO")
+    pretty_print(results)
+if args.policy == "a3c":
+    results = run_experiment("A3C")
+    pretty_print(results)
+if args.policy == "dqn":
+    results = run_experiment("DQN")
+    pretty_print(results)
+else:
+    print("Invalid policy specified. Please choose either 'ppo', 'a3c' or 'dqn'.")
