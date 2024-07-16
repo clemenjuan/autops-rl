@@ -126,7 +126,6 @@ def setup_config(config):
                      num_envs_per_worker=resources["num_envs_per_worker"],
                      batch_mode=batch_mode,
                      rollout_fragment_length=rollout_fragment_length)
-    gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
     print(f"Available GPU(s): {gpu_count}")
     config.resources(
                      num_gpus=gpu_count,

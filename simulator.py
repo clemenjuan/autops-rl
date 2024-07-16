@@ -143,7 +143,7 @@ class Simulator():
 
             if observer.epsys['EnergyAvailable'] < 0 or observer.DataHand['StorageAvailable'] < 0:
                     print(f"Satellite energy or storage depleted ({observer.name}). Terminating simulation.")
-                    reward_step[agent] -= 10000
+                    reward_step[agent] -= 100
                     self.breaker = True
 
             self.batteries[i] = observer.epsys['EnergyAvailable'] / observer.epsys['EnergyStorage']
@@ -160,7 +160,7 @@ class Simulator():
         for obs_index in duplicated_observation_indices:
             # Implement your chosen strategy for handling duplicates here
             # E.g., keep the observation with the highest pointing accuracy, average them, etc.
-            reward -= 10  # Penalize for duplicates
+            reward -= 1  # Penalize for duplicates
         return reward
 
     def get_global_targets(self, observer_satellites, target_satellites):
