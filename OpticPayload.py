@@ -9,8 +9,9 @@ class OpticPayload:
         self.DIAMETER=0.09 #Diameter of the optic to fit in a Cubesat'
         self.WAVELENGTH = 700e-9 #Upper limit of visible light
         #self.dim_obj_list= [0.3, 3, 5, 10, 25]
-        self.dim_obj= 250
         # labels = ['6U Cubesat', 'Iridium', 'Starlink', 'Sentinel', 'Envisat']
+        self.dim_obj= 5 # Starlink
+        
 
     
 

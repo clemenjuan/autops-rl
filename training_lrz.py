@@ -60,7 +60,7 @@ env_config = {
 metric = "episode_reward_mean" # "mean_reward" # "episode_reward_mean" # "info/learner/default_policy/learner_stats/total_loss"
 mode = "max"
 batch_mode="complete_episodes" # "truncate_episodes" "complete_episodes"
-rollout_fragment_length = 16 # if batch_mode is “complete_episodes”, rollout_fragment_length is ignored. Data is given in chunks of 10 workers * 5 envs * 1000 steps_per_rollout = 50,000 steps 
+rollout_fragment_length = "auto" # 256 # if batch_mode is “complete_episodes”, rollout_fragment_length is ignored. Data is given in chunks of 10 workers * 5 envs * 1000 steps_per_rollout = 50,000 steps 
 train_batch_size = 2**10
 sgd_minibatch_size = 32
 num_sgd_iter = 1
@@ -82,7 +82,7 @@ resources = {
 # Serch space configurations
 if args.policy == "ppo":
     search_space = {
-        "lr": tune.loguniform(1e-7, 1e-4),
+        "lr": tune.uniform(1e-7, 1e-4),
         "gamma": tune.uniform(0.9, 0.99),
         "lambda": tune.uniform(0.9, 1.0),
     }
@@ -90,7 +90,6 @@ elif args.policy == "dqn":
     search_space = {
         "target_network_update_freq": tune.choice([500, 1000, 2000, 3600]),
         "lr_schedule": tune.choice([[[0, 1e-4], [1000000, 1e-5]], [[0, 1e-3], [1000000, 1e-4]]]),
-        # "replay_buffer_capacity": tune.choice([[10000], [50000], [100000]])
     }
 elif args.policy == "sac":
     search_space = {
@@ -114,8 +113,8 @@ scheduler = ASHAScheduler(
         time_attr='training_iteration',
         metric=metric,
         mode=mode, # maximize the reward
-        max_t=20, # maximum number of training iterations (complete episodes * workers) - Exploration ~10-20, Exploitation ~30-50
-        grace_period=10, # * iter_for_complete_episodes, minimum number of training iterations
+        max_t=30, # maximum number of training iterations (complete episodes * workers) - Exploration ~10-20, Exploitation ~30-50
+        grace_period=20, # * iter_for_complete_episodes, minimum number of training iterations
         reduction_factor=2, # factor to reduce the number of trials
     )
 
@@ -224,13 +223,6 @@ def run_experiment(algo):
     )
 
     if args.tune:
-        tuner = tune.Tuner(
-            trainer,
-            tune_config=tune_config,
-            run_config=run_config,
-            param_space=search_space,
-        )
-        # results = tuner.fit()
         if args.policy == "sac":
             algo_config = algo_config.training(
                 lr=search_space["lr"],
@@ -248,12 +240,12 @@ def run_experiment(algo):
         )
         elif args.policy == "ppo":
             algo_config = algo_config.training(
-                 lr=search_space["lr"],
+                lr=search_space["lr"],
                 gamma=search_space["gamma"],
                 lambda_=search_space["lambda"],
-                train_batch_size_per_learner=train_batch_size,
-                sgd_minibatch_size=sgd_minibatch_size,
-                num_sgd_iter=num_sgd_iter,
+                # train_batch_size_per_learner=train_batch_size,
+                # sgd_minibatch_size=sgd_minibatch_size,
+                # num_sgd_iter=num_sgd_iter,
             )
             results = tune.run(
             "PPO",
@@ -269,7 +261,6 @@ def run_experiment(algo):
             algo_config = algo_config.training(
                 target_network_update_freq=search_space["target_network_update_freq"],
                 lr_schedule=search_space["lr_schedule"],
-                # replay_buffer_capacity=search_space["replay_buffer_capacity"],
             )
             results = tune.run(
             "DQN",
@@ -282,20 +273,24 @@ def run_experiment(algo):
             checkpoint_at_end=False
         )
     elif args.resume:
-        # results = train_func(algo_config)
         if args.policy == "sac":
             algo_config = algo_config.training(
-                lr=x,
-                gamma=x,
+                lr=9.69543e-06, # SAC_FSS_env-v0_0f4fd_00003
+                gamma= 0.946126,
             )
         elif args.policy == "ppo":
             algo_config = algo_config.training(
-                lr=6.38965e-05,
+                lr=6.38965e-05, # 
                 gamma=0.9745,
                 lambda_=0.92,
                 train_batch_size_per_learner=train_batch_size,
                 sgd_minibatch_size=sgd_minibatch_size,
                 num_sgd_iter=num_sgd_iter,
+            )
+        elif args.policy == "dqn":
+            algo_config = algo_config.training(
+                target_network_update_freq=1000, # DQN_FSS_env-v0_7c8f4_00003
+                lr_schedule=[[0, 1e-4], [1000000, 1e-5]],
             )
         results = trainer.fit()
     return results
@@ -321,7 +316,7 @@ def setup_config(algo):
         rollout_fragment_length=rollout_fragment_length,
         batch_mode=batch_mode,
     )
-    algo_config = algo_config.resources( # put one in each algo with old/new api
+    algo_config = algo_config.resources(
         num_gpus=gpu_count,
         num_learner_workers=num_learner_workers,  # <- in most cases, set this value to the number of GPUs
         num_gpus_per_learner_worker=resources["num_gpus_per_learner_worker"],  # <- set this to 1, if you have at least 1 GPU
@@ -336,12 +331,12 @@ print("Registered environment")
 
 if args.policy == "ppo":
     results = run_experiment("PPO")
-    pretty_print(results)
+    # pretty_print(results)
 if args.policy == "sac":
     results = run_experiment("SAC")
     # pretty_print(results)
 if args.policy == "dqn":
     results = run_experiment("DQN")
-    pretty_print(results)
+    # pretty_print(results)
 else:
     print("Invalid policy specified. Please choose either 'ppo', 'sac' or 'dqn'.")

@@ -20,7 +20,7 @@ class Simulator():
         self.data_matrix = np.zeros((num_observers, num_observers), dtype=float)  # Current timestep data exchange
         self.data_matrix_acc = np.zeros((num_observers, num_observers), dtype=float)  # Accumulated data exchange
         self.adjacency_matrix = np.zeros((num_observers, num_observers), dtype=int)  # Current timestep adjacency matrix
-        self.adjacency_matrix_acc = np.zeros((num_observers, num_observers), dtype=int)  # Accumulated adjacency matrix
+        self.adjacency_matrix_acc = np.eye((num_observers), dtype=int)  # Accumulated adjacency matrix
         self.contacts_matrix = np.zeros((num_observers, num_targets), dtype=int)  # Current timestep contacted targets matrix
         self.contacts_matrix_acc = np.zeros((num_observers, num_targets), dtype=int)  # Accumulated contacted targets matrix
         self.target_satellites = [TargetSatellite(name=f"Target-{i+1}") for i in range(num_targets)]
@@ -95,6 +95,7 @@ class Simulator():
                         
                         total_data_transmitted += data_transmitted  # Accumulate data transmitted
                         if communication_done or data_transmitted == 0:
+                            observer.DataHand['StorageAvailable'] -= total_data_transmitted # in bits
                             break  # Exit if communication is done or no data was transmitted
                     
                     max_steps = max(steps, max_steps)
@@ -113,16 +114,15 @@ class Simulator():
                 power_consumption = observer.power_consumption_rates["communication"]
                 storage_consumption = observer.storage_consumption_rates["communication"] # not implemented
                 observer.epsys['EnergyAvailable'] -= power_consumption * self.time_step * max_steps
-                observer.DataHand['StorageAvailable'] -= total_data_transmitted # in bits
+                
                 # print(f"Data transmitted: {total_data_transmitted}, Storage available: {observer.DataHand['StorageAvailable']}")
             else: # Observation
-                observation_done = False
                 steps = 0
                 power_consumption = observer.power_consumption_rates["observation"]
                 storage_consumption = observer.storage_consumption_rates["observation"]
-                # print(f"Observer {i} is observing target {action - 2}")
-                while not observation_done:
-                    reward_step[agent], observation_done, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_observation_counts, max_pointing_accuracy_avg = observer.observe_target(i, self.target_satellites[action - 2], action - 2, self.time_step + steps*self.time_step, reward_step[agent], steps, observation_done)
+                # print(f"{observer.name} is trying to observe target {action - 2}")
+
+                reward_step[agent], steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_observation_counts, max_pointing_accuracy_avg = observer.observe_target(i, self.target_satellites[action - 2], action - 2, self.time_step + steps*self.time_step, reward_step[agent], steps)
                 # print(f"Observer {i} has finished observing target {action - 2}")
                 self.contacts_matrix = np.maximum(contacts_matrix, self.contacts_matrix)
                 self.contacts_matrix_acc = np.maximum(contacts_matrix_acc, self.contacts_matrix_acc)
@@ -135,10 +135,9 @@ class Simulator():
                 # if self.max_pointing_accuracy_avg.any() > 0:
                 #    print(f"ID of max_pointing_accuracy_avg in process_actions: {id(self.max_pointing_accuracy_avg)}")
                 #    print(f"Max pointing accuracy average in process actions: {self.max_pointing_accuracy_avg}")
-
                 
                 observer.epsys['EnergyAvailable'] -= power_consumption * self.time_step * steps
-                observer.DataHand['StorageAvailable'] -= storage_consumption * self.time_step * steps
+                # Storage is processed inside the observation function
                 observer.processing_time += steps * self.time_step
 
             if observer.epsys['EnergyAvailable'] < 0 or observer.DataHand['StorageAvailable'] < 0:
@@ -146,8 +145,8 @@ class Simulator():
                     reward_step[agent] -= 100
                     self.breaker = True
 
-            self.batteries[i] = observer.epsys['EnergyAvailable'] / observer.epsys['EnergyStorage']
-            self.storage[i] = observer.DataHand['StorageAvailable'] / observer.DataHand['DataStorage']
+            self.batteries[i] = max(observer.epsys['EnergyAvailable'] / observer.epsys['EnergyStorage'], 0)
+            self.storage[i] = max(observer.DataHand['StorageAvailable'] / observer.DataHand['DataStorage'], 0)
             # print(f"Storage of observer {i}: {self.storage[i]}")
 
         return reward_step
@@ -167,6 +166,21 @@ class Simulator():
         # Each observer satellite detects targets within its view
         for i, observer in enumerate(observer_satellites):
             observer.get_targets(i,target_satellites, self.time_step)
+            if np.any(observer.contacts_matrix[i, :]):
+                # print(f"{observer.name} can observe targets.")
+                return True
+        return False
+
+
+    def get_global_communication_ability(self, observer_satellites, time_step, simulator_type):
+        # Each observer satellite can communicate with the rest of the observation satellites
+        for i, observer in enumerate(observer_satellites):
+            communication_ability = observer.get_communication_ability(observer_satellites, time_step, simulator_type)
+            if communication_ability.any():
+                # print(f"{observer.name} can communicate.")
+                return True
+        return False
+        
 
     def propagate_orbits(self):
         # Simulate one time step for all satellites
@@ -212,9 +226,7 @@ class Simulator():
             # Update energy with solar panel charging
             sunlight_exposure = observer.get_sunlight_exposure()
             observer.charge_battery(sunlight_exposure, self.time_step)
-
-        self.get_global_targets(self.observer_satellites, self.target_satellites)
-
+        
         rewards = self.process_actions(actions, simulator_type, agents) # careful with action/actions
 
         self.update_communication_timeline()
@@ -236,14 +248,17 @@ class Simulator():
         if self.global_observation_status_matrix.all() == 3:
             print(f"Simulation terminated because all observations were made at step {self.time_step_number}.")
             self.breaker = True
+            return True
 
         if self.time_step_number >= self.num_steps:
-            # print(f"Simulation reaches its duration limit at step {self.time_step_number}. Total duration: {self.duration} seconds.")
+            print(f"Simulation reached its duration limit at step {self.time_step_number}. Total duration: {self.duration} seconds.")
             self.breaker = True
+            return True
 
         if self.breaker:
             self.total_time = time.time() - self.start_time
-            # print(f"Simulation terminated after {self.total_time} seconds.")
+            print(f"Simulation terminated after {self.total_time} seconds.")
+            return True
 
         return self.breaker
 

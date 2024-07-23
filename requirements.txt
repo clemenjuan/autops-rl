@@ -13,3 +13,5 @@ lz4
 gputil==1.4.0
 pyarrow
 bayesian-optimization
+poliastro
+astropy

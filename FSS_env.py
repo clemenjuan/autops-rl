@@ -36,6 +36,7 @@ class FSS_env(MultiAgentEnv):
         self.simulator_type = simulator_type
         assert self.num_observers > 0
         assert self.num_targets > 0
+        self._step = 0
 
         self.possible_agents = ["observer_" + str(r) for r in range(num_observers)]
         self._agent_ids = set(self.possible_agents)
@@ -144,6 +145,9 @@ class FSS_env(MultiAgentEnv):
             self.agents = []
             return {}, {}, {}, {}, {}
         
+        # Create zero actions
+        zero_actions = {agent: 0 for agent in self.agents}
+        
          # Initialize rewards, terminations, and truncations for each agent
         rewards = {agent: 0 for agent in self.agents}
         terminations = {agent: False for agent in self.agents}
@@ -151,17 +155,41 @@ class FSS_env(MultiAgentEnv):
         terminations["__all__"] = False
         truncations["__all__"] = False
 
-        # Simulate the environment
-        rewards, done = self.simulator.step(actions, self.simulator_type, self.agents)
-        self._step += 1
+        special_event_detected = False
 
-        if done or self._step >= (self.duration/self.time_step):
-            for agent in self.agents:
-                terminations[agent] = True
-                truncations[agent] = True
-            terminations["__all__"] = True
-            truncations["__all__"] = True
-            self.agents = []
+        while not special_event_detected and self._step < (self.duration / self.time_step):
+            # Detect special events without processing actions
+            special_event_detected = self.detect_special_event()
+            if not special_event_detected:
+                # Step the simulator with zero actions
+                rewards, done = self.simulator.step(zero_actions, self.simulator_type, self.agents)
+                self._step += 1
+                if done:
+                    for agent in self.agents:
+                        terminations[agent] = True
+                        truncations[agent] = True
+                    terminations["__all__"] = True
+                    truncations["__all__"] = True
+                    self.agents = []
+                    # print(f"Forced termination at step {self.simulator.time_step_number}")
+                    break
+            else:
+                # print(f"Environment special event detected at step {self.simulator.time_step_number}")
+                break
+
+
+        if special_event_detected:
+            # Step the simulator with actual actions
+            rewards, done = self.simulator.step(actions, self.simulator_type, self.agents)
+            self._step += 1
+            if done:
+                for agent in self.agents:
+                    terminations[agent] = True
+                    truncations[agent] = True
+                terminations["__all__"] = True
+                truncations["__all__"] = True
+                self.agents = []
+                # print(f"Forced termination at step {self.simulator.time_step_number}")
         
 
         observations = {
@@ -180,10 +208,28 @@ class FSS_env(MultiAgentEnv):
         if self._step%10000 == 0:
             print(f"Step {self.simulator.time_step_number} done")
 
+        if done:
+            for agent in self.agents:
+                terminations[agent] = True
+                truncations[agent] = True
+            terminations["__all__"] = True
+            truncations["__all__"] = True
+            self.agents = []
+            print(f"Forced termination at step {self.simulator.time_step_number}")
+
         # print("Step done")
         # print(f"Step {self.simulator.time_step_number} reward: {rewards}")
         # print(f"Step returning observations for agents: {observations.keys()}, rewards for agents: {rewards.keys()}, terminations for agents: {terminations.keys()}, truncations for agents: {truncations.keys()}, infos for agents: {infos.keys()}")
         return observations, rewards, terminations, truncations, infos
+    
+    def detect_special_event(self):
+        can_observe = self.simulator.get_global_targets(self.simulator.observer_satellites, self.simulator.target_satellites)
+        can_communicate = self.simulator.get_global_communication_ability(self.simulator.observer_satellites,self.simulator.time_step, self.simulator_type)
+
+        if can_observe or can_communicate:
+            return True
+
+        return False
 
     def render(self):
         pass
@@ -279,10 +325,10 @@ if __name__ == "__main__":
     ### Example of how to use the environment for a Monte Carlo simulation
     ############################ EDIT HERE ############################
     num_simulations = 1000  # desired number of simulations
-    num_targets = 100 # Number of target satellites
-    num_observers = 100 # Number of observer satellites
-    simulator_type = 'centralized' # choose from 'centralized', 'decentralized', or 'everyone'
-    time_step = 10 # Time step in seconds
+    num_targets = 20 # Number of target satellites
+    num_observers = 20 # Number of observer satellites
+    simulator_type = 'everyone' # choose from 'centralized', 'decentralized', or 'everyone'
+    time_step = 1 # Time step in seconds
     duration = 24*60*60 # Duration of the simulation in seconds
     steps_batch_size = 1000 # Number of steps before printing new information
 
@@ -319,10 +365,9 @@ if __name__ == "__main__":
 
         while env.agents:
             step_start_time = time.time()
+            # Sample actions for all agents
             actions = {agent: env.action_space.sample() for agent in env.agents}
-            for agent, action in actions.items():
-                action_counts.setdefault(agent, []).append(action)
-
+            # actions = {agent: 0 for agent in env.agents}
             observation, rewards, terminated, truncated, infos = env.step(actions)
             total_reward += sum(rewards.values())
             step_end_time = time.time()

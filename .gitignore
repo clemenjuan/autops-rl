@@ -6,3 +6,4 @@ launch.json
 ppo_checkpoints/
 checkpoints/
 masterthesis_clemente.tar
+*.png
