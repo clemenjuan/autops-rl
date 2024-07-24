@@ -5,12 +5,15 @@ import matplotlib.pyplot as plt
 class OpticPayload: 
 
     def __init__(self):
-        
-        self.DIAMETER=0.09 #Diameter of the optic to fit in a Cubesat'
-        self.WAVELENGTH = 700e-9 #Upper limit of visible light
+        self.DIAMETER=0.09 # 0.09 # Diameter of the optic to fit in a Cubesat'
+        self.WAVELENGTH = 700e-9 # Upper limit of visible light
         #self.dim_obj_list= [0.3, 3, 5, 10, 25]
         # labels = ['6U Cubesat', 'Iridium', 'Starlink', 'Sentinel', 'Envisat']
         self.dim_obj= 5 # Starlink
+        # Simera Optic Payload
+        # focal length = 0.0933m
+        # aperture diameter = 0.1175m
+        # fov = 2*arctan(d/2f) = 2*arctan(0.1175/2*0.0933) = 1.1239284 rad = 64.4 degrees
         
 
     

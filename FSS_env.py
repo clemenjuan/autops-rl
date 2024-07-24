@@ -59,7 +59,7 @@ class FSS_env(MultiAgentEnv):
             "battery": spaces.Box(low=0, high=1, shape=(self.num_observers, 1)),
             "storage": spaces.Box(low=0, high=1, shape=(self.num_observers, 1)),
             "observation_status": spaces.Box(low=0, high=3, shape=(self.num_targets, )),
-            "pointing_accuracy": spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_observers, self.num_targets)),
+            "pointing_accuracy": spaces.Box(low=-0, high=1, shape=(self.num_observers, self.num_targets)),
             "communication_status": spaces.Box(low=0, high=1, shape=(self.num_observers, ), dtype=np.int8),
             "communication_ability": spaces.MultiBinary(self.num_observers)
             })
@@ -148,7 +148,7 @@ class FSS_env(MultiAgentEnv):
         # Create zero actions
         zero_actions = {agent: 0 for agent in self.agents}
         
-         # Initialize rewards, terminations, and truncations for each agent
+        # Initialize rewards, terminations, and truncations for each agent
         rewards = {agent: 0 for agent in self.agents}
         terminations = {agent: False for agent in self.agents}
         truncations = {agent: False for agent in self.agents}
@@ -157,56 +157,67 @@ class FSS_env(MultiAgentEnv):
 
         special_event_detected = False
 
-        while not special_event_detected and self._step < (self.duration / self.time_step):
+        while not special_event_detected and self.simulator.time_step_number < (self.duration / self.time_step):
             # Detect special events without processing actions
             special_event_detected = self.detect_special_event()
             if not special_event_detected:
                 # Step the simulator with zero actions
                 rewards, done = self.simulator.step(zero_actions, self.simulator_type, self.agents)
-                self._step += 1
                 if done:
-                    for agent in self.agents:
-                        terminations[agent] = True
-                        truncations[agent] = True
-                    terminations["__all__"] = True
-                    truncations["__all__"] = True
-                    self.agents = []
-                    # print(f"Forced termination at step {self.simulator.time_step_number}")
                     break
             else:
-                # print(f"Environment special event detected at step {self.simulator.time_step_number}")
+                print(f"Environment special event detected at step {self.simulator.time_step_number}")
                 break
-
 
         if special_event_detected:
             # Step the simulator with actual actions
             rewards, done = self.simulator.step(actions, self.simulator_type, self.agents)
-            self._step += 1
-            if done:
-                for agent in self.agents:
-                    terminations[agent] = True
-                    truncations[agent] = True
-                terminations["__all__"] = True
-                truncations["__all__"] = True
-                self.agents = []
-                # print(f"Forced termination at step {self.simulator.time_step_number}")
-        
 
         observations = {
             agent: self._generate_observation(agent)
             for agent in self.agents
         }
 
-        # Check if observations are within the observation space
-        # for agent, obs in observations.items():
-        #    assert self._observation_spaces[agent].contains(obs), f"Observation for {agent} out of bounds"
-
         # typically there won't be any information in the infos, but there must
         # still be an entry for each agent
         infos = {agent: {} for agent in self.agents}
 
-        if self._step%10000 == 0:
+        if self.simulator.time_step_number%10000 == 0:
             print(f"Step {self.simulator.time_step_number} done")
+
+
+        # Ensure all possible agents have corresponding entries in observations, rewards, terminations, truncations, and infos
+        for agent in self.possible_agents:
+            if agent not in observations:
+                observations[agent] = np.zeros(self.observation_spaces[agent].shape, dtype=self.observation_spaces[agent].dtype)
+                rewards[agent] = 0
+                terminations[agent] = True
+                truncations[agent] = True
+                infos[agent] = {}
+
+        # Assertions to ensure consistency
+        for agent in self.agents:
+            # Log dimensions and contents for debugging
+            print(f"####### Agent: {agent} #################")
+            for key, value in observations[agent].items():
+                if isinstance(value, np.ndarray):
+                    print(f" - Observation part '{key}': Shape = {value.shape}, dtype = {value.dtype}")
+                else:
+                    print(f" - Observation part '{key}': Type = {type(value)}, Value = {value}")
+
+            print(f"Agent: {agent}, Reward: {rewards[agent]}")
+            print(f"Agent: {agent}, Termination: {terminations[agent]}")
+            print(f"Agent: {agent}, Truncation: {truncations[agent]}")
+            print(f"Agent: {agent}, Info: {infos[agent]}")
+            
+            assert agent in observations, f"Missing observation for agent {agent}"
+            assert agent in rewards, f"Missing reward for agent {agent}"
+            assert agent in terminations, f"Missing termination status for agent {agent}"
+            assert agent in truncations, f"Missing truncation status for agent {agent}"
+            assert agent in infos, f"Missing info for agent {agent}"
+
+            # Check observation space consistency
+            assert self.observation_spaces[agent].contains(observations[agent]), f"Observation for {agent} out of bounds: {observations[agent]}" 
 
         if done:
             for agent in self.agents:
@@ -216,6 +227,18 @@ class FSS_env(MultiAgentEnv):
             truncations["__all__"] = True
             self.agents = []
             print(f"Forced termination at step {self.simulator.time_step_number}")
+            
+        # Ensure all possible agents have corresponding entries in observations, rewards, terminations, truncations, and infos
+        for agent in self.possible_agents:
+            if agent not in observations:
+                observations[agent] = np.zeros(self.observation_spaces[agent].shape, dtype=self.observation_spaces[agent].dtype)
+                rewards[agent] = 0
+                terminations[agent] = True
+                truncations[agent] = True
+                infos[agent] = {}
+                
+        
+        # print(f"Observations: {observations}")
 
         # print("Step done")
         # print(f"Step {self.simulator.time_step_number} reward: {rewards}")
@@ -289,13 +312,14 @@ class FSS_env(MultiAgentEnv):
         observation['communication_ability'] = np.array(observation['communication_ability'], dtype=np.int8)
         observation['communication_status'] = np.array(observation['communication_status'], dtype=np.int8)
         observation['observation_status'] = np.clip(np.array(observation['observation_status'], dtype=np.float32), 0, 3)  # Also ensures values are within bounds
-        observation['pointing_accuracy'] = np.array(observation['pointing_accuracy'], dtype=np.float32)
+        observation['pointing_accuracy'] = np.clip(np.array(observation['pointing_accuracy'], dtype=np.float32), 0, 1)  # Also ensures values are within bounds
         observation['target_satellites'] = np.array(observation['target_satellites'], dtype=np.float32)
 
         
         # print(f"Observation for {agent}: {observation}")
         # Ensure everything matches the expected types and shapes
         for key, value in observation.items():
+            # print(f"Observation key: {key}, shape: {value.shape}")
             assert observation[key].dtype == self._observation_spaces[key].dtype, f"Type mismatch for {key}: expected {self._observation_spaces[key].dtype}, got {observation[key].dtype}"
             assert observation[key].shape == self._observation_spaces[key].shape, f"Shape mismatch for {key}: expected {self._observation_spaces[key].shape}, got {observation[key].shape}"
             if not self._observation_spaces[key].contains(observation[key]):
@@ -379,6 +403,7 @@ if __name__ == "__main__":
 
         end_time = time.time()
         total_duration = end_time - start_time
+        total_reward_sum = np.sum(total_reward)
         print(f"Total steps: {env.simulator.time_step_number}")
         print(f"Total duration of episode: {total_duration:.3f} seconds")
         print(f"Total reward: {total_reward}")
@@ -393,7 +418,7 @@ if __name__ == "__main__":
             'global_observation_status_matrix': env.simulator.global_observation_status_matrix,
             'batteries': env.simulator.batteries,
             'storage': env.simulator.storage,
-            'total_reward': total_reward,
+            'total_reward': total_reward_sum,
             'total_duration': total_duration,
             'total_steps': env.simulator.time_step_number,
         }
@@ -401,13 +426,13 @@ if __name__ == "__main__":
         if write_to_csv_file_flag:
             log_full_matrices(matrices,results_folder)
             data_summary = {
-                'Total Reward': total_reward,
+                'Total Reward': total_reward_sum,
                 'Total Duration': total_duration,
             }
             log_summary_results(data_summary, results_folder)
 
         if plot_flag:
-            plot(matrices, results_folder_plots, total_duration, total_reward, env.simulator.time_step_number)
+            plot(matrices, results_folder_plots, total_duration, total_reward_sum, env.simulator.time_step_number)
     
     if write_to_csv_file_flag:
         compute_statistics_from_npy(results_folder, relevant_attributes)

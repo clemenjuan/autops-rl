@@ -8,8 +8,6 @@ from ray.tune.schedulers import ASHAScheduler
 from ray.tune import TuneConfig
 from ray.rllib.algorithms.dqn.dqn import DQNConfig
 from ray.rllib.algorithms.ppo import PPOConfig
-from ray.rllib.algorithms.a2c import A2CConfig
-from ray.rllib.algorithms.a3c import A3CConfig
 from ray.rllib.algorithms.sac import SACConfig
 from ray.tune.registry import register_env
 from ray.tune.logger import pretty_print
@@ -50,10 +48,10 @@ ray.init(ignore_reinit_error=True, num_gpus=gpu_count)
 ###### EDIT HERE ##########################################################
 # Environment configurations
 env_config = {
-    "num_targets": 20, 
-    "num_observers": 20,
+    "num_targets": 3, 
+    "num_observers": 3,
     "simulator_type": 'everyone',
-    "time_step": 10, 
+    "time_step": 1, 
     "duration": 24*60*60
 }
 
@@ -64,7 +62,7 @@ rollout_fragment_length = "auto" # 256 # if batch_mode is â€œcomplete_episodesâ€
 train_batch_size = 2**10
 sgd_minibatch_size = 32
 num_sgd_iter = 1
-num_learner_workers = 2 # parallel GPUs
+num_learner_workers = 1 # parallel GPUs
 
 
 # Resource allocation settings
@@ -72,11 +70,11 @@ num_learner_workers = 2 # parallel GPUs
 resources = {
     "num_rollout_workers": 1, # Number of rollout workers (parallel actors for simulating environment interactions)
     "num_envs_per_worker": 1, # Number of environments per worker
-    "num_cpus_per_worker": 40, # Number of CPUs per worker
+    "num_cpus_per_worker": 5, # Number of CPUs per worker
     "num_gpus_per_worker": 0, # Number of GPUs per worker - can be 0 for CPU simulations
     "num_learner_workers": num_learner_workers, # For multi-gpu training change num_gpus_per_learner_worker
     "num_cpus_per_learner_worker": 1, # Number of CPUs per local worker (trainer) =1!!!!!
-    "num_gpus_per_learner_worker": 1, # Number of GPUs per local worker (trainer)
+    "num_gpus_per_learner_worker": 0, # Number of GPUs per local worker (trainer)
 }
 
 # Serch space configurations
@@ -104,9 +102,9 @@ search_alg = BayesOptSearch(
     )
 
 # Hyperparameter search
-num_samples_per_policy = 20 # random combinations of search space
+num_samples_per_policy = 1 # random combinations of search space
 max_concurrent_trials = num_learner_workers # number of trials to run concurrently
-checkpoint_frequency = 5
+checkpoint_frequency = 10
 
 # Scheduler - Jetson ~1M steps a day
 scheduler = ASHAScheduler(

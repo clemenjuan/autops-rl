@@ -372,7 +372,7 @@ class TestSatelliteSimulation(unittest.TestCase):
     def test_observation_accuracy(self):
         print("\n######### Observation Accuracy Test ##########################################\n")
         # Define test positions around the limit distance of 263 km (263.47 km)
-        # Field of view is 40º, so angles between pointing direction and target greater than 20º should be out of view
+        # Field of view is 20º, so angles between pointing direction and target greater than 10º should be out of view
         # Define test positions and attitudes
         test_positions_and_attitudes = [
             # (observer position, target distance, attitude quaternion, should_observe)
@@ -381,9 +381,8 @@ class TestSatelliteSimulation(unittest.TestCase):
             ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 264000, [1, 0, 0, 0], False),  # Just beyond the max distance
             ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 200000, [0.707, 0, 0.707, 0], False),  # 90-degree rotation
             ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 200000, [0.866, 0, -0.5, 0], False),  # negative 60-degree rotation
-            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 200000, [0.966, 0, 0.259, 0], False),  # 30-degree rotation
-            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 200000, [0.9848, 0, 0.1736, 0], True),  # 20-degree rotation
-            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 200000, [0.9962, 0, -0.0872, 0], True),  # -10-degree rotation
+            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 200000, [0.9848, 0, 0.1736, 0], False),  # 20-degree rotation
+            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 200000, [0.9960, 0, -0.0870, 0], True),  # -10-degree rotation
         ]
 
         for pos1, distance, quaternion, should_observe in test_positions_and_attitudes:
@@ -501,15 +500,16 @@ class TestSatelliteSimulation(unittest.TestCase):
 
         end_time = time.time()
         total_duration = end_time - start_time
+        total_reward_sum = sum(total_reward)
         print(f"\nTotal steps: {self.env.simulator.time_step_number}")
         print(f"Total duration of episode: {total_duration:.3f} seconds")
-        print(f"Total reward: {total_reward}")
+        print(f"Total reward: {total_reward_sum:.3f}")
 
         # Log the results
         results = {
             'total_steps': self.env.simulator.time_step_number,
             'total_duration': total_duration,
-            'total_reward': total_reward,
+            'total_reward': total_reward_sum,
             'adjacency_matrix_acc': self.env.simulator.adjacency_matrix_acc,
             'data_matrix_acc': self.env.simulator.data_matrix_acc,
             'contacts_matrix_acc': self.env.simulator.contacts_matrix_acc,

@@ -95,7 +95,7 @@ class Simulator():
                         
                         total_data_transmitted += data_transmitted  # Accumulate data transmitted
                         if communication_done or data_transmitted == 0:
-                            observer.DataHand['StorageAvailable'] -= total_data_transmitted # in bits
+                            other_observer.DataHand['StorageAvailable'] -= total_data_transmitted # in bits
                             break  # Exit if communication is done or no data was transmitted
                     
                     max_steps = max(steps, max_steps)
@@ -151,17 +151,6 @@ class Simulator():
 
         return reward_step
 
-
-
-    def analyze_and_correct_duplications(self,reward): # needs to be implemented correctly
-        # Assuming observation records have been synchronized among satellites
-        duplicated_observation_indices = np.argwhere(self.global_observation_counts > 1)
-        for obs_index in duplicated_observation_indices:
-            # Implement your chosen strategy for handling duplicates here
-            # E.g., keep the observation with the highest pointing accuracy, average them, etc.
-            reward -= 1  # Penalize for duplicates
-        return reward
-
     def get_global_targets(self, observer_satellites, target_satellites):
         # Each observer satellite detects targets within its view
         for i, observer in enumerate(observer_satellites):
@@ -171,7 +160,6 @@ class Simulator():
                 return True
         return False
 
-
     def get_global_communication_ability(self, observer_satellites, time_step, simulator_type):
         # Each observer satellite can communicate with the rest of the observation satellites
         for i, observer in enumerate(observer_satellites):
@@ -180,13 +168,12 @@ class Simulator():
                 # print(f"{observer.name} can communicate.")
                 return True
         return False
-        
 
     def propagate_orbits(self):
         # Simulate one time step for all satellites
         for satellite in self.target_satellites:
             satellite.propagate_orbit(self.time_step)
-        for i, observer in enumerate(self.observer_satellites):
+        for observer in self.observer_satellites:
             observer.propagate_orbit(self.time_step)
 
     def propagate_attitudes(self):
@@ -195,8 +182,6 @@ class Simulator():
             satellite.propagate_attitude(self.time_step)
         for observer in self.observer_satellites:
             observer.propagate_attitude(self.time_step)
-
-
     
     def update_communication_timeline(self):
         # First, update the timeline for all observer-to-observer and observer-to-target communications
@@ -213,8 +198,6 @@ class Simulator():
         for i, observer_satellite in enumerate(self.observer_satellites):
             for j, target_satellite in enumerate(self.target_satellites):
                 self.global_observation_status_matrix[i, j] = observer_satellite.observation_status_matrix[j]
-
-
 
     def step(self, actions, simulator_type, agents): # choose type of communication: centralized, decentralized, everyone
         # Simulate one time step for all satellites
@@ -242,8 +225,6 @@ class Simulator():
         
         return rewards, done
 
-
-
     def is_terminated(self):
         if self.global_observation_status_matrix.all() == 3:
             print(f"Simulation terminated because all observations were made at step {self.time_step_number}.")
@@ -264,13 +245,6 @@ class Simulator():
 
 
 
-
-
-
-
-
-
-
 ############################################################################################################
 # Different types of simulators
 class CentralizedSimulator(Simulator):
@@ -283,10 +257,6 @@ class CentralizedSimulator(Simulator):
         super().__init__(num_targets, num_observers, time_step, duration)
         # set one random satellite to act as relay - it correspond to assign to the band the value of 5
         self.observer_satellites[random.randint(0, num_observers - 1)].commsys['band'] = 5
-
-
-
-
 class DecentralizedSimulator(Simulator):
     """
     Everyone can talk with everyone
@@ -299,9 +269,6 @@ class DecentralizedSimulator(Simulator):
         # self.observer_satellites[random.randint(0, num_observers - 1)].commsys['band'] = 1
 
         # All the bands are defined randomly in the Class Satellite in the satellites.py
-
-
-
 class MixedSimulator(CentralizedSimulator, DecentralizedSimulator):
     """
     Mixed simulator for the Gymnasium environment.

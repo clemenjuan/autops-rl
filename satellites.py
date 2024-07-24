@@ -405,6 +405,7 @@ class ObserverSatellite(Satellite):
         self.global_observation_counts = np.zeros((num_observers,num_targets), dtype=int)  # Global matrix to track the number of observations for each target
 
     def evaluate_pointing_accuracy(self, target_satellite, time_step):
+        # Field of view limited to 20º
         # Evaluate pointing accuracy for each observer satellite with respect to each target satellite if they are in range. Otherwise return 0.
         distance = self.distance_between(target_satellite, time_step)
         # print(f"Distance between {self.name} and {target_satellite.name}: {distance:.2f} km")
@@ -442,8 +443,8 @@ class ObserverSatellite(Satellite):
             angular_distance_deg = np.degrees(angular_distance)
             # print(f"Angular distance: {angular_distance_deg:.2f} degrees")
 
-            if angular_distance_deg <= 20:
-                normalized_pointing_accuracy = max(0, (20 - angular_distance_deg) / 20)
+            if angular_distance_deg <= 10:
+                normalized_pointing_accuracy = max(0, (10 - angular_distance_deg) / 10)
                 return normalized_pointing_accuracy
             else:
                 return 0
@@ -491,15 +492,12 @@ class ObserverSatellite(Satellite):
         self.contacts_matrix[observer_index,target_index] = 1
         self.contacts_matrix_acc[observer_index,target_index] = 1
 
-
     def synchronize_contacts_matrix(self, index1, index2):
         self.contacts_matrix[index1] = np.maximum(self.contacts_matrix[index1], self.contacts_matrix[index2])
         self.contacts_matrix[index2] = self.contacts_matrix[index1]
         
         self.contacts_matrix_acc[index1] = np.maximum(self.contacts_matrix_acc[index1], self.contacts_matrix_acc[index2])
         self.contacts_matrix_acc[index2] = self.contacts_matrix_acc[index1]
-
-
 
     def check_and_update_processing_state(self, time_step):
         if self.is_processing or self.processing_time > 0:
@@ -571,7 +569,6 @@ class ObserverSatellite(Satellite):
          
         return self.communication_ability
 
-
     def update_processing_status(self, observation_status_matrix):
         """
         Update the satellite's observation data based on received information,
@@ -603,9 +600,6 @@ class ObserverSatellite(Satellite):
         if self.can_communicate(other_satellite_index) and data_to_transmit > 0:
             # print(f"{self.name} is trying to communicate with {other_satellite.name}")
             can_communicate = False
-
-            distance = self.distance_between(other_satellite, time_step)
-            
 
             # Determine communication capability based on the specified type
             if communication_type == 'centralized':
