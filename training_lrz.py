@@ -178,8 +178,6 @@ def train_func(config: Dict):
     # Apply hyperparameters to algo_config
     algo_config = setup_config(algo)
 
-        
-
     # Initialize the algorithm trainer
     algorithm = algo_config.build()
     # print(f"Trainer built for {algo}")
@@ -232,7 +230,7 @@ def run_experiment(algo):
             num_samples=num_samples_per_policy,
             scheduler=scheduler,
             max_concurrent_trials=max_concurrent_trials,
-            local_dir=args.checkpoint_dir,
+            storage_path=args.checkpoint_dir,
             name="sac_tune",
             checkpoint_at_end=False
         )
@@ -251,7 +249,7 @@ def run_experiment(algo):
             num_samples=num_samples_per_policy,
             scheduler=scheduler,
             max_concurrent_trials=max_concurrent_trials,
-            local_dir=args.checkpoint_dir,
+            storage_path=args.checkpoint_dir,
             name="ppo_tune",
             checkpoint_at_end=False
         )
@@ -266,7 +264,7 @@ def run_experiment(algo):
             num_samples=num_samples_per_policy,
             scheduler=scheduler,
             max_concurrent_trials=max_concurrent_trials,
-            local_dir=args.checkpoint_dir,
+            storage_path=args.checkpoint_dir,
             name="dqn_tune",
             checkpoint_at_end=False
         )
@@ -281,9 +279,9 @@ def run_experiment(algo):
                 lr=6.38965e-05, # 
                 gamma=0.9745,
                 lambda_=0.92,
-                train_batch_size_per_learner=train_batch_size,
-                sgd_minibatch_size=sgd_minibatch_size,
-                num_sgd_iter=num_sgd_iter,
+                # train_batch_size_per_learner=train_batch_size,
+                # sgd_minibatch_size=sgd_minibatch_size,
+                # num_sgd_iter=num_sgd_iter,
             )
         elif args.policy == "dqn":
             algo_config = algo_config.training(
@@ -306,7 +304,7 @@ def setup_config(algo):
         algo_config = algo_config.experimental(_enable_new_api_stack=False)
         
         
-    algo_config = algo_config.environment(env="FSS_env-v0", env_config=env_config, disable_env_checking=True)
+    algo_config = algo_config.environment(env="FSS_env-v0", env_config=env_config) #, disable_env_checking=True)
     algo_config = algo_config.framework(args.framework)
     algo_config = algo_config.rollouts(
         num_rollout_workers=resources["num_rollout_workers"],

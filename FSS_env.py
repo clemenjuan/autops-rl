@@ -56,11 +56,11 @@ class FSS_env(MultiAgentEnv):
             "band": spaces.Box(low=1, high=5, shape=(1,), dtype=np.int8),
             "target_satellites": spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_targets, len(self.orbital_params_order_targets))),
             "availability": spaces.MultiBinary(1),
-            "battery": spaces.Box(low=0, high=1, shape=(self.num_observers, 1)),
-            "storage": spaces.Box(low=0, high=1, shape=(self.num_observers, 1)),
-            "observation_status": spaces.Box(low=0, high=3, shape=(self.num_targets, )),
+            "battery": spaces.Box(low=0, high=1, shape=(self.num_observers,)),
+            "storage": spaces.Box(low=0, high=1, shape=(self.num_observers,)),
+            "observation_status": spaces.Box(low=0, high=3, shape=(self.num_targets,)),
             "pointing_accuracy": spaces.Box(low=-0, high=1, shape=(self.num_observers, self.num_targets)),
-            "communication_status": spaces.Box(low=0, high=1, shape=(self.num_observers, ), dtype=np.int8),
+            "communication_status": spaces.Box(low=0, high=1, shape=(self.num_observers,), dtype=np.int8),
             "communication_ability": spaces.MultiBinary(self.num_observers)
             })
         self._action_spaces = spaces.Discrete(2 + self.num_targets)
@@ -119,16 +119,17 @@ class FSS_env(MultiAgentEnv):
         else:
             raise ValueError("Invalid simulator type. Choose from 'centralized', 'decentralized', or 'everyone'.")    
 
-
         observations = {
             agent: self._generate_observation(agent)
             for agent in self.agents
         }
-        
 
-        # Get dummy infos. Necessary for proper parallel_to_aec conversion
+        for agent, obs in observations.items():
+            print(f"Reset - Agent: {agent}")
+            for key, value in obs.items():
+                print(f"  - Observation part '{key}': Shape = {value.shape}, dtype = {value.dtype}")
+
         infos = {agent: {} for agent in self.agents}
-
         self.simulator.time_step_number = 0
 
         # print("Reset done")
@@ -140,6 +141,9 @@ class FSS_env(MultiAgentEnv):
 
     def step(self, actions):
         # print(f"Step starting...")
+        assert self.agents, "Cannot step an environment with no agents"
+        assert set(actions.keys()) == self._agent_ids, "Actions must be provided for all agents"
+
         # If a user passes in actions with no agents, then just return empty observations, etc.
         if not actions:
             self.agents = []
@@ -185,40 +189,6 @@ class FSS_env(MultiAgentEnv):
         if self.simulator.time_step_number%10000 == 0:
             print(f"Step {self.simulator.time_step_number} done")
 
-
-        # Ensure all possible agents have corresponding entries in observations, rewards, terminations, truncations, and infos
-        for agent in self.possible_agents:
-            if agent not in observations:
-                observations[agent] = np.zeros(self.observation_spaces[agent].shape, dtype=self.observation_spaces[agent].dtype)
-                rewards[agent] = 0
-                terminations[agent] = True
-                truncations[agent] = True
-                infos[agent] = {}
-
-        # Assertions to ensure consistency
-        for agent in self.agents:
-            # Log dimensions and contents for debugging
-            print(f"####### Agent: {agent} #################")
-            for key, value in observations[agent].items():
-                if isinstance(value, np.ndarray):
-                    print(f" - Observation part '{key}': Shape = {value.shape}, dtype = {value.dtype}")
-                else:
-                    print(f" - Observation part '{key}': Type = {type(value)}, Value = {value}")
-
-            print(f"Agent: {agent}, Reward: {rewards[agent]}")
-            print(f"Agent: {agent}, Termination: {terminations[agent]}")
-            print(f"Agent: {agent}, Truncation: {truncations[agent]}")
-            print(f"Agent: {agent}, Info: {infos[agent]}")
-            
-            assert agent in observations, f"Missing observation for agent {agent}"
-            assert agent in rewards, f"Missing reward for agent {agent}"
-            assert agent in terminations, f"Missing termination status for agent {agent}"
-            assert agent in truncations, f"Missing truncation status for agent {agent}"
-            assert agent in infos, f"Missing info for agent {agent}"
-
-            # Check observation space consistency
-            assert self.observation_spaces[agent].contains(observations[agent]), f"Observation for {agent} out of bounds: {observations[agent]}" 
-
         if done:
             for agent in self.agents:
                 terminations[agent] = True
@@ -227,17 +197,7 @@ class FSS_env(MultiAgentEnv):
             truncations["__all__"] = True
             self.agents = []
             print(f"Forced termination at step {self.simulator.time_step_number}")
-            
-        # Ensure all possible agents have corresponding entries in observations, rewards, terminations, truncations, and infos
-        for agent in self.possible_agents:
-            if agent not in observations:
-                observations[agent] = np.zeros(self.observation_spaces[agent].shape, dtype=self.observation_spaces[agent].dtype)
-                rewards[agent] = 0
-                terminations[agent] = True
-                truncations[agent] = True
-                infos[agent] = {}
                 
-        
         # print(f"Observations: {observations}")
 
         # print("Step done")
@@ -333,7 +293,7 @@ class FSS_env(MultiAgentEnv):
                     self._observation_spaces.spaces[key].low,
                     self._observation_spaces.spaces[key].high
                 )
-        
+        # print(f"Generated observation for {agent}: {observation}")
         return observation
     
     def save_checkpoint(self, tmp_checkpoint_dir):

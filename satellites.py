@@ -693,7 +693,7 @@ class ObserverSatellite(Satellite):
                         # self.observation_counts[target_index] = 0
                         
                         # Reward for successful observation
-                        reward_step += self.observation_counts
+                        reward_step += self.observation_counts[target_index]
                         
                         print(f"{self.name} has observed {target.name} with pointing accuracy {self.pointing_accuracy_avg[index, target_index]:.2f}")
                     else:
