@@ -15,3 +15,4 @@ pyarrow
 bayesian-optimization
 poliastro
 astropy
+tensorboard

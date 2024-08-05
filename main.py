@@ -7,6 +7,8 @@ import torch
 from ray import tune
 from ray.rllib.policy.policy import Policy
 from ray.rllib.algorithms.ppo import PPOConfig
+from ray.rllib.algorithms.dqn.dqn import DQNConfig
+from ray.rllib.algorithms.sac import SACConfig
 from ray.tune.registry import register_env
 from ray.tune.logger import pretty_print
 from FSS_env import FSS_env
@@ -15,61 +17,41 @@ from plotting import plot
 
 '''
 #### Usage ##############################
-python3 main.py --checkpoint-dir ppo_checkpoints/ppo_policy
+python3 main.py --checkpoint-dir checkpoints/PPO --policy ppo
 '''
 os.environ["RAY_verbose_spill_logs"] = "0"
 os.environ["RAY_DEDUP_LOGS"] = "0"
 
-def setup_config(config):
-    config.environment(env=env_name, env_config=env_config, disable_env_checking=True)
-    config.framework(args.framework)
-    config.rollouts(num_rollout_workers=4, num_envs_per_worker=2, rollout_fragment_length="auto", batch_mode="complete_episodes")
-    config.resources(num_gpus=1 if torch.cuda.is_available() else 0)
-    return config
-
 # Argument parsing setup
 parser = argparse.ArgumentParser()
 parser.add_argument("--framework", choices=["tf", "tf2", "torch"], default="torch", help="The DL framework specifier.")
-parser.add_argument("--policy", choices=["ppo"], required=True, help="Policy to test.")
+parser.add_argument("--policy", choices=["ppo","dqn","sac"], required=True, help="Policy to test.")
 parser.add_argument("--checkpoint-dir", type=str, default="checkpoints", help="Directory to load checkpoints.")
 args = parser.parse_args()
-
-def env_creator(env_config):
-    env = FSS_env(**env_config)
-    return env
 
 # Register environment
 env_name = "FSS_env-v0"
 env_config = {
-    "num_targets": 10, 
-    "num_observers": 10, 
+    "num_targets": 20, 
+    "num_observers": 20, 
     "simulator_type": 'everyone', 
     "time_step": 1, 
     "duration": 24*60*60
 }
-register_env(env_name, lambda config: env_creator(env_config))
+register_env("FSS_env-v0", lambda config: env_creator(env_config))
 
-# Configuration for PPO
-ppo_config = setup_config(PPOConfig())
-
-def get_latest_checkpoint(checkpoint_dir):
-    if not os.path.exists(checkpoint_dir):
-        return None
-    checkpoints = [os.path.join(checkpoint_dir, name) for name in os.listdir(checkpoint_dir)]
-    checkpoints = [path for path in checkpoints if os.path.isdir(path)]
-    if not checkpoints:
-        return None
-    return max(checkpoints, key=os.path.getctime)
+def env_creator(env_config):
+    env = FSS_env(**env_config)
+    return env
 
 def test_policy(checkpoint_dir, num_simulations):
     # Set paths
     policy_checkpoint_path = os.path.join(checkpoint_dir, "policies", "default_policy")
 
     my_restored_policy = Policy.from_checkpoint(policy_checkpoint_path)
-    algorithm = ppo_config.build()
     print("Using policy: ", my_restored_policy)
 
-    results_folder = os.path.join("Results", "PPO")  # Updated folder name
+    results_folder = os.path.join("Results", args.policy)  # Updated folder name
     results_folder_plots = os.path.join(results_folder, "plots")
     os.makedirs(results_folder, exist_ok=True)
     os.makedirs(results_folder_plots, exist_ok=True)
@@ -99,7 +81,6 @@ def test_policy(checkpoint_dir, num_simulations):
             # print(my_restored_policy.compute_single_action(observation[env.agents[0]]))
             actions = {agent: my_restored_policy.compute_single_action(observation[agent])[0] for agent in env.agents}
             # actions = {agent: algorithm.compute_single_action(observation[agent]) for agent in env.agents}
-            print(f"Actions: {actions}")
             compute_action_time = time.time() - step_start_time
             compute_action_time *= 1e3  # Convert to milliseconds
             for agent, action in actions.items():
@@ -110,8 +91,9 @@ def test_policy(checkpoint_dir, num_simulations):
             step_end_time = time.time()
             step_duration = step_end_time - step_start_time
 
-            # if env.simulator.time_step_number % 10000 == 0:
-                # print(f"Computed actions in {compute_action_time} ms")
+            if env.simulator.time_step_number % 1000 == 0:
+                print(f"Computed actions in {compute_action_time} ms")
+                print(f"Actions: {actions}")
 
             if any(terminated.values()) or any(truncated.values()):
                 print("Episode finished")
@@ -154,4 +136,4 @@ def test_policy(checkpoint_dir, num_simulations):
         print("Averages written to averages.csv")
 
 if __name__ == "__main__":
-    test_policy(args.checkpoint_dir, num_simulations=100)
+    test_policy(args.checkpoint_dir, num_simulations=10)

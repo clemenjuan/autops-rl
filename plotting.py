@@ -1,7 +1,10 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import os
+from mpl_toolkits.mplot3d import Axes3D
+
 
 def plot(matrices, results_folder, total_duration, total_reward, total_steps):
     # Call the plotting function
@@ -85,3 +88,65 @@ def get_next_simulation_number_plot(results_folder):
         return latest_simulation_number + 1
     else:
         return 1
+    
+def find_global_min_max(csv_files):
+    global_min, global_max = float('inf'), float('-inf')
+    for csv_file in csv_files:
+        df = pd.read_csv(csv_file)
+        min_val = df[['episode_reward_mean', 'sampler_results/episode_reward_min', 'sampler_results/episode_reward_max']].min().min()
+        max_val = df[['episode_reward_mean', 'sampler_results/episode_reward_min', 'sampler_results/episode_reward_max']].max().max()
+        if min_val < global_min:
+            global_min = min_val
+        if max_val > global_max:
+            global_max = max_val
+    return global_min, global_max
+
+def normalize_series(series, global_min, global_max):
+    return (series - global_min) / (global_max - global_min)
+
+def plot_combined_normalized(csv_files, plot_dir, algorithm_names):
+    global_min, global_max = find_global_min_max(csv_files)
+    
+    plt.figure(figsize=(14, 8))
+    for csv_file, algorithm_name in zip(csv_files, algorithm_names):
+        df = pd.read_csv(csv_file)
+        normalized_reward_mean = normalize_series(df['episode_reward_mean'], global_min, global_max)
+        plt.plot(df['training_iteration'], normalized_reward_mean, marker='o', linestyle='-', label=f'{algorithm_name} Mean')
+    plt.xlabel('Training Iteration')
+    plt.ylabel('Normalized Episode Reward Mean')
+    plt.title('Normalized Episode Reward Mean for All Algorithms')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(os.path.join(plot_dir, 'normalized_episode_reward_mean_all_algorithms.png'))
+    plt.close()
+
+    # Plot Max, Min, and Mean normalized rewards
+    plt.figure(figsize=(14, 8))
+    for csv_file, algorithm_name in zip(csv_files, algorithm_names):
+        df = pd.read_csv(csv_file)
+        normalized_reward_max = normalize_series(df['sampler_results/episode_reward_max'], global_min, global_max)
+        normalized_reward_min = normalize_series(df['sampler_results/episode_reward_min'], global_min, global_max)
+        normalized_reward_mean = normalize_series(df['sampler_results/episode_reward_mean'], global_min, global_max)
+        plt.plot(df['timestamp'], normalized_reward_max, linestyle='-', label=f'{algorithm_name} Max', alpha=0.7)
+        plt.plot(df['timestamp'], normalized_reward_min, linestyle='-', label=f'{algorithm_name} Min', alpha=0.7)
+        plt.plot(df['timestamp'], normalized_reward_mean, linestyle='-', label=f'{algorithm_name} Mean', alpha=0.7)
+    plt.xlabel('Timestamp')
+    plt.ylabel('Normalized Episode Reward')
+    plt.title('Normalized Max, Min, and Mean Episode Rewards Over Time')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(os.path.join(plot_dir, 'normalized_max_min_mean_rewards_all_algorithms.png'))
+    plt.close()
+
+if __name__ == "__main__":
+    # Define the CSV files and algorithm names
+    csv_files = [
+        'ray_results/DQN_FSS_env-v0_2024-07-26_12-10-589jhbx_3z/progress.csv',
+        'ray_results/SAC_FSS_env-v0_2024-07-26_16-12-270lghnm7d/progress.csv',
+        'ray_results/PPO_FSS_env-v0_2024-07-27_09-59-33y4qnrc0q/progress.csv'
+    ]
+    plot_dir = 'Results'
+    algorithm_names = ["DQN", "SAC", "PPO"]
+    
+    # Plot combined normalized statistics
+    # plot_combined_normalized(csv_files, plot_dir, algorithm_names)

@@ -139,6 +139,11 @@ class TestSatelliteSimulation(unittest.TestCase):
         print("\nPoliastro orbit propagator results:")
         print(poliastro_orbit)
 
+        custom_position = np.sqrt(custom_orbit['x']**2 + custom_orbit['y']**2 + custom_orbit['z']**2)
+        poliastro_position = np.sqrt(poliastro_orbit['x']**2 + poliastro_orbit['y']**2 + poliastro_orbit['z']**2)
+        # print(f"\nCustom position scalar: {custom_position:.3f} m")
+        # print(f"Poliastro position scalar: {poliastro_position:.3f} m")
+
         # Calculate position error
         pos_error = np.sqrt((custom_orbit['x'] - poliastro_orbit['x'])**2 +
                             (custom_orbit['y'] - poliastro_orbit['y'])**2 +
@@ -500,16 +505,15 @@ class TestSatelliteSimulation(unittest.TestCase):
 
         end_time = time.time()
         total_duration = end_time - start_time
-        total_reward_sum = sum(total_reward)
         print(f"\nTotal steps: {self.env.simulator.time_step_number}")
         print(f"Total duration of episode: {total_duration:.3f} seconds")
-        print(f"Total reward: {total_reward_sum:.3f}")
+        print(f"Total reward: {total_reward:.3f}")
 
         # Log the results
         results = {
             'total_steps': self.env.simulator.time_step_number,
             'total_duration': total_duration,
-            'total_reward': total_reward_sum,
+            'total_reward': total_reward,
             'adjacency_matrix_acc': self.env.simulator.adjacency_matrix_acc,
             'data_matrix_acc': self.env.simulator.data_matrix_acc,
             'contacts_matrix_acc': self.env.simulator.contacts_matrix_acc,

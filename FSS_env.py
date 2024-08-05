@@ -36,7 +36,7 @@ class FSS_env(MultiAgentEnv):
         self.simulator_type = simulator_type
         assert self.num_observers > 0
         assert self.num_targets > 0
-        self._step = 0
+        self.special_events_count = 0
 
         self.possible_agents = ["observer_" + str(r) for r in range(num_observers)]
         self._agent_ids = set(self.possible_agents)
@@ -104,7 +104,7 @@ class FSS_env(MultiAgentEnv):
     def reset(self, seed=None, options=None): 
         # here 13173302.10772834; 1; 19200.0 are printed idk why
 
-        self._step = 0
+        self.special_events_count = 0
         # print("Resetting...")
         self.agents = copy(self.possible_agents)
         self._agent_ids = set(self.possible_agents)
@@ -123,11 +123,6 @@ class FSS_env(MultiAgentEnv):
             agent: self._generate_observation(agent)
             for agent in self.agents
         }
-
-        for agent, obs in observations.items():
-            print(f"Reset - Agent: {agent}")
-            for key, value in obs.items():
-                print(f"  - Observation part '{key}': Shape = {value.shape}, dtype = {value.dtype}")
 
         infos = {agent: {} for agent in self.agents}
         self.simulator.time_step_number = 0
@@ -170,7 +165,7 @@ class FSS_env(MultiAgentEnv):
                 if done:
                     break
             else:
-                print(f"Environment special event detected at step {self.simulator.time_step_number}")
+                # print(f"Environment special event detected at step {self.simulator.time_step_number}")
                 break
 
         if special_event_detected:
@@ -196,6 +191,7 @@ class FSS_env(MultiAgentEnv):
             terminations["__all__"] = True
             truncations["__all__"] = True
             self.agents = []
+            print(f"Special events detected: {self.special_events_count}")
             print(f"Forced termination at step {self.simulator.time_step_number}")
                 
         # print(f"Observations: {observations}")
@@ -210,6 +206,7 @@ class FSS_env(MultiAgentEnv):
         can_communicate = self.simulator.get_global_communication_ability(self.simulator.observer_satellites,self.simulator.time_step, self.simulator_type)
 
         if can_observe or can_communicate:
+            self.special_events_count += 1
             return True
 
         return False

@@ -77,7 +77,7 @@ class Satellite(ABC):
 
         if DataHand is None:
             DataHand = {
-                'DataStorage': 8*64e9, # Maximum storage onboard. 8*[bytes]=[bites], from ISISpace bus
+                'DataStorage': 8*64e9, # Maximum storage onboard. 8*64G[bytes]=[bites], from ISISpace bus
                 'StorageAvailable': random.uniform(2,7) * 64e9, # Storage available for observation
                 'DataSize': 52, # Data package size per satellite in bytes
             }
@@ -613,7 +613,7 @@ class ObserverSatellite(Satellite):
                 raise ValueError("Invalid communication type. Choose from 'centralized', 'decentralized', or 'everyone'.")
 
             if can_communicate:
-                print(f"{self.name} can communicate with {other_satellite.name}")
+                # print(f"{self.name} can communicate with {other_satellite.name}")
                 effective_data_rate = self.calculate_data_volume(other_satellite, time_step)
                 if effective_data_rate <= 0:
                     reward_step -= 0.01  # Penalty for failed communication
@@ -643,7 +643,7 @@ class ObserverSatellite(Satellite):
                             self.has_new_data[i] = True
     
                     reward_step += 1.0  # Reward for successful complete communication
-                    print(f"{self.name} has communicated with {other_satellite.name} and transmitted {data_transmitted:.2f} bits of data")
+                    # print(f"{self.name} has communicated with {other_satellite.name} and transmitted {data_transmitted:.2f} bits of data")
                     communication_done = True
             else:
                 # print(f"{self.name} cannot communicate with {other_satellite.name}")
@@ -678,7 +678,7 @@ class ObserverSatellite(Satellite):
                         reward_step += pointing_accuracy  # Normalize to a range [0, 1]
                         self.DataHand['StorageAvailable'] -= self.storage_consumption_rates["observation"] * time_step
                         
-                        print(f"{self.name} is observing {target.name} with pointing accuracy {pointing_accuracy:.2f}")
+                        # print(f"{self.name} is observing {target.name} with pointing accuracy {pointing_accuracy:.2f}")
                 else:
                     reward_step -= 0.01  # Penalty for target being out of range or no valid pointing accuracy
 
@@ -695,7 +695,7 @@ class ObserverSatellite(Satellite):
                         # Reward for successful observation
                         reward_step += self.observation_counts[target_index]
                         
-                        print(f"{self.name} has observed {target.name} with pointing accuracy {self.pointing_accuracy_avg[index, target_index]:.2f}")
+                        # print(f"{self.name} has observed {target.name} with pointing accuracy {self.pointing_accuracy_avg[index, target_index]:.2f}")
                     else:
                         raise ValueError("Error: Pointing accuracy average is zero")
                 else:
