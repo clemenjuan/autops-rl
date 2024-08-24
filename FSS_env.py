@@ -37,6 +37,8 @@ class FSS_env(MultiAgentEnv):
         assert self.num_observers > 0
         assert self.num_targets > 0
         self.special_events_count = 0
+        self.special_event_observe = 0
+        self.special_event_communicate = 0
 
         self.possible_agents = ["observer_" + str(r) for r in range(num_observers)]
         self._agent_ids = set(self.possible_agents)
@@ -105,6 +107,8 @@ class FSS_env(MultiAgentEnv):
         # here 13173302.10772834; 1; 19200.0 are printed idk why
 
         self.special_events_count = 0
+        self.special_event_observe = 0
+        self.special_event_communicate = 0
         # print("Resetting...")
         self.agents = copy(self.possible_agents)
         self._agent_ids = set(self.possible_agents)
@@ -192,6 +196,8 @@ class FSS_env(MultiAgentEnv):
             truncations["__all__"] = True
             self.agents = []
             print(f"Special events detected: {self.special_events_count}")
+            print(f"Special events for observing: {self.special_event_observe}")
+            print(f"Special events for communicating: {self.special_event_communicate}")
             print(f"Forced termination at step {self.simulator.time_step_number}")
                 
         # print(f"Observations: {observations}")
@@ -207,6 +213,10 @@ class FSS_env(MultiAgentEnv):
 
         if can_observe or can_communicate:
             self.special_events_count += 1
+            if can_observe:
+                self.special_event_observe += 1
+            if can_communicate:
+                self.special_event_communicate += 1
             return True
 
         return False
@@ -305,16 +315,16 @@ class FSS_env(MultiAgentEnv):
 if __name__ == "__main__":
     ### Example of how to use the environment for a Monte Carlo simulation
     ############################ EDIT HERE ############################
-    num_simulations = 1000  # desired number of simulations
+    num_simulations = 100  # desired number of simulations
     num_targets = 20 # Number of target satellites
     num_observers = 20 # Number of observer satellites
-    simulator_type = 'everyone' # choose from 'centralized', 'decentralized', or 'everyone'
+    simulator_type = 'centralized' # choose from 'centralized', 'decentralized', or 'everyone'
     time_step = 1 # Time step in seconds
     duration = 24*60*60 # Duration of the simulation in seconds
     steps_batch_size = 1000 # Number of steps before printing new information
 
     # Define the folder name
-    results_folder = os.path.join("Results", "MonteCarlo") # v0, MonteCarlo, PPO, DQN, etc.
+    results_folder = os.path.join("Results", simulator_type, "MonteCarlo") # v0, MonteCarlo, PPO, DQN, etc.
     results_folder_plots = os.path.join(results_folder, "plots")
     os.makedirs(results_folder, exist_ok=True)
     os.makedirs(results_folder_plots, exist_ok=True)
@@ -360,7 +370,7 @@ if __name__ == "__main__":
 
         end_time = time.time()
         total_duration = end_time - start_time
-        total_reward_sum = np.sum(total_reward)
+        # total_reward_sum = np.sum(total_reward)
         print(f"Total steps: {env.simulator.time_step_number}")
         print(f"Total duration of episode: {total_duration:.3f} seconds")
         print(f"Total reward: {total_reward}")
@@ -370,12 +380,13 @@ if __name__ == "__main__":
             'adjacency_matrix': env.simulator.adjacency_matrix_acc,
             'data_matrix': env.simulator.data_matrix_acc,
             'contacts_matrix': env.simulator.contacts_matrix_acc,
-            'global_observation_counts': np.sum(env.simulator.global_observation_counts, axis=0),
+            'global_communication_counts': env.simulator.global_communication_counts,
+            'global_observation_counts': env.simulator.global_observation_counts, # np.sum(env.simulator.global_observation_counts, axis=0),
             'max_pointing_accuracy_avg': env.simulator.max_pointing_accuracy_avg,
             'global_observation_status_matrix': env.simulator.global_observation_status_matrix,
             'batteries': env.simulator.batteries,
             'storage': env.simulator.storage,
-            'total_reward': total_reward_sum,
+            'total_reward': total_reward,
             'total_duration': total_duration,
             'total_steps': env.simulator.time_step_number,
         }
@@ -383,15 +394,14 @@ if __name__ == "__main__":
         if write_to_csv_file_flag:
             log_full_matrices(matrices,results_folder)
             data_summary = {
-                'Total Reward': total_reward_sum,
+                'Total Reward': total_reward,
                 'Total Duration': total_duration,
             }
             log_summary_results(data_summary, results_folder)
 
         if plot_flag:
-            plot(matrices, results_folder_plots, total_duration, total_reward_sum, env.simulator.time_step_number)
+            plot(matrices, results_folder_plots, total_duration, total_reward, env.simulator.time_step_number)
     
     if write_to_csv_file_flag:
         compute_statistics_from_npy(results_folder, relevant_attributes)
         print("Averages written to averages.csv")
-

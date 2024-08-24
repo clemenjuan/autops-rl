@@ -93,8 +93,8 @@ def find_global_min_max(csv_files):
     global_min, global_max = float('inf'), float('-inf')
     for csv_file in csv_files:
         df = pd.read_csv(csv_file)
-        min_val = df[['episode_reward_mean', 'sampler_results/episode_reward_min', 'sampler_results/episode_reward_max']].min().min()
-        max_val = df[['episode_reward_mean', 'sampler_results/episode_reward_min', 'sampler_results/episode_reward_max']].max().max()
+        min_val = df['episode_reward_mean'].min()
+        max_val = df['episode_reward_mean'].max()
         if min_val < global_min:
             global_min = min_val
         if max_val > global_max:
@@ -104,14 +104,48 @@ def find_global_min_max(csv_files):
 def normalize_series(series, global_min, global_max):
     return (series - global_min) / (global_max - global_min)
 
+
+def plot_normalized(csv_file, plot_dir, algorithm_name, global_min, global_max):
+    df = pd.read_csv(csv_file)
+    normalized_reward_mean = normalize_series(df['episode_reward_mean'], global_min, global_max)
+    
+    plt.figure(figsize=(14, 8))
+    plt.plot(df['training_iteration'], normalized_reward_mean, marker='o', linestyle='-', label=f'{algorithm_name}')
+    plt.xlabel('Training Iteration')
+    plt.ylabel('Normalized Episode Reward Mean')
+    plt.title(f'Normalized Episode Reward Mean for {algorithm_name}')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(os.path.join(plot_dir, f'normalized_episode_reward_mean_{algorithm_name}.png'))
+    plt.close()
+
+    # Normalize the timestamps to start from zero
+    initial_timestamp = df['timestamp'].min()
+    normalized_timestamp = df['timestamp'] - initial_timestamp
+
+    # Debug: Print the first few values to verify normalization
+    # print(f"{algorithm_name} - Initial Timestamp: {initial_timestamp}")
+    # print(f"{algorithm_name} - Normalized Timestamps: {normalized_timestamp.head()}")
+    
+    plt.figure(figsize=(14, 8))
+    plt.plot(normalized_timestamp, normalized_reward_mean, linestyle='-', label=f'{algorithm_name}', alpha=0.7)
+    plt.xlabel('Training time (seconds)')
+    plt.ylabel('Normalized Episode Reward')
+    plt.title(f'Normalized Mean Episode Rewards Over Time for {algorithm_name}')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(os.path.join(plot_dir, f'normalized_mean_rewards_over_training_time_{algorithm_name}.png'))
+    plt.close()
+
+
 def plot_combined_normalized(csv_files, plot_dir, algorithm_names):
     global_min, global_max = find_global_min_max(csv_files)
-    
+
     plt.figure(figsize=(14, 8))
     for csv_file, algorithm_name in zip(csv_files, algorithm_names):
         df = pd.read_csv(csv_file)
         normalized_reward_mean = normalize_series(df['episode_reward_mean'], global_min, global_max)
-        plt.plot(df['training_iteration'], normalized_reward_mean, marker='o', linestyle='-', label=f'{algorithm_name} Mean')
+        plt.plot(df['training_iteration'], normalized_reward_mean, marker='o', linestyle='-', label=f'{algorithm_name}')
     plt.xlabel('Training Iteration')
     plt.ylabel('Normalized Episode Reward Mean')
     plt.title('Normalized Episode Reward Mean for All Algorithms')
@@ -120,33 +154,41 @@ def plot_combined_normalized(csv_files, plot_dir, algorithm_names):
     plt.savefig(os.path.join(plot_dir, 'normalized_episode_reward_mean_all_algorithms.png'))
     plt.close()
 
-    # Plot Max, Min, and Mean normalized rewards
     plt.figure(figsize=(14, 8))
     for csv_file, algorithm_name in zip(csv_files, algorithm_names):
         df = pd.read_csv(csv_file)
-        normalized_reward_max = normalize_series(df['sampler_results/episode_reward_max'], global_min, global_max)
-        normalized_reward_min = normalize_series(df['sampler_results/episode_reward_min'], global_min, global_max)
-        normalized_reward_mean = normalize_series(df['sampler_results/episode_reward_mean'], global_min, global_max)
-        plt.plot(df['timestamp'], normalized_reward_max, linestyle='-', label=f'{algorithm_name} Max', alpha=0.7)
-        plt.plot(df['timestamp'], normalized_reward_min, linestyle='-', label=f'{algorithm_name} Min', alpha=0.7)
-        plt.plot(df['timestamp'], normalized_reward_mean, linestyle='-', label=f'{algorithm_name} Mean', alpha=0.7)
-    plt.xlabel('Timestamp')
+        normalized_reward_mean = normalize_series(df['episode_reward_mean'], global_min, global_max)
+        initial_timestamp = df['timestamp'].min()
+        normalized_timestamp = df['timestamp'] - initial_timestamp
+
+        # Debug: Print the first few values to verify normalization
+        # print(f"{algorithm_name} - Initial Timestamp: {initial_timestamp}")
+        # print(f"{algorithm_name} - Normalized Timestamps: {normalized_timestamp.head()}")
+
+        plt.plot(normalized_timestamp, normalized_reward_mean, linestyle='-', label=f'{algorithm_name}', alpha=0.7)
+    plt.xlabel('Training time (seconds)')
     plt.ylabel('Normalized Episode Reward')
-    plt.title('Normalized Max, Min, and Mean Episode Rewards Over Time')
+    plt.title('Normalized Mean Episode Rewards Over Training Time')
     plt.legend()
     plt.grid(True)
-    plt.savefig(os.path.join(plot_dir, 'normalized_max_min_mean_rewards_all_algorithms.png'))
+    plt.savefig(os.path.join(plot_dir, 'normalized_mean_rewards_all_algorithms.png'))
     plt.close()
+
 
 if __name__ == "__main__":
     # Define the CSV files and algorithm names
     csv_files = [
-        'ray_results/DQN_FSS_env-v0_2024-07-26_12-10-589jhbx_3z/progress.csv',
-        'ray_results/SAC_FSS_env-v0_2024-07-26_16-12-270lghnm7d/progress.csv',
-        'ray_results/PPO_FSS_env-v0_2024-07-27_09-59-33y4qnrc0q/progress.csv'
+        'checkpoints_new/dqn/FSS_env_dqn/TorchTrainer_62445_00000_0_2024-08-12_20-47-54/progress.csv',
+        'checkpoints_new/sac/FSS_env_sac/TorchTrainer_62234_00000_0_2024-08-12_20-47-53/progress.csv',
+        'checkpoints_new/ppo/FSS_env_ppo/TorchTrainer_50672_00000_0_2024-08-12_20-47-24/progress.csv'
     ]
     plot_dir = 'Results'
     algorithm_names = ["DQN", "SAC", "PPO"]
     
     # Plot combined normalized statistics
-    # plot_combined_normalized(csv_files, plot_dir, algorithm_names)
+    plot_combined_normalized(csv_files, plot_dir, algorithm_names)
+
+    # Plot separate normalized statistics for each algorithm
+    global_min, global_max = find_global_min_max(csv_files)
+    for csv_file, algorithm_name in zip(csv_files, algorithm_names):
+        plot_normalized(csv_file, plot_dir, algorithm_name, global_min, global_max)

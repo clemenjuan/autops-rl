@@ -402,6 +402,7 @@ class ObserverSatellite(Satellite):
         self.data_matrix_acc = np.zeros((num_observers, num_observers), dtype=np.float32)  # Accumulated data exchange
         self.adjacency_matrix = np.zeros((num_observers, num_observers), dtype=np.int32)  # Current timestep adjacency matrix
         self.adjacency_matrix_acc = np.eye((num_observers), dtype=np.int32)  # Accumulated adjacency matrix
+        self.global_communication_counts = np.zeros((num_observers,num_observers), dtype=int)  # Global matrix to track the number of communications between each pair of satellites
         self.global_observation_counts = np.zeros((num_observers,num_targets), dtype=int)  # Global matrix to track the number of observations for each target
 
     def evaluate_pointing_accuracy(self, target_satellite, time_step):
@@ -549,7 +550,7 @@ class ObserverSatellite(Satellite):
         Get the communication vector for the observer satellite based on the communication model.
         The communication vector indicates which observer satellites can communicate with the current satellite.
         """
-        # self.communication_ability = np.zeros((self.num_observers, 1), dtype=np.int8)
+        self.communication_ability = np.zeros((self.num_observers, ), dtype=np.int8)
         for i, other_observer in enumerate(observer_satellites):
             if self != other_observer and self.can_communicate(i):
                 can_communicate = False
@@ -625,24 +626,27 @@ class ObserverSatellite(Satellite):
                 data_transmitted += volume_of_data
     
                 self.update_data_matrix(index, other_satellite_index, volume_of_data)
-                reward_step += 0.1  # Reward for successful communication step
+                # reward_step += 0.01  # Reward for successful communication step
 
                 # print(f"{self.name} is communicating with {other_satellite.name}")
     
                 if data_transmitted >= data_to_transmit:
                     self.update_adjacency_matrix(index, other_satellite_index)
                     self.synchronize_contacts_matrix(index, other_satellite_index)
+                    self.global_communication_counts[index, other_satellite_index] += 1
                     self.global_observation_counts = np.maximum(self.global_observation_counts, other_satellite.global_observation_counts)
                     other_satellite.update_processing_status(self.observation_status_matrix)
     
-                    self.has_new_data[other_satellite_index] = False
                     for i in range(len(self.has_new_data)):
                         if self.has_new_data[i] and not other_satellite.has_new_data[i]:
                             other_satellite.has_new_data[i] = True
                         if not self.has_new_data[i] and other_satellite.has_new_data[i]:
                             self.has_new_data[i] = True
+                    
+                    self.has_new_data[other_satellite_index] = False
+                    other_satellite.has_new_data[index] = False
     
-                    reward_step += 1.0  # Reward for successful complete communication
+                    reward_step += 0.01  # Reward for successful complete communication
                     # print(f"{self.name} has communicated with {other_satellite.name} and transmitted {data_transmitted:.2f} bits of data")
                     communication_done = True
             else:
@@ -654,7 +658,7 @@ class ObserverSatellite(Satellite):
             communication_done = True
     
         steps += 1
-        return reward_step, communication_done, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_observation_counts, self.max_pointing_accuracy_avg_sat, data_transmitted
+        return reward_step, communication_done, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_communication_counts,self.global_observation_counts, self.max_pointing_accuracy_avg_sat, data_transmitted
     
     # action >= 2: Observe target
     def observe_target(self, index, target, target_index, time_step, reward_step, steps=0):
@@ -675,7 +679,7 @@ class ObserverSatellite(Satellite):
                         self.update_contacts_matrix(index, target_index)
                         self.observation_time_matrix[target_index] += time_step  # Assuming time_step is in seconds
  
-                        reward_step += pointing_accuracy  # Normalize to a range [0, 1]
+                        reward_step += 10*pointing_accuracy  # Normalize to a range [0, 1]
                         self.DataHand['StorageAvailable'] -= self.storage_consumption_rates["observation"] * time_step
                         
                         # print(f"{self.name} is observing {target.name} with pointing accuracy {pointing_accuracy:.2f}")
@@ -693,7 +697,7 @@ class ObserverSatellite(Satellite):
                         # self.observation_counts[target_index] = 0
                         
                         # Reward for successful observation
-                        reward_step += self.observation_counts[target_index]
+                        reward_step += 10
                         
                         # print(f"{self.name} has observed {target.name} with pointing accuracy {self.pointing_accuracy_avg[index, target_index]:.2f}")
                     else:

@@ -1,9 +1,11 @@
 Results/
+Results_centralized/
 .venv/
 __pycache__/
 .DS_Store
 launch.json
 ppo_checkpoints/
 checkpoints/
+checkpoints_new/
 masterthesis_clemente.tar
 *.png

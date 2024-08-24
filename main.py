@@ -17,7 +17,7 @@ from plotting import plot
 
 '''
 #### Usage ##############################
-python3 main.py --checkpoint-dir checkpoints/PPO --policy ppo
+python3 main.py --checkpoint-dir mnt/checkpoints/ppo --policy ppo
 '''
 os.environ["RAY_verbose_spill_logs"] = "0"
 os.environ["RAY_DEDUP_LOGS"] = "0"
@@ -27,43 +27,37 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--framework", choices=["tf", "tf2", "torch"], default="torch", help="The DL framework specifier.")
 parser.add_argument("--policy", choices=["ppo","dqn","sac"], required=True, help="Policy to test.")
 parser.add_argument("--checkpoint-dir", type=str, default="checkpoints", help="Directory to load checkpoints.")
+
 args = parser.parse_args()
 
-# Register environment
-env_name = "FSS_env-v0"
-env_config = {
-    "num_targets": 20, 
-    "num_observers": 20, 
-    "simulator_type": 'everyone', 
-    "time_step": 1, 
-    "duration": 24*60*60
-}
-register_env("FSS_env-v0", lambda config: env_creator(env_config))
 
 def env_creator(env_config):
     env = FSS_env(**env_config)
     return env
 
-def test_policy(checkpoint_dir, num_simulations):
+def test_policy(checkpoint_dir, num_simulations, simulator_type):
     # Set paths
     policy_checkpoint_path = os.path.join(checkpoint_dir, "policies", "default_policy")
 
     my_restored_policy = Policy.from_checkpoint(policy_checkpoint_path)
     print("Using policy: ", my_restored_policy)
 
-    results_folder = os.path.join("Results", args.policy)  # Updated folder name
+    results_folder = os.path.join("/mnt/Results", simulator_type, args.policy)  # Updated folder name
     results_folder_plots = os.path.join(results_folder, "plots")
     os.makedirs(results_folder, exist_ok=True)
     os.makedirs(results_folder_plots, exist_ok=True)
 
-    write_to_csv_file_flag = True  # Write the output to a file
-    plot_flag = True  # Plot the output
+    write_to_csv_file_flag = False  # Write the output to a file
+    plot_flag = False  # Plot the output
     relevant_attributes = [
         'adjacency_matrix', 'data_matrix', 'contacts_matrix',
         'global_observation_counts', 'max_pointing_accuracy_avg',
         'global_observation_status_matrix', 'batteries', 'storage', 'total_reward', 
-        'total_duration', 'total_steps',
+        'total_duration', 'total_steps', 'global_communication_counts',
     ]
+
+    total_compute_times = 0.0  # Variable to accumulate the total compute time
+    total_actions = 0  # Variable to count the number of actions computed
 
     for i in range(num_simulations):
         print()
@@ -73,27 +67,24 @@ def test_policy(checkpoint_dir, num_simulations):
         total_reward = 0
         observation, infos = env.reset()
 
-        action_counts = {}
         start_time = time.time()
 
         while env.agents:
             step_start_time = time.time()
-            # print(my_restored_policy.compute_single_action(observation[env.agents[0]]))
+
+            # Compute actions for all agents and record the time taken
             actions = {agent: my_restored_policy.compute_single_action(observation[agent])[0] for agent in env.agents}
-            # actions = {agent: algorithm.compute_single_action(observation[agent]) for agent in env.agents}
+
             compute_action_time = time.time() - step_start_time
-            compute_action_time *= 1e3  # Convert to milliseconds
-            for agent, action in actions.items():
-                action_counts.setdefault(agent, []).append(action)
+            total_compute_times += compute_action_time  # Accumulate compute time
+            total_actions += len(env.agents)  # Accumulate the number of actions
 
             observation, rewards, terminated, truncated, infos = env.step(actions)
             total_reward += sum(rewards.values())
-            step_end_time = time.time()
-            step_duration = step_end_time - step_start_time
 
-            if env.simulator.time_step_number % 1000 == 0:
-                print(f"Computed actions in {compute_action_time} ms")
-                print(f"Actions: {actions}")
+            # if env.simulator.time_step_number % 1000 == 0:
+                # print(f"Computed actions in {compute_action_time * 1e3:.2f} ms for {len(env.agents)} agents")
+                # print(f"Actions: {actions}")
 
             if any(terminated.values()) or any(truncated.values()):
                 print("Episode finished")
@@ -110,7 +101,8 @@ def test_policy(checkpoint_dir, num_simulations):
             'adjacency_matrix': env.simulator.adjacency_matrix_acc,
             'data_matrix': env.simulator.data_matrix_acc,
             'contacts_matrix': env.simulator.contacts_matrix_acc,
-            'global_observation_counts': np.sum(env.simulator.global_observation_counts, axis=0),
+            'global_communication_counts': env.simulator.global_communication_counts,
+            'global_observation_counts': env.simulator.global_observation_counts,
             'max_pointing_accuracy_avg': env.simulator.max_pointing_accuracy_avg,
             'global_observation_status_matrix': env.simulator.global_observation_status_matrix,
             'batteries': env.simulator.batteries,
@@ -135,5 +127,22 @@ def test_policy(checkpoint_dir, num_simulations):
         compute_statistics_from_npy(results_folder, relevant_attributes)
         print("Averages written to averages.csv")
 
+    # Calculate and print average compute time per action per agent
+    if total_actions > 0:
+        avg_compute_time_per_action = (total_compute_times / total_actions) * 1e3  # Convert to milliseconds
+        print(f"Average compute time per action per agent: {avg_compute_time_per_action:.2f} ms")
+
 if __name__ == "__main__":
-    test_policy(args.checkpoint_dir, num_simulations=10)
+    # Register environment
+    env_name = "FSS_env-v0"
+    simulator_types = ["everyone", "centralized", "decentralized"]
+    for simulator_type in simulator_types:
+        env_config = {
+            "num_targets": 20, 
+            "num_observers": 20, 
+            "simulator_type": simulator_type, 
+            "time_step": 1, 
+            "duration": 24*60*60
+        }
+        register_env("FSS_env-v0", lambda config: env_creator(env_config))
+        test_policy(args.checkpoint_dir, num_simulations=1, simulator_type=simulator_type)

@@ -32,6 +32,7 @@ class Simulator():
         self.start_time = time.time()
         self.total_time = None
         self.breaker = False #our mighty loop exiter!
+        self.global_communication_counts = np.zeros((num_observers, num_observers), dtype=int)  # Global matrix to track the number of communications for each observer
         self.global_observation_counts = np.zeros((num_observers, num_targets), dtype=int)  # Global matrix to track the number of observations for each target
         self.global_observation_status_matrix = np.zeros((num_observers,num_targets), dtype=int)  # Matrix to track observation status
         self.reward_matrix = np.zeros((self.num_steps, num_observers))
@@ -44,6 +45,7 @@ class Simulator():
         self.data_matrix.fill(0)
         self.adjacency_matrix.fill(0)
         self.contacts_matrix.fill(0)
+
 
     def process_actions(self, actions, type_of_communication, agents):
         reward_step = {agent: 0 for agent in agents}
@@ -91,7 +93,7 @@ class Simulator():
                     data_transmitted = 0
                     total_data_transmitted = 0
                     while not communication_done and total_data_transmitted < data_to_transmit:
-                        reward_step[agent], communication_done, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_observation_counts, max_pointing_accuracy_avg, data_transmitted = observer.propagate_information(i, other_observer, j, self.time_step + steps * self.time_step, type_of_communication, reward_step[agent], steps, communication_done, total_data_transmitted, data_to_transmit)
+                        reward_step[agent], communication_done, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_communication_counts, global_observation_counts, max_pointing_accuracy_avg, data_transmitted = observer.propagate_information(i, other_observer, j, self.time_step + steps * self.time_step, type_of_communication, reward_step[agent], steps, communication_done, total_data_transmitted, data_to_transmit)
                         
                         total_data_transmitted += data_transmitted  # Accumulate data transmitted
                         if communication_done or data_transmitted == 0:
@@ -107,6 +109,7 @@ class Simulator():
                 self.adjacency_matrix_acc = np.maximum(adjacency_matrix_acc, self.adjacency_matrix_acc)
                 self.data_matrix = np.maximum(data_matrix, self.data_matrix)
                 self.data_matrix_acc = np.maximum(data_matrix_acc, self.data_matrix_acc)
+                self.global_communication_counts = np.maximum(global_communication_counts, self.global_communication_counts)
                 self.global_observation_counts = np.maximum(global_observation_counts, self.global_observation_counts)
                 self.max_pointing_accuracy_avg = np.maximum(max_pointing_accuracy_avg, self.max_pointing_accuracy_avg)
                 
@@ -156,7 +159,7 @@ class Simulator():
         for i, observer in enumerate(observer_satellites):
             observer.get_targets(i,target_satellites, self.time_step)
             if np.any(observer.contacts_matrix[i, :]):
-                # print(f"{observer.name} can observe targets.")
+                # print(f"{observer.name} can observe targets: {observer.contacts_matrix[i, :]}")
                 return True
         return False
 
@@ -165,7 +168,7 @@ class Simulator():
         for i, observer in enumerate(observer_satellites):
             communication_ability = observer.get_communication_ability(observer_satellites, time_step, simulator_type)
             if communication_ability.any():
-                # print(f"{observer.name} can communicate.")
+                # print(f"{observer.name} can communicate: {communication_ability}")
                 return True
         return False
 
@@ -205,6 +208,8 @@ class Simulator():
         self.reset_matrices_for_timestep()
 
         for observer in self.observer_satellites:
+            observer.contacts_matrix = np.zeros((len(self.observer_satellites), len(self.target_satellites)), dtype=int)
+            observer.adjacency_matrix = np.zeros((len(self.observer_satellites), len(self.observer_satellites)), dtype=int)
             observer.check_and_update_processing_state(self.time_step)
             # Update energy with solar panel charging
             sunlight_exposure = observer.get_sunlight_exposure()
@@ -221,27 +226,31 @@ class Simulator():
         self.time_step_number += 1
 
         # print(f"Time step number: {self.time_step_number}")
-        done = self.is_terminated()
-        
+        done, mission = self.is_terminated()
+        if mission:
+            rewards = {agent: +1000*(self.duration-self.time_step_number)/self.duration for agent in agents}
         return rewards, done
 
     def is_terminated(self):
-        if self.global_observation_status_matrix.all() == 3:
+        mission = False
+        if np.all(self.global_observation_status_matrix == 3):
             print(f"Simulation terminated because all observations were made at step {self.time_step_number}.")
             self.breaker = True
-            return True
+            done = True
+            mission = True
+            return done, mission
 
         if self.time_step_number >= self.num_steps:
             print(f"Simulation reached its duration limit at step {self.time_step_number}. Total duration: {self.duration} seconds.")
             self.breaker = True
-            return True
+            return True, False
 
         if self.breaker:
             self.total_time = time.time() - self.start_time
             print(f"Simulation terminated after {self.total_time} seconds.")
-            return True
+            return True, False
 
-        return self.breaker
+        return self.breaker, mission
 
 
 
