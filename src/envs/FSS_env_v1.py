@@ -1,0 +1,299 @@
+import numpy as np
+import gymnasium as gym
+from gymnasium import spaces
+from ray.rllib.env.multi_agent_env import MultiAgentEnv
+from src.simulator import Simulator, CentralizedSimulator
+from ray.rllib.connectors.env_to_module import FlattenObservations
+
+
+class FSS_env(MultiAgentEnv):
+    metadata = {
+        "name": "FSS_env-v1",
+    }
+    
+    def __init__(self, config=None):
+        super().__init__()
+        
+        # Extract parameters from config
+        if config is None:
+            config = {}
+            
+        self.num_targets = config.get("num_targets", 10)
+        self.num_observers = config.get("num_observers", 10)
+        self.simulator_type = config.get("simulator_type", "everyone")
+        self.time_step = config.get("time_step", 1)
+        self.duration = config.get("duration", 24*60*60)
+        self.seed = config.get("seed", 42)
+        
+        # Environment parameters
+        self.num_satellites = self.num_targets + self.num_observers
+        self.sim_time = 0
+        self.latest_step_duration = 0
+        assert self.num_observers > 0
+        assert self.num_targets > 0
+        self.special_events_count = 0
+        self.special_event_observe = 0
+        self.special_event_communicate = 0
+        self.orbital_params_order = ['semimajoraxis', 'inclination', 'eccentricity',
+                    'raan', 'arg_of_perigee', 'true_anomaly', 'mean_anomaly',
+                    'radius', 'x', 'y', 'z', 'vx', 'vy', 'vz']
+        self.orbital_params_order_targets = ['x', 'y', 'z', 'vx', 'vy', 'vz']
+
+        # Initialize agents
+        self.possible_agents = ["observer_" + str(r) for r in range(self.num_observers)]
+        self.agents = self.possible_agents.copy()
+        self.agent_name_mapping = dict(
+            zip(self.agents, list(range(len(self.agents))))
+        )  # Mapping of agent names to indices
+
+        # Create action_spaces and observation_spaces dictionaries
+        # These are required by Ray's environment runner
+        self._action_space = spaces.Discrete(3)
+
+        self._observation_space = spaces.Dict({
+                "observer_satellites": spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_observers, len(self.orbital_params_order))),
+                "band": spaces.Box(low=1, high=5, shape=(1,), dtype=np.int8),
+                "target_satellites": spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_targets, len(self.orbital_params_order_targets))),
+                "availability": spaces.MultiBinary(1),
+                "battery": spaces.Box(low=0, high=1, shape=(self.num_observers,)),
+                "storage": spaces.Box(low=0, high=1, shape=(self.num_observers,)),
+                "observation_status": spaces.Box(low=0, high=3, shape=(self.num_targets,)),
+                "pointing_accuracy": spaces.Box(low=-0, high=1, shape=(self.num_observers, self.num_targets)),
+                "communication_status": spaces.Box(low=0, high=1, shape=(self.num_observers,), dtype=np.int8),
+                "communication_ability": spaces.MultiBinary(self.num_observers)
+            })
+        
+        self.action_spaces = {
+            agent_id: self._action_space
+            for agent_id in self.possible_agents
+        }
+        self.observation_spaces = {
+            agent_id: self._observation_space
+            for agent_id in self.possible_agents
+        }
+        
+        self.action_space = self._action_space
+        self.observation_space = self._observation_space
+        self.single_observation_spaces = self._observation_space
+        self.single_action_spaces = self._action_space
+        
+        # Initialize simulator
+        if self.simulator_type == 'centralized':
+            self.simulator = CentralizedSimulator(self.num_targets, self.num_observers, self.time_step, self.duration)
+        elif self.simulator_type == 'decentralized':
+            self.simulator = Simulator(self.num_targets, self.num_observers, self.time_step, self.duration)
+        elif self.simulator_type == 'everyone':
+            self.simulator = Simulator(self.num_targets, self.num_observers, self.time_step, self.duration)
+        else:
+            raise ValueError("Invalid simulator type. Choose from 'centralized', 'decentralized', or 'everyone'.")
+
+    # Add these properties to ensure compatibility with RLlib
+    @property
+    def obs_space(self):
+        return self._observation_space
+        
+    @property
+    def act_space(self):
+        return self._action_space
+
+    def get_observation_space(self, agent_id):
+        # All observer agents have the same observation space in this implementation
+        if agent_id.startswith("observer_"):
+            return self.observation_space
+        else:
+            raise ValueError(f"Invalid agent id: {agent_id}!")
+
+    def get_action_space(self, agent_id):
+        # All observer agents have the same action space in this implementation
+        if agent_id.startswith("observer_"):
+            return self.action_space
+        else:
+            raise ValueError(f"Invalid agent id: {agent_id}!")
+
+    def reset(self, *, seed=None, options=None):
+        self.sim_time = 0
+        self.latest_step_duration = 0
+        self.special_events_count = 0
+        self.special_event_observe = 0
+        self.special_event_communicate = 0
+
+        # Re-initialize simulator
+        if self.simulator_type == 'centralized':
+            self.simulator = CentralizedSimulator(self.num_targets, self.num_observers, self.time_step, self.duration)
+        elif self.simulator_type == 'decentralized':
+            self.simulator = Simulator(self.num_targets, self.num_observers, self.time_step, self.duration)
+        elif self.simulator_type == 'everyone':
+            self.simulator = Simulator(self.num_targets, self.num_observers, self.time_step, self.duration)
+        
+        # Reset the list of agents
+        self.agents = self.possible_agents.copy()
+        
+        # Generate proper observations for each agent
+        observations = {agent: self._generate_observation(agent) for agent in self.agents}
+        
+        # Return observations and empty info dict
+        return observations, {}
+
+    def step(self, action_dict):
+        # return observation dict, rewards dict, termination/truncation dicts, and infos dict
+
+        # TODO: keep the agents that should act next
+        #In general, the returned observations dict must contain those agents (and only those agents) that should act next. Agent IDs that should NOT act in the next step() call must NOT have their observations in the returned observations dict.
+        #In summary, the exact order and synchronization of agent actions in your multi-agent episode is determined through the agent IDs contained in (or missing from) your observations dicts. Only those agent IDs that are expected to compute and send actions into the next step() call must be part of the returned observation dict.
+
+        assert self.agents, "Cannot step an environment with no agents"
+        assert set(action_dict.keys()) == set(self.agents), "Actions must be provided for all agents"
+
+        observations, rewards, terminated, truncated, infos = {}, {}, {}, {}, {}
+        # Create zero actions for eventless steps
+        zero_actions = {agent: 0 for agent in self.agents}
+
+        special_event_detected = False
+
+        while not special_event_detected and self.simulator.time_step_number < (self.duration / self.time_step):
+            # Detect special events without processing actions
+            special_event_detected = self.detect_special_event()
+            if not special_event_detected:
+                # Step the simulator with zero actions
+                rewards, done = self.simulator.step(zero_actions, self.simulator_type, self.agents)
+                if done:
+                    break
+            else:
+                # print(f"Environment special event detected at step {self.simulator.time_step_number}")
+                break
+
+        if special_event_detected:
+            # Step the simulator with actual actions
+            rewards, done = self.simulator.step(action_dict, self.simulator_type, self.agents)
+
+        # Generate observations for each agent
+        observations = {
+            agent: self._generate_observation(agent)
+            for agent in self.agents
+        }
+
+        # typically there won't be any information in the infos, but there must
+        # still be an entry for each agent
+        infos = {agent: {} for agent in self.agents}
+
+        if self.simulator.time_step_number%10000 == 0:
+            print(f"Step {self.simulator.time_step_number} done")
+
+        if done:
+            for agent in self.agents:
+                terminated[agent] = True
+                truncated[agent] = True
+            terminated["__all__"] = True
+            truncated["__all__"] = True
+            self.agents = []
+            print(f"Special events detected: {self.special_events_count}")
+            print(f"Special events for observing: {self.special_event_observe}")
+            print(f"Special events for communicating: {self.special_event_communicate}")
+            print(f"Forced termination at step {self.simulator.time_step_number}")
+                
+        # print(f"Observations: {observations}")
+
+        # print("Step done")
+        # print(f"Step {self.simulator.time_step_number} reward: {rewards}")
+        # print(f"Step returning observations for agents: {observations.keys()}, rewards for agents: {rewards.keys()}, terminations for agents: {terminations.keys()}, truncations for agents: {truncations.keys()}, infos for agents: {infos.keys()}")
+        return observations, rewards, terminated, truncated, infos
+
+
+    def _generate_observation(self, agent):
+        """
+        Generates observation for one agent
+        Now all matrixes are synchronized for each timestep, so observation will depend on them
+        Each observer has its own states as observation (at least)
+        """
+        # Generate observations based on the current state and communication history
+        # Update observer's own state in the observation vector
+        i = self.agent_name_mapping[agent]
+        orbital_params_order = ['semimajoraxis', 'inclination', 'eccentricity',
+                    'raan', 'arg_of_perigee', 'true_anomaly', 'mean_anomaly',
+                    'radius', 'x', 'y', 'z', 'vx', 'vy', 'vz']
+        orbital_params_order_targets = ['x', 'y', 'z', 'vx', 'vy', 'vz']
+        observer = self.simulator.observer_satellites[i]
+        
+        # Start by initializing the observation dictionary with proper shapes and default values
+        # Use self.observation_spaces instead of self._observation_spaces
+        observation = {key: np.zeros(shape=space.shape, dtype=space.dtype) 
+                   for key, space in self.observation_spaces[agent].spaces.items()}
+        
+        observer_orbit_params = np.array([observer.orbit[param] for param in orbital_params_order], dtype=np.float32)
+        observation['observer_satellites'][i] = observer_orbit_params
+        observation['band'] = np.array([observer.commsys['band']], dtype=np.int8)
+        observation['availability'] = np.array([observer.availability], dtype=np.int8)
+        observation['battery'][i] = np.array([observer.epsys['EnergyAvailable'] / observer.epsys['EnergyStorage']], dtype=np.float32)
+        observation['storage'][i] = np.array([observer.DataHand['StorageAvailable'] / observer.DataHand['DataStorage']], dtype=np.float32)
+        observation['observation_status'] = np.array(observer.observation_status_matrix, dtype=np.int8)
+        observation['pointing_accuracy'][i] = np.array(observer.pointing_accuracy_matrix, dtype=np.float32)
+        observation['communication_status'] = np.array(self.simulator.adjacency_matrix_acc[i], dtype=np.int8)
+        observation['communication_ability'] = np.array(observer.get_communication_ability(self.simulator.observer_satellites, self.simulator.time_step, self.simulator_type), dtype=np.int8)
+
+        for j, other_observer in enumerate(self.simulator.observer_satellites):
+            if i != j:
+                if self.simulator.adjacency_matrix_acc[i, j] == 1:
+                    other_observer_orbit_params = np.array([other_observer.orbit[param] for param in orbital_params_order], dtype=np.float32)
+                    observation['observer_satellites'][j] = other_observer_orbit_params
+                if self.simulator.adjacency_matrix[i, j] == 1:
+                    observation['battery'][j] = np.array(other_observer.epsys['EnergyAvailable'] / other_observer.epsys['EnergyStorage'], dtype=np.float32)
+                    observation['storage'][j] = np.array(other_observer.DataHand['StorageAvailable'] / other_observer.DataHand['DataStorage'], dtype=np.float32)
+                    # observation['communication_ability'][j] = np.array(other_observer.get_communication_ability(self.simulator.observer_satellites, self.simulator.time_step, self.simulator_type), dtype=np.int8)
+                    observation['pointing_accuracy'][j] = np.array(other_observer.pointing_accuracy_matrix, dtype=np.float32)
+
+        for k, target in enumerate(self.simulator.target_satellites):
+            if self.simulator.contacts_matrix[i, k] == 1:
+                target_orbit_params = np.array([target.orbit[param] for param in orbital_params_order_targets], dtype=np.float32)
+                observation['target_satellites'][k] = target_orbit_params
+
+        # Ensure all values are within the defined bounds
+        observation['observer_satellites'] = np.array(observation['observer_satellites'], dtype=np.float32)
+        observation['band'] = np.array(observation['band'], dtype=np.int8)
+        observation['availability'] = np.array(observation['availability'], dtype=np.int8)
+        observation['battery'] = np.clip(np.array(observation['battery'], dtype=np.float32), 0, 1)  # Also ensures values are within bounds
+        observation['storage'] = np.clip(np.array(observation['storage'], dtype=np.float32), 0, 1)  # Also ensures values are within bounds
+        observation['communication_ability'] = np.array(observation['communication_ability'], dtype=np.int8)
+        observation['communication_status'] = np.array(observation['communication_status'], dtype=np.int8)
+        observation['observation_status'] = np.clip(np.array(observation['observation_status'], dtype=np.float32), 0, 3)  # Also ensures values are within bounds
+        observation['pointing_accuracy'] = np.clip(np.array(observation['pointing_accuracy'], dtype=np.float32), 0, 1)  # Also ensures values are within bounds
+        observation['target_satellites'] = np.array(observation['target_satellites'], dtype=np.float32)
+
+        # Ensure everything matches the expected types and shapes
+        for key, value in observation.items():
+            # Use self.observation_spaces instead of self._observation_spaces
+            obs_space = self.observation_spaces[agent].spaces[key]
+            assert observation[key].dtype == obs_space.dtype, f"Type mismatch for {key}: expected {obs_space.dtype}, got {observation[key].dtype}"
+            assert observation[key].shape == obs_space.shape, f"Shape mismatch for {key}: expected {obs_space.shape}, got {observation[key].shape}"
+            if not obs_space.contains(observation[key]):
+                raise ValueError(f"{key} does not match the expected space")
+            
+        # Use np.clip to ensure all values are within the defined bounds for continuous spaces
+        for key in observation:
+            if isinstance(self.observation_spaces[agent].spaces[key], spaces.Box):
+                observation[key] = np.clip(
+                    observation[key],
+                    self.observation_spaces[agent].spaces[key].low,
+                    self.observation_spaces[agent].spaces[key].high
+                )
+        return observation
+    
+    def detect_special_event(self):
+        can_observe = self.simulator.get_global_targets(self.simulator.observer_satellites, self.simulator.target_satellites)
+        can_communicate = self.simulator.get_global_communication_ability(self.simulator.observer_satellites,self.simulator.time_step, self.simulator_type)
+
+        if can_observe or can_communicate:
+            self.special_events_count += 1
+            if can_observe:
+                self.special_event_observe += 1
+            if can_communicate:
+                self.special_event_communicate += 1
+            return True
+
+        return False
+
+def _env_to_module_pipeline(env):
+    return FlattenObservations(
+        input_observation_space=env.observation_space,
+        input_action_space=env.action_space,
+        multi_agent=True
+    )

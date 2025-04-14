@@ -1,0 +1,7 @@
+{"time":"2025-03-28T16:00:51.081845162+01:00","level":"INFO","msg":"main: starting server","port-filename":"/tmp/tmpw2vcquoc/port-218389.txt","pid":218389,"log-level":0,"disable-analytics":false,"shutdown-on-parent-exit":false}
+{"time":"2025-03-28T16:00:51.088953735+01:00","level":"INFO","msg":"Will exit if parent process dies.","ppid":218389}
+{"time":"2025-03-28T16:00:51.088946919+01:00","level":"INFO","msg":"server is running","addr":{"IP":"127.0.0.1","Port":39703,"Zone":""}}
+{"time":"2025-03-28T16:00:51.267625852+01:00","level":"INFO","msg":"connection: ManageConnectionData: new connection created","id":"127.0.0.1:55674"}
+{"time":"2025-03-28T16:01:18.272989508+01:00","level":"INFO","msg":"connection: ManageConnectionData: new connection created","id":"127.0.0.1:49198"}
+{"time":"2025-03-28T16:01:18.700186858+01:00","level":"INFO","msg":"handleInformInit: received","streamId":"72dea_00000","id":"127.0.0.1:49198"}
+{"time":"2025-03-28T16:01:18.858908918+01:00","level":"INFO","msg":"handleInformInit: stream started","streamId":"72dea_00000","id":"127.0.0.1:49198"}
