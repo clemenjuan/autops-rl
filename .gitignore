@@ -6,6 +6,5 @@ __pycache__/
 launch.json
 ppo_checkpoints/
 checkpoints/
-# checkpoints_new/
-masterthesis_clemente.tar
+checkpoints_local_test/
 *.png

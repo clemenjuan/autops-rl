@@ -1,7 +1,0 @@
-{"time":"2025-03-28T15:58:42.81850241+01:00","level":"INFO","msg":"main: starting server","port-filename":"/tmp/tmpu8hseyh9/port-215745.txt","pid":215745,"log-level":0,"disable-analytics":false,"shutdown-on-parent-exit":false}
-{"time":"2025-03-28T15:58:42.825160443+01:00","level":"INFO","msg":"Will exit if parent process dies.","ppid":215745}
-{"time":"2025-03-28T15:58:42.825146002+01:00","level":"INFO","msg":"server is running","addr":{"IP":"127.0.0.1","Port":41259,"Zone":""}}
-{"time":"2025-03-28T15:58:43.008406538+01:00","level":"INFO","msg":"connection: ManageConnectionData: new connection created","id":"127.0.0.1:35502"}
-{"time":"2025-03-28T15:59:08.010505132+01:00","level":"INFO","msg":"connection: ManageConnectionData: new connection created","id":"127.0.0.1:45314"}
-{"time":"2025-03-28T15:59:08.429021694+01:00","level":"INFO","msg":"handleInformInit: received","streamId":"25dea_00000","id":"127.0.0.1:45314"}
-{"time":"2025-03-28T15:59:08.581634805+01:00","level":"INFO","msg":"handleInformInit: stream started","streamId":"25dea_00000","id":"127.0.0.1:45314"}

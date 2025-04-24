@@ -31,12 +31,12 @@ python train_scripts/custom_trainable.py \
   --checkpoint-dir "$LOCAL_CHECKPOINT_DIR" \
   --iterations 100 \
   --simulator-types "everyone" \
-  --num-env-runners 4 \
+  --num-env-runners 1 \
   --num-envs-per-runner 1 \
   --num-cpus-per-runner 1 \
   --num-gpus-per-runner 0 \
   --num-learners 1 \
-  --num-gpus-per-learner 1 \
+  --num-gpus-per-learner 0 \
   --seeds "42" \
   --num-targets 20 \
   --num-observers 20 \
