@@ -1,8 +1,0 @@
-{"time":"2025-03-28T15:59:08.429809768+01:00","level":"INFO","msg":"stream: starting","core version":"0.19.8","symlink path":"/tmp/ray/session_2025-03-28_15-58-43_448298_215745/artifacts/2025-03-28_15-58-45/PPO_everyone_local/driver_artifacts/PPO_FSS_env_25dea_00000_0_2025-03-28_15-58-45/wandb/run-20250328_155908-25dea_00000/logs/debug-core.log"}
-{"time":"2025-03-28T15:59:08.581544067+01:00","level":"INFO","msg":"created new stream","id":"25dea_00000"}
-{"time":"2025-03-28T15:59:08.581628277+01:00","level":"INFO","msg":"stream: started","id":"25dea_00000"}
-{"time":"2025-03-28T15:59:08.581717987+01:00","level":"INFO","msg":"handler: started","stream_id":"25dea_00000"}
-{"time":"2025-03-28T15:59:08.581758439+01:00","level":"INFO","msg":"writer: Do: started","stream_id":"25dea_00000"}
-{"time":"2025-03-28T15:59:08.581950045+01:00","level":"INFO","msg":"sender: started","stream_id":"25dea_00000"}
-{"time":"2025-03-28T15:59:08.891832983+01:00","level":"ERROR","msg":"HTTP error","status":403,"method":"POST","url":"https://api.wandb.ai/graphql"}
-{"time":"2025-03-28T15:59:08.892364226+01:00","level":"ERROR","msg":"sender: upsertRun:","error":"failed to upsert bucket: returned error 403: {\"data\":{\"upsertBucket\":null},\"errors\":[{\"message\":\"permission denied\",\"path\":[\"upsertBucket\"],\"extensions\":{\"code\":\"PERMISSION_ERROR\"}}]}"}
