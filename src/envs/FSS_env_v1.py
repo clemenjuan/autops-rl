@@ -18,8 +18,8 @@ class FSS_env(MultiAgentEnv):
         if config is None:
             config = {}
             
-        self.num_targets = config.get("num_targets", 10)
-        self.num_observers = config.get("num_observers", 10)
+        self.num_targets = config.get("num_targets", 20)
+        self.num_observers = config.get("num_observers", 20)
         self.simulator_type = config.get("simulator_type", "everyone")
         self.time_step = config.get("time_step", 1)
         self.duration = config.get("duration", 24*60*60)

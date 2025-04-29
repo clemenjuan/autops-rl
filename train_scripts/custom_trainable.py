@@ -142,7 +142,7 @@ def configure_ppo(args, env_config):
             num_cpus_per_env_runner=args.num_cpus_per_runner,
             num_gpus_per_env_runner=args.num_gpus_per_runner,
             explore=True,
-            env_to_module_connector=_env_to_module_pipeline,
+            # env_to_module_connector=_env_to_module_pipeline,
         )
         .rl_module(
             # We need to explicitly specify here RLModule to use
