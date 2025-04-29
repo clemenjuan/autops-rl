@@ -40,7 +40,7 @@ srun enroot start --root --mount /dss/dsshome1/05/ge26sav2/autops-rl:/workspace 
     --policy PPO \\
     --checkpoint-dir /workspace/checkpoints_${SLURM_JOB_ID} \\
     --tune \\
-    --iterations 10000 \\
+    --iterations 100 \\
     --simulator-types \"everyone,centralized,decentralized\" \\
     --num-env-runners 75 \\
     --num-envs-per-runner 4 \\
