@@ -46,19 +46,18 @@ class FSS_env(MultiAgentEnv):
             zip(self.agents, list(range(len(self.agents))))
         )  # Mapping of agent names to indices
 
-        # Create action_spaces and observation_spaces dictionaries
-        # These are required by Ray's environment runner
+        # Define the action and observation spaces for each agent
         self._action_space = spaces.Discrete(3)
-
+        
         self._observation_space = spaces.Dict({
-                "observer_satellites": spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_observers, len(self.orbital_params_order))),
+                "observer_satellites": spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_observers, len(self.orbital_params_order)), dtype=np.float32),
                 "band": spaces.Box(low=1, high=5, shape=(1,), dtype=np.int8),
-                "target_satellites": spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_targets, len(self.orbital_params_order_targets))),
+                "target_satellites": spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_targets, len(self.orbital_params_order_targets)), dtype=np.float32),
                 "availability": spaces.MultiBinary(1),
-                "battery": spaces.Box(low=0, high=1, shape=(self.num_observers,)),
-                "storage": spaces.Box(low=0, high=1, shape=(self.num_observers,)),
-                "observation_status": spaces.Box(low=0, high=3, shape=(self.num_targets,)),
-                "pointing_accuracy": spaces.Box(low=-0, high=1, shape=(self.num_observers, self.num_targets)),
+                "battery": spaces.Box(low=0, high=1, shape=(self.num_observers,), dtype=np.float32),
+                "storage": spaces.Box(low=0, high=1, shape=(self.num_observers,), dtype=np.float32),
+                "observation_status": spaces.Box(low=0, high=3, shape=(self.num_targets,), dtype=np.float32),
+                "pointing_accuracy": spaces.Box(low=0, high=1, shape=(self.num_observers, self.num_targets), dtype=np.float32),
                 "communication_status": spaces.Box(low=0, high=1, shape=(self.num_observers,), dtype=np.int8),
                 "communication_ability": spaces.MultiBinary(self.num_observers)
             })
@@ -72,10 +71,6 @@ class FSS_env(MultiAgentEnv):
             for agent_id in self.possible_agents
         }
         
-        self.action_space = self._action_space
-        self.observation_space = self._observation_space
-        self.single_observation_spaces = self._observation_space
-        self.single_action_spaces = self._action_space
         
         # Initialize simulator
         if self.simulator_type == 'centralized':
@@ -87,30 +82,28 @@ class FSS_env(MultiAgentEnv):
         else:
             raise ValueError("Invalid simulator type. Choose from 'centralized', 'decentralized', or 'everyone'.")
 
-    # Add these properties to ensure compatibility with RLlib
-    @property
-    def obs_space(self):
-        return self._observation_space
-        
-    @property
-    def act_space(self):
-        return self._action_space
-
+    #@override
     def get_observation_space(self, agent_id):
         # All observer agents have the same observation space in this implementation
         if agent_id.startswith("observer_"):
-            return self.observation_space
+            return self._observation_space
         else:
             raise ValueError(f"Invalid agent id: {agent_id}!")
 
+    #@override
     def get_action_space(self, agent_id):
         # All observer agents have the same action space in this implementation
         if agent_id.startswith("observer_"):
-            return self.action_space
+            return self._action_space
         else:
             raise ValueError(f"Invalid agent id: {agent_id}!")
 
     def reset(self, *, seed=None, options=None):
+        # Reset the environment to an initial state
+        if seed is not None:
+            self.seed = seed
+            np.random.seed(self.seed)
+
         self.sim_time = 0
         self.latest_step_duration = 0
         self.special_events_count = 0
@@ -128,11 +121,15 @@ class FSS_env(MultiAgentEnv):
         # Reset the list of agents
         self.agents = self.possible_agents.copy()
         
-        # Generate proper observations for each agent
-        observations = {agent: self._generate_observation(agent) for agent in self.agents}
+        # Generate observations for each agent
+        observations = {}
+        infos = {}
         
-        # Return observations and empty info dict
-        return observations, {}
+        for agent in self.agents:
+            observations[agent] = self._generate_observation(agent)
+            infos[agent] = {}
+        
+        return observations, infos
 
     def step(self, action_dict):
         # return observation dict, rewards dict, termination/truncation dicts, and infos dict
@@ -145,6 +142,23 @@ class FSS_env(MultiAgentEnv):
         assert set(action_dict.keys()) == set(self.agents), "Actions must be provided for all agents"
 
         observations, rewards, terminated, truncated, infos = {}, {}, {}, {}, {}
+        
+        # Convert action_dict to the format expected by the simulator
+        processed_actions = {}
+        for agent_id, action in action_dict.items():
+            # Extract the actual integer action value
+            if isinstance(action, dict):
+                # If action is a dict (from RLlib's new API)
+                action_value = list(action.values())[0]  # Get the first value
+            elif hasattr(action, 'item'):
+                # If action is a tensor
+                action_value = action.item()
+            else:
+                # If action is already an integer or similar
+                action_value = action
+            
+            processed_actions[agent_id] = int(action_value)
+        
         # Create zero actions for eventless steps
         zero_actions = {agent: 0 for agent in self.agents}
 
@@ -159,22 +173,23 @@ class FSS_env(MultiAgentEnv):
                 if done:
                     break
             else:
-                # print(f"Environment special event detected at step {self.simulator.time_step_number}")
                 break
 
         if special_event_detected:
             # Step the simulator with actual actions
-            rewards, done = self.simulator.step(action_dict, self.simulator_type, self.agents)
+            rewards, done = self.simulator.step(processed_actions, self.simulator_type, self.agents)
 
         # Generate observations for each agent
-        observations = {
-            agent: self._generate_observation(agent)
-            for agent in self.agents
-        }
+        for agent in self.agents:
+            observations[agent] = self._generate_observation(agent)
+            rewards[agent] = rewards.get(agent, 0.0)
+            terminated[agent] = False
+            truncated[agent] = False
+            infos[agent] = {}
 
-        # typically there won't be any information in the infos, but there must
-        # still be an entry for each agent
-        infos = {agent: {} for agent in self.agents}
+        # Always add the __all__ key to terminated and truncated
+        terminated["__all__"] = False
+        truncated["__all__"] = False
 
         if self.simulator.time_step_number%10000 == 0:
             print(f"Step {self.simulator.time_step_number} done")
@@ -182,20 +197,15 @@ class FSS_env(MultiAgentEnv):
         if done:
             for agent in self.agents:
                 terminated[agent] = True
-                truncated[agent] = True
+                truncated[agent] = False
             terminated["__all__"] = True
-            truncated["__all__"] = True
+            truncated["__all__"] = False
             self.agents = []
             print(f"Special events detected: {self.special_events_count}")
             print(f"Special events for observing: {self.special_event_observe}")
             print(f"Special events for communicating: {self.special_event_communicate}")
             print(f"Forced termination at step {self.simulator.time_step_number}")
                 
-        # print(f"Observations: {observations}")
-
-        # print("Step done")
-        # print(f"Step {self.simulator.time_step_number} reward: {rewards}")
-        # print(f"Step returning observations for agents: {observations.keys()}, rewards for agents: {rewards.keys()}, terminations for agents: {terminations.keys()}, truncations for agents: {truncations.keys()}, infos for agents: {infos.keys()}")
         return observations, rewards, terminated, truncated, infos
 
 
@@ -260,7 +270,6 @@ class FSS_env(MultiAgentEnv):
 
         # Ensure everything matches the expected types and shapes
         for key, value in observation.items():
-            # Use self.observation_spaces instead of self._observation_spaces
             obs_space = self.observation_spaces[agent].spaces[key]
             assert observation[key].dtype == obs_space.dtype, f"Type mismatch for {key}: expected {obs_space.dtype}, got {observation[key].dtype}"
             assert observation[key].shape == obs_space.shape, f"Shape mismatch for {key}: expected {obs_space.shape}, got {observation[key].shape}"
@@ -275,6 +284,7 @@ class FSS_env(MultiAgentEnv):
                     self.observation_spaces[agent].spaces[key].low,
                     self.observation_spaces[agent].spaces[key].high
                 )
+        
         return observation
     
     def detect_special_event(self):

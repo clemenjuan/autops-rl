@@ -25,7 +25,7 @@ import wandb
 from ray.rllib.connectors.env_to_module import FlattenObservations
 
 # Import your environment
-from src.envs.FSS_env import FSS_env
+from src.envs.FSS_env_v1 import FSS_env  # Make sure you're importing the correct version
 
 # Get Wandb API key from environment variable
 WANDB_API_KEY = os.environ.get("WANDB_API_KEY", "4b5c9c4ae3ffb150f67942dec8cc7d9f6fbcd558")
@@ -51,7 +51,7 @@ slurm_job_id = os.environ.get("SLURM_JOB_ID", "local")
 
 # Create environment
 def env_creator(env_config):
-    return FSS_env(**env_config)
+    return FSS_env(env_config)
 
 # Define env-to-module-connector pipeline for the new stack.
 # def _env_to_module_pipeline(env):
@@ -149,7 +149,7 @@ def configure_ppo(args, env_config):
                 rl_module_spec=RLModuleSpec(
                 module_class=PPOTorchRLModule,
                 model_config={
-                    "head_fcnet_hiddens": [64, 64],
+                    "head_fcnet_hiddens": [64,64], #[256,256],
                     "head_fcnet_activation": "relu",
                 },
             ),
@@ -165,6 +165,7 @@ def configure_ppo(args, env_config):
     )
     
     return algo_config
+
 
 
 def run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name, seed, wandb_config):

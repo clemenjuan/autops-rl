@@ -7,6 +7,4 @@ launch.json
 ppo_checkpoints/
 checkpoints/
 checkpoints_local_test/
-# checkpoints_new/
-masterthesis_clemente.tar
 *.png
