@@ -41,7 +41,7 @@ python train_scripts/custom_trainable.py \
   --num-targets 20 \
   --num-observers 20 \
   --time-step 1 \
-  --duration 86400
+  --duration 3600
     #--simulator_type "everyone" 
     #--tune \
     #--num_samples 20 \

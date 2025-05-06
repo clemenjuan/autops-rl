@@ -5,7 +5,7 @@ import ray
 from ray import tune
 from ray.rllib.algorithms.ppo import PPOConfig
 from ray.tune.registry import register_env
-from ray.air.integrations.wandb import WandbLoggerCallback
+from ray.air.integrations.wandb import WandbLoggerCallback, setup_wandb
 from ray.tune.schedulers import ASHAScheduler
 import torch
 from ray.tune.stopper import (
@@ -28,34 +28,36 @@ from ray.rllib.connectors.env_to_module import FlattenObservations
 from src.envs.FSS_env_v1 import FSS_env  # Make sure you're importing the correct version
 
 # Get Wandb API key from environment variable
-WANDB_API_KEY = os.environ.get("WANDB_API_KEY", "4b5c9c4ae3ffb150f67942dec8cc7d9f6fbcd558")
-WANDB_PROJECT = os.environ.get("WANDB_PROJECT", "autops-rl")
-WANDB_ENTITY = os.environ.get("WANDB_ENTITY", "TUM")
+WANDB_API_KEY = "4b5c9c4ae3ffb150f67942dec8cc7d9f6fbcd558"     # fail fast if missing. define with export WANDB_API_KEY=...
+WANDB_PROJECT = "autops-rl"
+WANDB_ENTITY  = "sps-tum"      # team slug only (sps-tum)
 
 gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
 print(f"Detected {gpu_count} GPUs")
 
 # Explicitly login to wandb using the API key
-try:
-    wandb.login(key=WANDB_API_KEY)
-except Exception as e:
-    print(f"Warning: Failed to log in to wandb: {e}")
+# try:
+#     wandb.login(key=WANDB_API_KEY)
+#     run = wandb.init(project=os.getenv("WANDB_PROJECT"),
+#                  entity=os.getenv("WANDB_ENTITY")
+#                  )
+#     print(f"Success → {run.url}")
+# except Exception as e:
+#     print(f"Warning: Failed to log in to wandb: {e}")
 
 ray.init(
     num_gpus=gpu_count,
-    runtime_env={"env_vars": {"WANDB_API_KEY": WANDB_API_KEY}}
-)
+    runtime_env={"env_vars": {
+    "WANDB_API_KEY": WANDB_API_KEY}})
 
 # Get SLURM job ID if available
 slurm_job_id = os.environ.get("SLURM_JOB_ID", "local")
+metric = "episode_reward_mean"
 
 # Create environment
 def env_creator(env_config):
     return FSS_env(env_config)
 
-# Define env-to-module-connector pipeline for the new stack.
-# def _env_to_module_pipeline(env):
-#     return FlattenObservations(obs_space=env.observation_space, act_space=env.action_space)
 
 def _env_to_module_pipeline(env):
     return FlattenObservations(
@@ -110,16 +112,14 @@ def main(args):
             # Configure WandbLoggerCallback
             wandb_config = {
                 "project": WANDB_PROJECT,
-                "entity": WANDB_ENTITY,
-                "name": f"{experiment_name}_seed{seed}",
-                "group": experiment_name,
+                "entity": WANDB_ENTITY
             }
             
             # Run experiment
             if args.tune:
-                run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name, seed, wandb_config)
+                run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name, seed, wandb_config, simulator_type)
             else:
-                run_training(args, algo_config, checkpoint_dir, experiment_name, seed, wandb_config)
+                run_training(args, algo_config, checkpoint_dir, experiment_name, seed, wandb_config, simulator_type)
 
 def configure_ppo(args, env_config):
     env = env_creator(env_config)
@@ -143,6 +143,10 @@ def configure_ppo(args, env_config):
             num_gpus_per_env_runner=args.num_gpus_per_runner,
             explore=True,
             env_to_module_connector=_env_to_module_pipeline,
+            #add these parameters to check if reward works now
+            rollout_fragment_length="auto",
+            batch_mode="complete_episodes",
+            sample_timeout_s=None
         )
         .rl_module(
             # We need to explicitly specify here RLModule to use
@@ -162,13 +166,17 @@ def configure_ppo(args, env_config):
             # Learning rate can be a schedule or a fixed value
             lr=1e-5 * (args.num_learners ** 0.5),
         )
+        .api_stack(
+            enable_rl_module_and_learner=True,
+            enable_env_runner_and_connector_v2=True
+        )
     )
     
     return algo_config
 
 
 
-def run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name, seed, wandb_config):
+def run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name, seed, wandb_config, simulator_type):
     # Configure hyperparameter search space
     if args.policy == "PPO":
         param_space = {
@@ -185,14 +193,16 @@ def run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name
         reduction_factor=2
     )
     
-    # Configure WandbLoggerCallback
+    # Configure WandbLoggerCallback with comprehensive logging
     wandb_logger = WandbLoggerCallback(
-        project=wandb_config["project"],
-        entity=wandb_config["entity"],
-        group=f"{wandb_config['group']}_tune",
-        name=f"{wandb_config['name']}_tune",
+        project=WANDB_PROJECT,
+        entity=WANDB_ENTITY,
+        api_key=WANDB_API_KEY,
+        log_config=True,  # Log configuration parameters
+        # upload_checkpoints=True,  # Upload checkpoints to W&B
     )
-    
+    print("WANDB_API_KEY", WANDB_API_KEY, "WANDB_PROJECT", WANDB_PROJECT, "WANDB_ENTITY", WANDB_ENTITY)
+
     # Run hyperparameter tuning
     tuner = tune.Tuner(
         algo_config.algo_class,
@@ -203,8 +213,9 @@ def run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name
             callbacks=[wandb_logger],
             stop={"training_iteration": args.max_iterations_hyperparameter_tuning},
             checkpoint_config=ray.tune.CheckpointConfig(
-                checkpoint_frequency=10,
+                checkpoint_frequency=args.checkpoint_freq if hasattr(args, "checkpoint_freq") else 10,
                 checkpoint_at_end=True,
+                num_to_keep=5,  # Keep the last 5 checkpoints
             ),
         ),
         tune_config=tune.TuneConfig(
@@ -216,6 +227,9 @@ def run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name
     )
     
     results = tuner.fit()
+    tuner.report(
+            {"episode_reward_mean": results[metric]},
+        )
     
     # Get best trial
     best_trial = results.get_best_result(metric="episode_reward_mean", mode="max")
@@ -230,14 +244,16 @@ def run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name
     
     print(f"Best config saved to: {best_config_path}")
 
-def run_training(args, algo_config, checkpoint_dir, experiment_name, seed, wandb_config):
-    # Configure WandbLoggerCallback
+def run_training(args, algo_config, checkpoint_dir, experiment_name, seed, wandb_config, simulator_type):
+    # Configure WandbLoggerCallback with comprehensive logging
     wandb_logger = WandbLoggerCallback(
-        project=wandb_config["project"],
-        entity=wandb_config["entity"],
-        name=wandb_config["name"],
-        group=wandb_config["group"],
+        project=WANDB_PROJECT,
+        entity=WANDB_ENTITY,
+        api_key=WANDB_API_KEY,
+        log_config=True,  # Log configuration parameters
+        # upload_checkpoints=True,  # Upload checkpoints to W&B
     )
+    print("WANDB_API_KEY", WANDB_API_KEY, "WANDB_PROJECT", WANDB_PROJECT, "WANDB_ENTITY", WANDB_ENTITY)
 
     stopper = CombinedStopper(
         MaximumIterationStopper(max_iter=args.iterations),
@@ -253,14 +269,19 @@ def run_training(args, algo_config, checkpoint_dir, experiment_name, seed, wandb
             callbacks=[wandb_logger],
             stop=stopper,
             checkpoint_config=ray.tune.CheckpointConfig(
-                checkpoint_frequency=10,
+                checkpoint_frequency=args.checkpoint_freq if hasattr(args, "checkpoint_freq") else 10,
                 checkpoint_at_end=True,
+                num_to_keep=5,  # Keep the last 5 checkpoints
             ),
         ),
     )
     
     results = tuner.fit()
-    
+
+    tuner.report(
+            {"episode_reward_mean": results[metric]},
+        )
+   
     # Get best checkpoint
     best_result = results.get_best_result(metric="episode_reward_mean", mode="max")
     print(f"Best result: {best_result.metrics}")

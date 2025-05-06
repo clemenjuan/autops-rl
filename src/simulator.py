@@ -152,6 +152,8 @@ class Simulator():
             self.storage[i] = max(observer.DataHand['StorageAvailable'] / observer.DataHand['DataStorage'], 0)
             # print(f"Storage of observer {i}: {self.storage[i]}")
 
+        # Before returning
+        #print(f"Calculated rewards: {reward_step}")
         return reward_step
 
     def get_global_targets(self, observer_satellites, target_satellites):
@@ -215,8 +217,13 @@ class Simulator():
             sunlight_exposure = observer.get_sunlight_exposure()
             observer.charge_battery(sunlight_exposure, self.time_step)
         
-        rewards = self.process_actions(actions, simulator_type, agents) # careful with action/actions
-
+        rewards = self.process_actions(actions, simulator_type, agents)
+        
+        # Debug reward aggregation
+        # if any(rewards.values()):
+        #     print(f"Step {self.time_step_number}, Rewards: {rewards}")
+        #     print(f"Total reward: {sum(rewards.values())}")
+        
         self.update_communication_timeline()
         self.update_global_observation_status_matrix(self.observer_satellites, self.target_satellites)
 
@@ -229,6 +236,9 @@ class Simulator():
         done, mission = self.is_terminated()
         if mission:
             rewards = {agent: +1000*(self.duration-self.time_step_number)/self.duration for agent in agents}
+        
+        if self.time_step_number % 100 == 0:
+            print(f"Mean reward: {sum(rewards.values())/len(rewards)}. Total reward: {sum(rewards.values())}")
         return rewards, done
 
     def is_terminated(self):

@@ -206,6 +206,19 @@ class FSS_env(MultiAgentEnv):
             print(f"Special events for communicating: {self.special_event_communicate}")
             print(f"Forced termination at step {self.simulator.time_step_number}")
                 
+        # Add custom metrics to track rewards
+        for agent in self.agents:
+            infos[agent]["custom_metrics"] = {
+                "agent_reward": rewards[agent],
+                "step_number": self.simulator.time_step_number
+            }
+        
+        # Track total reward as a custom metric
+        total_reward = sum(rewards.values())
+        for agent in self.agents:
+            infos[agent]["custom_metrics"]["total_reward"] = total_reward
+        
+
         return observations, rewards, terminated, truncated, infos
 
 

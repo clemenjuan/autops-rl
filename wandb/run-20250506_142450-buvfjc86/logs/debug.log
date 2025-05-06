@@ -1,0 +1,25 @@
+2025-05-06 14:24:50,794 INFO    MainThread:45398 [wandb_setup.py:_flush():67] Current SDK version is 0.19.8
+2025-05-06 14:24:50,794 INFO    MainThread:45398 [wandb_setup.py:_flush():67] Configure stats pid to 45398
+2025-05-06 14:24:50,794 INFO    MainThread:45398 [wandb_setup.py:_flush():67] Loading settings from /home/clemente/.config/wandb/settings
+2025-05-06 14:24:50,794 INFO    MainThread:45398 [wandb_setup.py:_flush():67] Loading settings from /mnt/c/Users/Clemente/OneDrive - TUM/Research/autops-rl/wandb/settings
+2025-05-06 14:24:50,795 INFO    MainThread:45398 [wandb_setup.py:_flush():67] Loading settings from environment variables
+2025-05-06 14:24:50,795 INFO    MainThread:45398 [wandb_init.py:setup_run_log_directory():647] Logging user logs to /mnt/c/Users/Clemente/OneDrive - TUM/Research/autops-rl/wandb/run-20250506_142450-buvfjc86/logs/debug.log
+2025-05-06 14:24:50,801 INFO    MainThread:45398 [wandb_init.py:setup_run_log_directory():648] Logging internal logs to /mnt/c/Users/Clemente/OneDrive - TUM/Research/autops-rl/wandb/run-20250506_142450-buvfjc86/logs/debug-internal.log
+2025-05-06 14:24:50,801 INFO    MainThread:45398 [wandb_init.py:init():761] calling init triggers
+2025-05-06 14:24:50,802 INFO    MainThread:45398 [wandb_init.py:init():766] wandb.init called with sweep_config: {}
+config: {'_wandb': {}}
+2025-05-06 14:24:50,802 INFO    MainThread:45398 [wandb_init.py:init():784] starting backend
+2025-05-06 14:24:50,802 INFO    MainThread:45398 [wandb_init.py:init():788] sending inform_init request
+2025-05-06 14:24:50,808 INFO    MainThread:45398 [backend.py:_multiprocessing_setup():101] multiprocessing start_methods=fork,spawn,forkserver, using: spawn
+2025-05-06 14:24:50,808 INFO    MainThread:45398 [wandb_init.py:init():798] backend started and connected
+2025-05-06 14:24:50,810 INFO    MainThread:45398 [wandb_init.py:init():891] updated telemetry
+2025-05-06 14:24:50,890 INFO    MainThread:45398 [wandb_init.py:init():915] communicating run to backend with 90.0 second timeout
+2025-05-06 14:24:51,715 ERROR   MainThread:45398 [wandb_init.py:init():1478] error in wandb.init()
+Traceback (most recent call last):
+  File "/home/clemente/miniconda3/envs/autops-rl/lib/python3.12/site-packages/wandb/sdk/wandb_init.py", line 1468, in init
+    return wi.init(run_settings, run_config)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/clemente/miniconda3/envs/autops-rl/lib/python3.12/site-packages/wandb/sdk/wandb_init.py", line 963, in init
+    raise error
+wandb.errors.errors.CommError: failed to upsert bucket: returned error 403: {"data":{"upsertBucket":null},"errors":[{"message":"permission denied","path":["upsertBucket"],"extensions":{"code":"PERMISSION_ERROR"}}]}
+2025-05-06 14:25:14,568 INFO    MsgRouterThr:45398 [mailbox.py:close():129] Closing mailbox, abandoning 0 handles.
