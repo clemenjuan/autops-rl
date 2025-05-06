@@ -29,7 +29,7 @@ srun enroot start --root --mount /dss/dsshome1/05/ge26sav2/autops-rl:/workspace 
     export PYTHONPATH=\"\$PYTHONPATH:/workspace\"
     export WANDB_API_KEY=\"4b5c9c4ae3ffb150f67942dec8cc7d9f6fbcd558\"
     export WANDB_PROJECT=\"autops-rl\"
-    export WANDB_ENTITY=\"TUM\"
+    export WANDB_ENTITY=\"sps-tum\"
     export RAY_DEDUP_LOGS=0
     
     # Print available GPUs

@@ -237,8 +237,8 @@ class Simulator():
         if mission:
             rewards = {agent: +1000*(self.duration-self.time_step_number)/self.duration for agent in agents}
         
-        if self.time_step_number % 100 == 0:
-            print(f"Mean reward: {sum(rewards.values())/len(rewards)}. Total reward: {sum(rewards.values())}")
+        # if self.time_step_number % 1000 == 0:
+        #     print(f"Mean reward: {sum(rewards.values())/len(rewards)}. Total reward: {sum(rewards.values())}")
         return rewards, done
 
     def is_terminated(self):

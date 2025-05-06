@@ -52,7 +52,7 @@ ray.init(
 
 # Get SLURM job ID if available
 slurm_job_id = os.environ.get("SLURM_JOB_ID", "local")
-metric = "episode_reward_mean"
+metric = "episode_return_mean" # "episode_reward_mean" in old API
 
 # Create environment
 def env_creator(env_config):
@@ -201,7 +201,7 @@ def run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name
         log_config=True,  # Log configuration parameters
         # upload_checkpoints=True,  # Upload checkpoints to W&B
     )
-    print("WANDB_API_KEY", WANDB_API_KEY, "WANDB_PROJECT", WANDB_PROJECT, "WANDB_ENTITY", WANDB_ENTITY)
+    # print("WANDB_API_KEY", WANDB_API_KEY, "WANDB_PROJECT", WANDB_PROJECT, "WANDB_ENTITY", WANDB_ENTITY)
 
     # Run hyperparameter tuning
     tuner = tune.Tuner(
@@ -221,28 +221,28 @@ def run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name
         tune_config=tune.TuneConfig(
             scheduler=scheduler,
             num_samples=args.num_samples_hyperparameter_tuning,
-            metric="episode_reward_mean",
+            metric="env_runners/episode_return_mean",
             mode="max",
         ),
     )
     
     results = tuner.fit()
-    tuner.report(
-            {"episode_reward_mean": results[metric]},
-        )
+    # tuner.report(
+    #         {"episode_reward_mean": results[metric]},
+    #     )
     
-    # Get best trial
-    best_trial = results.get_best_result(metric="episode_reward_mean", mode="max")
-    print(f"Best trial config: {best_trial.config}")
-    print(f"Best trial final reward: {best_trial.metrics['episode_reward_mean']}")
-    
-    # Save best config
-    best_config_path = os.path.join(checkpoint_dir, f"{experiment_name}_best_config_seed{seed}.json")
-    with open(best_config_path, "w") as f:
-        import json
-        json.dump(best_trial.config, f, indent=2)
-    
-    print(f"Best config saved to: {best_config_path}")
+    best_result = results.get_best_result(
+        metric="env_runners/episode_return_mean",
+        mode="max",
+    )
+    best_score = best_result.metrics["env_runners"]["episode_return_mean"]
+    best_ckpt  = best_result.checkpoint
+    print("Best score:", best_score, "\nBest checkpoint:", best_ckpt)
+
+    best_ckpt_path = os.path.join(checkpoint_dir, "best.ckpt")
+    best_ckpt.to_directory(best_ckpt_path)      # creates the folder
+    print("✓  Saved best checkpoint to", best_ckpt_path)
+
 
 def run_training(args, algo_config, checkpoint_dir, experiment_name, seed, wandb_config, simulator_type):
     # Configure WandbLoggerCallback with comprehensive logging
@@ -253,7 +253,6 @@ def run_training(args, algo_config, checkpoint_dir, experiment_name, seed, wandb
         log_config=True,  # Log configuration parameters
         # upload_checkpoints=True,  # Upload checkpoints to W&B
     )
-    print("WANDB_API_KEY", WANDB_API_KEY, "WANDB_PROJECT", WANDB_PROJECT, "WANDB_ENTITY", WANDB_ENTITY)
 
     stopper = CombinedStopper(
         MaximumIterationStopper(max_iter=args.iterations),
@@ -278,14 +277,19 @@ def run_training(args, algo_config, checkpoint_dir, experiment_name, seed, wandb
     
     results = tuner.fit()
 
-    tuner.report(
-            {"episode_reward_mean": results[metric]},
-        )
+    print("Results run_training:", results)
+
+    # tune.report(
+    #         {"episode_reward_mean": results[metric]},
+    #     )
    
-    # Get best checkpoint
-    best_result = results.get_best_result(metric="episode_reward_mean", mode="max")
-    print(f"Best result: {best_result.metrics}")
-    print(f"Best checkpoint: {best_result.checkpoint}")
+    best_result = results.get_best_result(
+        metric="env_runners/episode_return_mean",
+        mode="max",
+    )
+    best_score = best_result.metrics["env_runners"]["episode_return_mean"]
+    best_ckpt  = best_result.checkpoint
+    print("Best score:", best_score, "\nBest checkpoint:", best_ckpt)
 
 register_env("FSS_env", lambda config: env_creator(config))
 print("Registered environment")

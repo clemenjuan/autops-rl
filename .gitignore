@@ -8,3 +8,4 @@ ppo_checkpoints/
 checkpoints/
 checkpoints_local_test/
 *.png
+wandb/
