@@ -33,6 +33,7 @@ AUTOPS-RL is a framework for training reinforcement learning policies for autono
 - **Configurable Environment**: Adjustable number of targets, observers, and simulation parameters
 - **Multi-seed Training**: Support for training with multiple random seeds for robust evaluation
 - **Wandb Integration**: Experiment tracking and visualization with Weights & Biases
+- **Multiple Reward Cases**: Four different reward structures (case1-case4) for exploring different learning approaches
 
 ## Installation
 
@@ -49,17 +50,12 @@ conda activate autops-rl
 git clone https://gitlab.lrz.de/sps/autops/autops-rl.git
 cd autops-rl
 
-# Install PyTorch
-pip install torch==2.6.0
-
 # Install dependencies
 pip install -r requirements.txt
 
 # Deactivate the conda environment
 conda deactivate
 ```
-
-
 
 This local setup is useful for quick testing and development before running full-scale training on HPC environments. This environment is used by the `run_local.sh` script (see below).
 
@@ -84,13 +80,28 @@ To train the model on the HPC cluster:
 sbatch sbatch_autops-rl.sh
 ```
 
-The SLURM script configures the environment and runs the training with appropriate parameters:
+For hyperparameter tuning with specific reward cases:
+
+```bash
+sbatch case1_tuning.sh  # For case1 reward function
+sbatch case2_tuning.sh  # For case2 reward function
+sbatch case3_tuning.sh  # For case3 reward function
+sbatch case4_tuning.sh  # For case4 reward function
+```
+
+To quickly test if the container and environment are working correctly:
+
+```bash
+sbatch case1_test.sh  # Runs a quick test with minimal resources
+```
+
+The SLURM script configures the environment and runs the training with appropriate parameters. Check Configuration section for more details.
 
 ```bash
 python train_scripts/custom_trainable.py \
 --policy PPO \
 --checkpoint-dir /workspace/checkpoints_${SLURM_JOB_ID} \
---tune \
+--mode tune \
 --iterations 10000 \
 --simulator-types "everyone,centralized,decentralized" \
 --num-env-runners 90 \
@@ -100,7 +111,11 @@ python train_scripts/custom_trainable.py \
 --num-learners 4 \
 --num-gpus-per-learner 1 \
 --num-cpus-per-learner 1 \
---seeds "42,43,44,45,46"
+--seeds "42,43,44,45,46" \
+--reward-type case1 \
+--num-samples-hyperparameter-tuning 20 \
+--max-iterations-hyperparameter-tuning 25 \
+--grace-period-hyperparameter-tuning 10
 ```
 
 ### Local Training
@@ -134,20 +149,25 @@ python eval_scripts/evaluate_policy.py \
 ├── README.md                     # Project documentation
 ├── requirements.txt              # Dependencies
 ├── sbatch_autops-rl.sh           # SLURM batch script for HPC
+├── case1_tuning.sh               # SLURM script for case1
+├── case2_tuning.sh               # SLURM script for case2 
+├── case3_tuning.sh               # SLURM script for case3
+├── case4_tuning.sh               # SLURM script for case4
+├── case1_test.sh                 # SLURM script for quick testing
 ├── run_local.sh                  # Local test script
 ├── template_sbatch.sh            # Template for SLURM batch script
 ├── train_scripts/                # Training scripts
 │   └── custom_trainable.py       # Main training script
 ├── src/                          # Source code
 │   └── envs/                     # Environment implementation
-│       └── FSS_env.py            # Federated Satellite System environment implementation
+│       └── FSS_env_v1.py         # Federated Satellite System environment implementation
 │   └── subsystems/               # Subsystem implementation
 │   └── satellites.py             # Satellite implementation
 │   └── simulator.py              # Simulator implementation
+│   └── rewards.py                # Reward function implementations
 ├── eval_scripts/                 # Evaluation scripts
 │   └── evaluate_policy.py        # Evaluation script   
 ├── utils/                        # Utility functions
-
 ```
 
 
@@ -166,15 +186,16 @@ The training process can be configured with various command-line arguments:
   - `--simulator-type`: string to specify the simulator type (default: "everyone"), options: "everyone", "centralized", "decentralized". It can be overridden by the `--simulator-types` argument.
   - `--time-step`: Simulation time step in seconds (default: 1)
   - `--duration`: Total simulation duration in seconds (default: 86400)
+  - `--reward-type`: Reward function to use (default: "case1"), options: "case1", "case2", "case3", "case4"
 
 - **Training Parameters**:
   - `--policy`: The RL algorithm to use (default: "PPO")
   - `--checkpoint-dir`: Directory to save checkpoints (default: "./checkpoints")
-  - `--tune`: Whether to perform hyperparameter tuning (flag)
+  - `--mode`: Operation mode - "tune", "train", or "tune_then_train" (default: "train")
   - `--num-samples-hyperparameter-tuning`: Number of hyperparameter samples to run (default: 20)
   - `--max-iterations-hyperparameter-tuning`: Maximum number of training iterations for hyperparameter tuning (default: 25)
   - `--grace-period-hyperparameter-tuning`: Grace period for early stopping for hyperparameter tuning (default: 10)
-  - `--iterations`: Number of training iterations, only used if `--tune` is not set (default: 1000)
+  - `--iterations`: Number of training iterations (default: 1000)
   - `--checkpoint`: Path to checkpoint file for continuing training
   - `--best-config`: Path to best config JSON file for continuing training
   - `--simulator-types`: Comma-separated list of simulator types to run
@@ -193,7 +214,7 @@ The training process can be configured with various command-line arguments:
 
 Training results are logged to Weights & Biases for easy visualization and comparison. The system tracks metrics such as:
 
-- Episode reward mean
+- Episode return mean
 - Episode length mean
 - Training throughput
 - Policy loss
