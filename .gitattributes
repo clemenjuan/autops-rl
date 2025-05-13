@@ -1,0 +1,2 @@
+* text=auto eol=lf
+*.sbatch text eol=lf
