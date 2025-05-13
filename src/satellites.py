@@ -594,49 +594,49 @@ class ObserverSatellite(Satellite):
     
     # action = 1: Propagate information
     def propagate_information(self, index, other_satellite, other_satellite_index, time_step, communication_type, reward_step, steps, communication_done, data_transmitted, data_to_transmit):
-        """
-        Propagate information to other satellites based on communication capabilities and new data availability.
-        This method combines the logic of sharing data across centralized, decentralized, and fully open communication models.
-        """
+        result = {
+            "successful": False,
+            "data_transmitted": 0,
+            "communication_possible": False,
+            "can_communicate": False
+        }
+        
         if self.can_communicate(other_satellite_index) and data_to_transmit > 0:
-            # print(f"{self.name} is trying to communicate with {other_satellite.name}")
-            can_communicate = False
-
+            result["communication_possible"] = True
+            
             # Determine communication capability based on the specified type
+            can_communicate = False
             if communication_type == 'centralized':
                 can_communicate = self.can_communicate_with_centralized(other_satellite, time_step)
             elif communication_type == 'decentralized':
                 can_communicate = self.can_communicate_with_decentralized(other_satellite, time_step)
             elif communication_type == 'everyone':
-                # print(f"Distance between {self.name} and {other_satellite.name}: {distance:.2f} km")
                 can_communicate = self.can_communicate_with_everyone(other_satellite, time_step)
             else:
                 raise ValueError("Invalid communication type. Choose from 'centralized', 'decentralized', or 'everyone'.")
-
+            
+            result["can_communicate"] = can_communicate
+            
             if can_communicate:
-                # print(f"{self.name} can communicate with {other_satellite.name}")
                 effective_data_rate = self.calculate_data_volume(other_satellite, time_step)
                 if effective_data_rate <= 0:
-                    reward_step -= 0.01  # Penalty for failed communication
                     communication_done = True
                     steps += 1
-                    return reward_step, communication_done, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_observation_counts, self.max_pointing_accuracy_avg_sat, data_transmitted
+                    return result, communication_done, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_communication_counts, self.global_observation_counts, self.max_pointing_accuracy_avg_sat, data_transmitted
                 
                 volume_of_data = min(effective_data_rate, data_to_transmit)
                 data_transmitted += volume_of_data
-    
+                result["data_transmitted"] = volume_of_data
+                
                 self.update_data_matrix(index, other_satellite_index, volume_of_data)
-                # reward_step += 0.01  # Reward for successful communication step
-
-                # print(f"{self.name} is communicating with {other_satellite.name}")
-    
+                
                 if data_transmitted >= data_to_transmit:
                     self.update_adjacency_matrix(index, other_satellite_index)
                     self.synchronize_contacts_matrix(index, other_satellite_index)
                     self.global_communication_counts[index, other_satellite_index] += 1
                     self.global_observation_counts = np.maximum(self.global_observation_counts, other_satellite.global_observation_counts)
                     other_satellite.update_processing_status(self.observation_status_matrix)
-    
+                    
                     for i in range(len(self.has_new_data)):
                         if self.has_new_data[i] and not other_satellite.has_new_data[i]:
                             other_satellite.has_new_data[i] = True
@@ -645,32 +645,38 @@ class ObserverSatellite(Satellite):
                     
                     self.has_new_data[other_satellite_index] = False
                     other_satellite.has_new_data[index] = False
-    
-                    reward_step += 0.01  # Reward for successful complete communication
-                    # print(f"{self.name} has communicated with {other_satellite.name} and transmitted {data_transmitted:.2f} bits of data")
+                    
+                    result["successful"] = True
                     communication_done = True
             else:
-                # print(f"{self.name} cannot communicate with {other_satellite.name}")
-                reward_step -= 0.01  # Penalty for failed or incomplete communication
                 communication_done = True
         else:
-            reward_step -= 0.01  # Penalty for failed communication (not available)
             communication_done = True
-    
+        
         steps += 1
-        return reward_step, communication_done, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_communication_counts,self.global_observation_counts, self.max_pointing_accuracy_avg_sat, data_transmitted
+        return result, communication_done, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_communication_counts, self.global_observation_counts, self.max_pointing_accuracy_avg_sat, data_transmitted
     
     # action >= 2: Observe target
     def observe_target(self, index, target, target_index, time_step, reward_step, steps=0):
+        result = {
+            "successful": False,
+            "pointing_accuracy": 0,
+            "is_processing": self.is_processing,
+            "already_observed": False,
+            "out_of_range": False
+        }
+        
         if target_index < len(self.observation_status_matrix):
             if self.is_processing:
-                reward_step -= 0.01  # Penalty for trying to observe while processing
+                # Just set status, reward will be calculated by simulator
+                pass
             else:
                 distance = self.distance_between(target, time_step)
                 pointing_accuracy = self.evaluate_pointing_accuracy(target, time_step)
+                
                 if distance <= self.max_distance and pointing_accuracy > 0:
                     if self.observation_status_matrix[target_index] == 3:
-                        reward_step -= 0.01  # Penalty for trying to observe an already observed target
+                        result["already_observed"] = True
                     else:
                         self.cumulative_pointing_accuracy[index, target_index] += pointing_accuracy
                         self.observation_counts[target_index] += 1
@@ -678,35 +684,31 @@ class ObserverSatellite(Satellite):
                         self.has_new_data[:] = True  # Set flag to indicate new data
                         self.update_contacts_matrix(index, target_index)
                         self.observation_time_matrix[target_index] += time_step  # Assuming time_step is in seconds
- 
-                        reward_step += 10*pointing_accuracy  # Normalize to a range [0, 1]
-                        self.DataHand['StorageAvailable'] -= self.storage_consumption_rates["observation"] * time_step
                         
-                        # print(f"{self.name} is observing {target.name} with pointing accuracy {pointing_accuracy:.2f}")
+                        result["pointing_accuracy"] = pointing_accuracy
+                        self.DataHand['StorageAvailable'] -= self.storage_consumption_rates["observation"] * time_step
                 else:
-                    reward_step -= 0.01  # Penalty for target being out of range or no valid pointing accuracy
-
-                if self.observation_counts[target_index] > 0 and self.observation_status_matrix[target_index] == 2 and self.cumulative_pointing_accuracy[index, target_index] > 0:
+                    result["out_of_range"] = True
+                    
+                # Check if observation is complete
+                if (self.observation_counts[target_index] > 0 and 
+                    self.observation_status_matrix[target_index] == 2 and 
+                    self.cumulative_pointing_accuracy[index, target_index] > 0):
+                    
                     self.pointing_accuracy_avg[index, target_index] = self.cumulative_pointing_accuracy[index, target_index] / self.observation_counts[target_index]
                     if self.pointing_accuracy_avg[index, target_index] > 0:
                         self.global_observation_counts[index, target_index] += 1
                         self.update_max_pointing_accuracy_avg_sat(index, target_index)
                         self.observation_status_matrix[target_index] = 3  # Mark as observed
                         self.has_new_data[:] = True
-                        # self.cumulative_pointing_accuracy[index, target_index] = 0
-                        # self.observation_counts[target_index] = 0
                         
-                        # Reward for successful observation
-                        reward_step += 10
-                        
-                        # print(f"{self.name} has observed {target.name} with pointing accuracy {self.pointing_accuracy_avg[index, target_index]:.2f}")
+                        # Set success flag
+                        result["successful"] = True
                     else:
                         raise ValueError("Error: Pointing accuracy average is zero")
-                else:
-                    reward_step -= 0.01  # Penalty for not observing the target (out of range or poor accuracy)
-
+        
         steps += 1
-        return reward_step, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_observation_counts, self.max_pointing_accuracy_avg_sat
+        return result, steps, self.contacts_matrix, self.contacts_matrix_acc, self.adjacency_matrix, self.adjacency_matrix_acc, self.data_matrix, self.data_matrix_acc, self.global_observation_counts, self.max_pointing_accuracy_avg_sat
 
 # Example usage of the updated class (main function or simulation setup)
 if __name__ == "__main__":

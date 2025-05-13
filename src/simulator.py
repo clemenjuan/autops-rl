@@ -2,6 +2,7 @@ import numpy as np
 import math
 import random
 import time
+from src.rewards import get_reward_function
 
 
 class Simulator():
@@ -13,6 +14,8 @@ class Simulator():
                 num_observers: int,
                 time_step: float = 1,
                 duration: float = 24*60*60,
+                reward_type: str = "case1",
+                reward_config: dict = None
                 )-> None:
         super().__init__()
         from src.satellites import TargetSatellite, ObserverSatellite
@@ -39,6 +42,7 @@ class Simulator():
         self.max_pointing_accuracy_avg = np.zeros(num_targets, dtype=float)
         self.batteries = np.zeros(num_observers, dtype=float)
         self.storage = np.zeros(num_observers, dtype=float)
+        self.reward_function = get_reward_function(reward_type, reward_config)
 
     def reset_matrices_for_timestep(self):
         """Resets matrices to only track the latest timestep's observations and connections."""
@@ -49,21 +53,27 @@ class Simulator():
 
     def process_actions(self, actions, type_of_communication, agents):
         reward_step = {agent: 0 for agent in agents}
+        
         for i, (observer, action) in enumerate(actions.items()):
             agent = agents[i]
             observer = self.observer_satellites[i]
-            # print(f"Processing action: {action} for {observer.name}, step: {self.time_step_number}")
-
+            
             # Update energy consumption and storage consumption based on the action
             if action == 0: # Standby
                 power_consumption = observer.power_consumption_rates["standby"]
-                # print(f"Observer {i} is on standby")
                 observer.stand_by()
                 # Deduct the power consumption from the available energy
                 if not observer.is_processing:
                     observer.epsys['EnergyAvailable'] -= power_consumption * self.time_step
-                # only reduce energy if the satellite is not processing (already deducted in the processing function)
-                # reward_step[agent] -= 0.01
+                
+                # Use reward function for standby action
+                reward = self.reward_function.calculate_reward(
+                    "standby", 
+                    observer, 
+                    {"successful": True}
+                )
+                reward_step[agent] += reward
+                
             elif action == 1: # Communication
                 communication_done = False
                 max_steps = 0
@@ -80,29 +90,39 @@ class Simulator():
                 # Calculate the total data to transmit
                 data_to_transmit = data_size + sum_of_contacts + sum_of_contacts_acc + sum_of_adjacency_acc
                 data_to_transmit = max(data_to_transmit, 0)
-                # print(f"Data to transmit: {data_to_transmit} bits")
-
-                # print(f"Starting communication checks for observer {i}")
+                
                 for j, other_observer in enumerate(self.observer_satellites):
                     if i == j:
-                        observer.update_adjacency_matrix(i, j) # Update adjacency matrix for self communication
-                        continue  # Skip self communication
-
+                        observer.update_adjacency_matrix(i, j)
+                        continue
+                    
                     communication_done = False
                     steps = 0
                     data_transmitted = 0
                     total_data_transmitted = 0
+                    
                     while not communication_done and total_data_transmitted < data_to_transmit:
-                        reward_step[agent], communication_done, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_communication_counts, global_observation_counts, max_pointing_accuracy_avg, data_transmitted = observer.propagate_information(i, other_observer, j, self.time_step + steps * self.time_step, type_of_communication, reward_step[agent], steps, communication_done, total_data_transmitted, data_to_transmit)
+                        result, communication_done, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_communication_counts, global_observation_counts, max_pointing_accuracy_avg, data_transmitted = observer.propagate_information(i, other_observer, j, self.time_step + steps * self.time_step, type_of_communication, reward_step[agent], steps, communication_done, total_data_transmitted, data_to_transmit)
                         
-                        total_data_transmitted += data_transmitted  # Accumulate data transmitted
+                        total_data_transmitted += data_transmitted
                         if communication_done or data_transmitted == 0:
-                            other_observer.DataHand['StorageAvailable'] -= total_data_transmitted # in bits
-                            break  # Exit if communication is done or no data was transmitted
+                            other_observer.DataHand['StorageAvailable'] -= total_data_transmitted
+                            break
                     
                     max_steps = max(steps, max_steps)
                     
-
+                # Calculate communication reward
+                communication_result = {
+                    "successful": communication_done and total_data_transmitted > 0,
+                    "data_transmitted": total_data_transmitted
+                }
+                reward = self.reward_function.calculate_reward(
+                    "communication", 
+                    observer, 
+                    communication_result
+                )
+                reward_step[agent] += reward
+                
                 self.contacts_matrix = np.maximum(contacts_matrix, self.contacts_matrix)
                 self.contacts_matrix_acc = np.maximum(contacts_matrix_acc, self.contacts_matrix_acc)
                 self.adjacency_matrix = np.maximum(adjacency_matrix, self.adjacency_matrix)
@@ -117,43 +137,87 @@ class Simulator():
                 power_consumption = observer.power_consumption_rates["communication"]
                 storage_consumption = observer.storage_consumption_rates["communication"] # not implemented
                 observer.epsys['EnergyAvailable'] -= power_consumption * self.time_step * max_steps
-                
-                # print(f"Data transmitted: {total_data_transmitted}, Storage available: {observer.DataHand['StorageAvailable']}")
             else: # Observation
                 steps = 0
                 power_consumption = observer.power_consumption_rates["observation"]
-                storage_consumption = observer.storage_consumption_rates["observation"]
-                # print(f"{observer.name} is trying to observe target {action - 2}")
-
-                reward_step[agent], steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_observation_counts, max_pointing_accuracy_avg = observer.observe_target(i, self.target_satellites[action - 2], action - 2, self.time_step + steps*self.time_step, reward_step[agent], steps)
-                # print(f"Observer {i} has finished observing target {action - 2}")
-                self.contacts_matrix = np.maximum(contacts_matrix, self.contacts_matrix)
-                self.contacts_matrix_acc = np.maximum(contacts_matrix_acc, self.contacts_matrix_acc)
-                self.adjacency_matrix = np.maximum(adjacency_matrix, self.adjacency_matrix)
-                self.adjacency_matrix_acc = np.maximum(adjacency_matrix_acc, self.adjacency_matrix_acc)
-                self.data_matrix = np.maximum(data_matrix, self.data_matrix)
-                self.data_matrix_acc = np.maximum(data_matrix_acc, self.data_matrix_acc)
-                self.global_observation_counts = np.maximum(global_observation_counts, self.global_observation_counts)
-                self.max_pointing_accuracy_avg = np.maximum(max_pointing_accuracy_avg, self.max_pointing_accuracy_avg)
-                # if self.max_pointing_accuracy_avg.any() > 0:
-                #    print(f"ID of max_pointing_accuracy_avg in process_actions: {id(self.max_pointing_accuracy_avg)}")
-                #    print(f"Max pointing accuracy average in process actions: {self.max_pointing_accuracy_avg}")
                 
-                observer.epsys['EnergyAvailable'] -= power_consumption * self.time_step * steps
-                # Storage is processed inside the observation function
-                observer.processing_time += steps * self.time_step
-
+                # Find a target that can be observed
+                best_target_idx = -1
+                best_pointing_accuracy = 0
+                
+                # Select the best target based on pointing accuracy
+                for target_idx, target in enumerate(self.target_satellites):
+                    # Skip already observed targets
+                    if observer.observation_status_matrix[target_idx] == 3:
+                        continue
+                        
+                    distance = observer.distance_between(target, self.time_step)
+                    pointing_accuracy = observer.evaluate_pointing_accuracy(target, self.time_step)
+                    
+                    if distance <= observer.max_distance and pointing_accuracy > best_pointing_accuracy:
+                        best_target_idx = target_idx
+                        best_pointing_accuracy = pointing_accuracy
+                
+                if best_target_idx >= 0:
+                    # Observe the best target
+                    result, steps, contacts_matrix, contacts_matrix_acc, adjacency_matrix, adjacency_matrix_acc, data_matrix, data_matrix_acc, global_observation_counts, max_pointing_accuracy_avg = observer.observe_target(i, self.target_satellites[best_target_idx], best_target_idx, self.time_step, 0, steps)
+                    
+                    # Update matrices
+                    self.contacts_matrix = np.maximum(contacts_matrix, self.contacts_matrix)
+                    self.contacts_matrix_acc = np.maximum(contacts_matrix_acc, self.contacts_matrix_acc)
+                    self.adjacency_matrix = np.maximum(adjacency_matrix, self.adjacency_matrix)
+                    self.adjacency_matrix_acc = np.maximum(adjacency_matrix_acc, self.adjacency_matrix_acc)
+                    self.data_matrix = np.maximum(data_matrix, self.data_matrix)
+                    self.data_matrix_acc = np.maximum(data_matrix_acc, self.data_matrix_acc)
+                    self.global_observation_counts = np.maximum(global_observation_counts, self.global_observation_counts)
+                    self.max_pointing_accuracy_avg = np.maximum(max_pointing_accuracy_avg, self.max_pointing_accuracy_avg)
+                    
+                    observer.epsys['EnergyAvailable'] -= power_consumption * self.time_step * steps
+                    observer.processing_time += steps * self.time_step
+                    
+                    # Calculate observation reward
+                    observation_result = {
+                        "successful": result["successful"],
+                        "pointing_accuracy": result["pointing_accuracy"]
+                    }
+                    reward = self.reward_function.calculate_reward(
+                        "observation", 
+                        observer, 
+                        observation_result
+                    )
+                    reward_step[agent] += reward
+                else:
+                    # No observable targets
+                    reward = self.reward_function.calculate_reward(
+                        "observation", 
+                        observer, 
+                        {"successful": False, "pointing_accuracy": 0}
+                    )
+                    reward_step[agent] += reward
+            
+            # Check for resource depletion
             if observer.epsys['EnergyAvailable'] < 0 or observer.DataHand['StorageAvailable'] < 0:
-                    print(f"Satellite energy or storage depleted ({observer.name}). Terminating simulation.")
-                    reward_step[agent] -= 100
-                    self.breaker = True
-
+                print(f"Satellite energy or storage depleted ({observer.name}). Terminating simulation.")
+                reward += self.check_depletion(observer)
+                self.breaker = True
+            
             self.batteries[i] = max(observer.epsys['EnergyAvailable'] / observer.epsys['EnergyStorage'], 0)
             self.storage[i] = max(observer.DataHand['StorageAvailable'] / observer.DataHand['DataStorage'], 0)
-            # print(f"Storage of observer {i}: {self.storage[i]}")
-
-        # Before returning
-        #print(f"Calculated rewards: {reward_step}")
+        
+        # For case3 and case4, add global bonus/penalty
+        if hasattr(self.reward_function, 'calculate_global_bonus'):
+            global_bonus = self.reward_function.calculate_global_bonus(self.global_observation_status_matrix)
+            for agent in agents:
+                reward_step[agent] += global_bonus
+        
+        if hasattr(self.reward_function, 'calculate_global_penalty'):
+            global_penalty = self.reward_function.calculate_global_penalty(
+                self.global_observation_status_matrix, 
+                len(self.target_satellites)
+            )
+            for agent in agents:
+                reward_step[agent] += global_penalty
+        
         return reward_step
 
     def get_global_targets(self, observer_satellites, target_satellites):
@@ -161,7 +225,6 @@ class Simulator():
         for i, observer in enumerate(observer_satellites):
             observer.get_targets(i,target_satellites, self.time_step)
             if np.any(observer.contacts_matrix[i, :]):
-                # print(f"{observer.name} can observe targets: {observer.contacts_matrix[i, :]}")
                 return True
         return False
 
@@ -235,7 +298,10 @@ class Simulator():
         # print(f"Time step number: {self.time_step_number}")
         done, mission = self.is_terminated()
         if mission:
-            rewards = {agent: +1000*(self.duration-self.time_step_number)/self.duration for agent in agents}
+            # Use the reward function for mission completion
+            time_remaining = self.duration - self.time_step_number
+            for agent in agents:
+                rewards[agent] += self.reward_function.mission_completion_bonus(time_remaining, self.duration)
         
         # if self.time_step_number % 1000 == 0:
         #     print(f"Mean reward: {sum(rewards.values())/len(rewards)}. Total reward: {sum(rewards.values())}")

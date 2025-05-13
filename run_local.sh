@@ -22,11 +22,12 @@ mkdir -p "$LOCAL_CHECKPOINT_DIR"
 # Add this line before ray.init() in your script
 export RAY_DEDUP_LOGS=0
 
-# Run local test with minimal configuration
+# Test with reward case 1
 python train_scripts/custom_trainable.py \
   --policy PPO \
+  --mode train \
   --checkpoint-dir "$LOCAL_CHECKPOINT_DIR" \
-  --iterations 1 \
+  --iterations 20 \
   --simulator-types "everyone" \
   --num-env-runners 4 \
   --num-envs-per-runner 1 \
@@ -38,11 +39,7 @@ python train_scripts/custom_trainable.py \
   --num-targets 20 \
   --num-observers 20 \
   --time-step 1 \
-  --duration 250
-    #--simulator_type "everyone" 
-    #--tune \
-    #--num_samples 20 \
-    #--max_iterations 25 \
-    #--grace_period 10 \
+  --duration 100 \
+  --reward-type case1
 
 conda deactivate

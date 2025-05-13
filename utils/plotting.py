@@ -7,66 +7,154 @@ from mpl_toolkits.mplot3d import Axes3D
 
 
 def plot(matrices, results_folder, total_duration, total_reward, total_steps):
-    # Call the plotting function
+    """Main plotting function that handles all edge cases"""
+    # Ensure scalar values for annotations
+    try:
+        total_duration = float(total_duration) if hasattr(total_duration, 'item') else float(total_duration)
+        total_reward = float(total_reward) if hasattr(total_reward, 'item') else float(total_reward)
+        total_steps = int(total_steps) if hasattr(total_steps, 'item') else int(total_steps)
+    except (ValueError, TypeError):
+        print(f"Warning: Could not convert metrics to scalar values: {total_duration}, {total_reward}, {total_steps}")
+        total_duration, total_reward, total_steps = 0.0, 0.0, 0
+    
+    # Check if matrices is empty or None
+    if not matrices:
+        print("Warning: No matrices to plot")
+        return
+        
+    # Create the output directory if it doesn't exist
     if not os.path.exists(results_folder):
         os.makedirs(results_folder)
 
+    # Get the next simulation number for the filename
     i = get_next_simulation_number_plot(results_folder)
+    
+    try:
+        # Call the plotting function with validated parameters
+        plot_matrices(matrices, results_folder, f'simulation_{i}', total_duration, total_reward, total_steps)
+        print(f"✓ Successfully generated plot: simulation_{i}")
+    except Exception as e:
+        print(f"Error generating plot: {e}")
+        # Try a simplified backup plot
+        try:
+            create_simple_summary_plot(matrices, results_folder, f'summary_{i}', total_duration, total_reward, total_steps)
+            print(f"✓ Generated simplified summary plot: summary_{i}")
+        except Exception as e2:
+            print(f"Error generating simplified plot: {e2}")
 
-    plot_matrices(matrices, results_folder, f'simulation_{i}', total_duration, total_reward, total_steps)
 
+def create_simple_summary_plot(matrices, plot_dir, file_identifier, total_time, total_reward, total_steps):
+    """Create a simplified text-based summary when regular plotting fails"""
+    fig, ax = plt.subplots(figsize=(10, 8))
+    ax.axis('off')
+    
+    # Prepare text summary
+    summary_text = [
+        f"Run Summary (ID: {file_identifier})",
+        f"------------------------",
+        f"Total Time: {float(total_time):.2f} seconds",
+        f"Total Reward: {float(total_reward):.2f}",
+        f"Total Steps: {int(total_steps)}",
+        f"------------------------",
+        f"Available Data:"
+    ]
+    
+    # Add list of available matrices
+    for key in matrices:
+        if key in matrices and matrices[key] is not None:
+            if isinstance(matrices[key], np.ndarray):
+                shape_info = matrices[key].shape if hasattr(matrices[key], 'shape') else "Unknown shape"
+                summary_text.append(f"• {key}: {shape_info}")
+            else:
+                summary_text.append(f"• {key}: {type(matrices[key])}")
+    
+    # Display the text summary
+    ax.text(0.1, 0.9, '\n'.join(summary_text), 
+            transform=ax.transAxes, fontsize=12,
+            verticalalignment='top', family='monospace')
+    
+    # Save the figure
+    plt.savefig(os.path.join(plot_dir, f'summary_{file_identifier}.png'), bbox_inches='tight')
+    plt.close(fig)
 
 
 def plot_matrices(matrix_dict, plot_dir, file_identifier, total_time, total_reward, total_steps):
+    """Plot matrices with robust error handling"""
+    # Convert annotation values to scalar
+    total_time = float(total_time) if hasattr(total_time, 'item') else float(total_time)
+    total_reward = float(total_reward) if hasattr(total_reward, 'item') else float(total_reward)
+    total_steps = int(total_steps) if hasattr(total_steps, 'item') else int(total_steps)
+    
     # Use a 3x2 grid layout
     fig, axs = plt.subplots(3, 2, figsize=(12, 18), gridspec_kw={'hspace': 0.3, 'top': 0.85})
-
-    # Plotting the binary grid plots
+    
+    # Plotting the binary grid plots - check if data exists
     binary_matrices = ['adjacency_matrix']
     for i, title in enumerate(binary_matrices):
         ax = axs[i // 2, i % 2]
-        matrix = matrix_dict[title]
-        c = ax.matshow(matrix, cmap='Greys', aspect='auto')
-        fig.colorbar(c, ax=ax, fraction=0.046, pad=0.04)
-        ax.set_title("Adjacency Matrix", fontsize=14) # Set the title
-        ax.set_xlabel('Observer', fontsize=12)
-        ax.set_ylabel('Observer', fontsize=12)
+        try:
+            if title in matrix_dict and matrix_dict[title] is not None and hasattr(matrix_dict[title], 'size') and matrix_dict[title].size > 0:
+                matrix = matrix_dict[title]
+                c = ax.matshow(matrix, cmap='Greys', aspect='auto')
+                fig.colorbar(c, ax=ax, fraction=0.046, pad=0.04)
+                ax.set_title("Adjacency Matrix", fontsize=14)
+                ax.set_xlabel('Observer', fontsize=12)
+                ax.set_ylabel('Observer', fontsize=12)
+            else:
+                ax.text(0.5, 0.5, f"No {title} data available", 
+                        horizontalalignment='center', verticalalignment='center',
+                        transform=ax.transAxes)
+                ax.set_title(f"Missing: {title}", fontsize=14)
+        except Exception as e:
+            print(f"Error plotting {title}: {e}")
+            ax.text(0.5, 0.5, f"Error plotting {title}", 
+                   horizontalalignment='center', verticalalignment='center',
+                   transform=ax.transAxes)
+            ax.set_title(f"Error: {title}", fontsize=14)
 
     # Plotting the global_observation_status_matrix with a discrete colormap
-    observation_status_matrix = matrix_dict['global_observation_status_matrix']
-    # Create a discrete colormap
-    cmap = colors.ListedColormap(['white', 'yellow', 'orange', 'green'])
-    norm = colors.BoundaryNorm([0, 1, 2, 3, 4], cmap.N)
     ax = axs[0, 1]
-    c = ax.matshow(observation_status_matrix, cmap=cmap, norm=norm, aspect='auto')
-    fig.colorbar(c, ax=ax, boundaries=[-0.5, 0.5, 1.5, 2.5, 3.5], ticks=[0, 1, 2, 3])
-    ax.set_title('Observation Status', fontsize=14)
-    ax.set_xlabel('Target', fontsize=12)
-    ax.set_ylabel('Observer', fontsize=12)
+    try:
+        if ('global_observation_status_matrix' in matrix_dict and 
+            matrix_dict['global_observation_status_matrix'] is not None and 
+            hasattr(matrix_dict['global_observation_status_matrix'], 'size') and 
+            matrix_dict['global_observation_status_matrix'].size > 0):
+            
+            observation_status_matrix = matrix_dict['global_observation_status_matrix']
+            # Create a discrete colormap
+            cmap = colors.ListedColormap(['white', 'yellow', 'orange', 'green'])
+            norm = colors.BoundaryNorm([0, 1, 2, 3, 4], cmap.N)
+            c = ax.matshow(observation_status_matrix, cmap=cmap, norm=norm, aspect='auto')
+            fig.colorbar(c, ax=ax, boundaries=[-0.5, 0.5, 1.5, 2.5, 3.5], ticks=[0, 1, 2, 3])
+            ax.set_title('Observation Status', fontsize=14)
+            ax.set_xlabel('Target', fontsize=12)
+            ax.set_ylabel('Observer', fontsize=12)
+        else:
+            ax.text(0.5, 0.5, "No observation status data available", 
+                    horizontalalignment='center', verticalalignment='center',
+                    transform=ax.transAxes)
+            ax.set_title("Missing: Observation Status", fontsize=14)
+    except Exception as e:
+        print(f"Error plotting observation status: {e}")
+        ax.text(0.5, 0.5, "Error plotting observation status", 
+               horizontalalignment='center', verticalalignment='center',
+               transform=ax.transAxes)
+        ax.set_title("Error: Observation Status", fontsize=14)
 
-    # Plotting the bar charts for 1D arrays 2nd row
-    array_labels = ['global_observation_counts', 'max_pointing_accuracy_avg']
-    for i, title in enumerate(array_labels):
-        ax = axs[1, i % 2] 
-        data = matrix_dict[title]
-        ax.bar(np.arange(len(data)), data, color='skyblue')
-        ax.set_title(title, fontsize=14)
-        ax.set_xlabel('Target', fontsize=12)
-        ax.set_ylabel('Value', fontsize=12)
-
-    array_labels = ['batteries', 'storage']
-    for i, title in enumerate(array_labels):
-        ax = axs[2, i % 2] 
-        data = matrix_dict[title]
-        ax.bar(np.arange(len(data)), data, color='skyblue')
-        ax.set_title(title, fontsize=14)
-        # Setting the y-axis limit to 1 for normalization
-        ax.set_ylim(0, 1)
-        ax.set_xlabel('Observer', fontsize=12)
-        ax.set_ylabel('Value', fontsize=12)
+    # Safe conversion for annotation values (again, to be super sure)
+    try:
+        total_time_str = f"{float(total_time):.3f}"
+        total_reward_str = f"{float(total_reward):.3f}" 
+        total_steps_str = f"{int(total_steps)}"
+    except (ValueError, TypeError):
+        total_time_str = "0.000"
+        total_reward_str = "0.000"
+        total_steps_str = "0"
 
     # Annotate the total time and reward
-    plt.figtext(0.5, 0.92, f"Total Time: {total_time:.3f} seconds\nTotal Reward: {total_reward:.3f}\nTotal steps: {total_steps}", ha="center", fontsize=12, bbox={"facecolor":"orange", "alpha":0.5, "pad":5})
+    plt.figtext(0.5, 0.92, 
+        f"Total Time: {total_time_str} seconds\nTotal Reward: {total_reward_str}\nTotal steps: {total_steps_str}", 
+        ha="center", fontsize=12, bbox={"facecolor":"orange", "alpha":0.5, "pad":5})
 
     # Adjust the layout to ensure everything fits
     plt.tight_layout(rect=[0, 0, 1, 0.9])  # rect parameter is [left, bottom, right, top]

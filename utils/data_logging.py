@@ -86,20 +86,31 @@ def compute_statistics_from_npy(folder, relevant_attributes):
         for sim_dir in simulation_dirs:
             file_path = os.path.join(sim_dir, f"{attr}.npy")
             if os.path.isfile(file_path):
-                data = np.load(file_path)
-                if attr in ['adjacency_matrix', 'contacts_matrix', 'global_observation_status_matrix', 'data_matrix']:
-                    # Average over all elements in the matrix
-                    mean_value = np.mean(data)
-                else:
-                    # If data is multi-dimensional, take the mean across all dimensions
-                    mean_value = np.mean(data) if data.ndim > 0 else data.item()
-                all_values.append(mean_value)
-                # print(f"Simulation: {sim_dir}, Attribute: {attr}, Mean Value: {mean_value}")
+                try:
+                    data = np.load(file_path, allow_pickle=True)
+                    # Skip empty arrays or None values
+                    if data is None or data.size == 0:
+                        continue
+                        
+                    if attr in ['adjacency_matrix', 'contacts_matrix', 'global_observation_status_matrix', 'data_matrix']:
+                        # Average over all elements in the matrix
+                        mean_value = np.nanmean(data) if np.any(~np.isnan(data)) else 0.0
+                    else:
+                        # If data is multi-dimensional, take the mean across all dimensions
+                        # Use nanmean to ignore NaN values
+                        mean_value = np.nanmean(data) if data.ndim > 0 and np.any(~np.isnan(data)) else (data.item() if data.size == 1 else 0.0)
+                        
+                    all_values.append(mean_value)
+                except Exception as e:
+                    print(f"Error processing {file_path}: {e}")
+                    continue
         
         # Compute the mean across all simulations for this attribute
-        overall_mean = np.mean(all_values)
-        statistics[attr] = overall_mean
-        # print(f"Attribute: {attr}, All Values: {all_values}, Overall Mean: {overall_mean}")
+        if all_values:
+            overall_mean = np.nanmean(all_values) if np.any(~np.isnan(all_values)) else 0.0
+            statistics[attr] = overall_mean
+        else:
+            statistics[attr] = 0.0  # Default value when no data is available
     
     # Write the overall means to a single CSV
     csv_file = os.path.join(folder, "averages.csv")
@@ -108,8 +119,6 @@ def compute_statistics_from_npy(folder, relevant_attributes):
         writer.writerow(["Attribute", "Average"])
         for attr, avg_value in statistics.items():
             writer.writerow([attr, f"{avg_value:.2f}"])  # Explicitly format as floating point with 2 decimal places
-
-    return statistics
 
     return statistics
 

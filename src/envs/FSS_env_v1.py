@@ -4,6 +4,9 @@ from gymnasium import spaces
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from src.simulator import Simulator, CentralizedSimulator
 from ray.rllib.connectors.env_to_module import FlattenObservations
+import os
+from datetime import datetime
+import json
 
 
 class FSS_env(MultiAgentEnv):
@@ -24,6 +27,8 @@ class FSS_env(MultiAgentEnv):
         self.time_step = config.get("time_step", 1)
         self.duration = config.get("duration", 24*60*60)
         self.seed = config.get("seed", 42)
+        self.reward_type = config.get("reward_type", "case1")
+        self.reward_config = config.get("reward_config", None)
         
         # Environment parameters
         self.num_satellites = self.num_targets + self.num_observers
@@ -71,14 +76,22 @@ class FSS_env(MultiAgentEnv):
             for agent_id in self.possible_agents
         }
         
-        
         # Initialize simulator
         if self.simulator_type == 'centralized':
-            self.simulator = CentralizedSimulator(self.num_targets, self.num_observers, self.time_step, self.duration)
+            self.simulator = CentralizedSimulator(
+                self.num_targets, self.num_observers, self.time_step, self.duration,
+                reward_type=self.reward_type, reward_config=self.reward_config
+            )
         elif self.simulator_type == 'decentralized':
-            self.simulator = Simulator(self.num_targets, self.num_observers, self.time_step, self.duration)
+            self.simulator = Simulator(
+                self.num_targets, self.num_observers, self.time_step, self.duration,
+                reward_type=self.reward_type, reward_config=self.reward_config
+            )
         elif self.simulator_type == 'everyone':
-            self.simulator = Simulator(self.num_targets, self.num_observers, self.time_step, self.duration)
+            self.simulator = Simulator(
+                self.num_targets, self.num_observers, self.time_step, self.duration,
+                reward_type=self.reward_type, reward_config=self.reward_config
+            )
         else:
             raise ValueError("Invalid simulator type. Choose from 'centralized', 'decentralized', or 'everyone'.")
 
@@ -141,7 +154,12 @@ class FSS_env(MultiAgentEnv):
         assert self.agents, "Cannot step an environment with no agents"
         assert set(action_dict.keys()) == set(self.agents), "Actions must be provided for all agents"
 
-        observations, rewards, terminated, truncated, infos = {}, {}, {}, {}, {}
+        # Clear previous rewards before calculating new ones
+        rewards = {}
+        observations = {}
+        terminated = {}
+        truncated = {}
+        infos = {}
         
         # Convert action_dict to the format expected by the simulator
         processed_actions = {}
@@ -186,14 +204,11 @@ class FSS_env(MultiAgentEnv):
             terminated[agent] = False
             truncated[agent] = False
             infos[agent] = {}
-
+        
         # Always add the __all__ key to terminated and truncated
         terminated["__all__"] = False
         truncated["__all__"] = False
-
-        if self.simulator.time_step_number%10000 == 0:
-            print(f"Step {self.simulator.time_step_number} done")
-
+        
         if done:
             for agent in self.agents:
                 terminated[agent] = True
@@ -201,24 +216,64 @@ class FSS_env(MultiAgentEnv):
             terminated["__all__"] = True
             truncated["__all__"] = False
             self.agents = []
+
+            # TODO: Save metrics with reward_details, global_observation_status_matrix and adjacency_matrix_acc
+            # Save metrics to file for later analysis
+            # Create metrics directory if it doesn't exist
+            metrics_dir = os.path.join("collected_metrics")
+            os.makedirs(metrics_dir, exist_ok=True)
+
+            # Generate unique filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            metrics_file = os.path.join(metrics_dir, f"metrics_{timestamp}_{self.reward_type}_simulator_type_{self.simulator_type}.json")
+
+            # Prepare metrics data with observation statistics
+            # Count observed targets
+            total_targets = len(self.simulator.target_satellites)
+            observed_targets = np.sum(np.any(self.simulator.global_observation_status_matrix == 3, axis=0))
+            observation_percentage = 100.0 * observed_targets / total_targets if total_targets > 0 else 0.0
+
+            # Calculate connectivity statistics
+            total_possible_connections = self.num_observers * (self.num_observers - 1)
+            active_connections = np.sum(self.simulator.adjacency_matrix_acc) - self.num_observers  # Subtract identity diagonal
+            connectivity_percentage = 100.0 * active_connections / total_possible_connections if total_possible_connections > 0 else 0.0
+
+            metrics_data = {
+                "simulation_params": {
+                    "num_targets": len(self.simulator.target_satellites),
+                    "num_observers": len(self.simulator.observer_satellites),
+                    "duration": self.duration,
+                    "time_step": self.time_step,
+                    "simulator_type": self.simulator_type,
+                    "reward_type": self.reward_type,
+                    "seed": self.seed
+                },
+                "observation_stats": {
+                    "total_targets": total_targets,
+                    "observed_targets": int(observed_targets),
+                    "observation_percentage": float(observation_percentage)
+                },
+                "connectivity_stats": {
+                    "total_possible_connections": int(total_possible_connections),
+                    "active_connections": int(active_connections),
+                    "connectivity_percentage": float(connectivity_percentage)
+                },                # Still keep the matrices for detailed analysis
+                "global_observation_status_avg": float(np.mean(self.simulator.global_observation_status_matrix)),
+                "global_observation_status": self.simulator.global_observation_status_matrix.tolist(),
+                "adjacency_matrix_acc_avg": float(np.mean(self.simulator.adjacency_matrix_acc)),
+                "adjacency_matrix_acc": self.simulator.adjacency_matrix_acc.tolist(),
+            }
+
+            # Save metrics to file
+            with open(metrics_file, 'w') as f:
+                json.dump(metrics_data, f, indent=4)
+
+            # Print metrics
             print(f"Special events detected: {self.special_events_count}")
             print(f"Special events for observing: {self.special_event_observe}")
             print(f"Special events for communicating: {self.special_event_communicate}")
             print(f"Forced termination at step {self.simulator.time_step_number}")
                 
-        # Add custom metrics to track rewards
-        for agent in self.agents:
-            infos[agent]["custom_metrics"] = {
-                "agent_reward": rewards[agent],
-                "step_number": self.simulator.time_step_number
-            }
-        
-        # Track total reward as a custom metric
-        total_reward = sum(rewards.values())
-        for agent in self.agents:
-            infos[agent]["custom_metrics"]["total_reward"] = total_reward
-        
-
         return observations, rewards, terminated, truncated, infos
 
 

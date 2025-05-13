@@ -23,6 +23,8 @@ from ray.rllib.algorithms.ppo.torch.default_ppo_torch_rl_module import (
 from ray.rllib.algorithms.ppo.ppo_catalog import PPOCatalog
 import wandb
 from ray.rllib.connectors.env_to_module import FlattenObservations
+from ray.rllib.algorithms.callbacks import DefaultCallbacks
+import json
 
 # Import your environment
 from src.envs.FSS_env_v1 import FSS_env  # Make sure you're importing the correct version
@@ -34,16 +36,6 @@ WANDB_ENTITY  = "sps-tum"      # team slug only (sps-tum)
 
 gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
 print(f"Detected {gpu_count} GPUs")
-
-# Explicitly login to wandb using the API key
-# try:
-#     wandb.login(key=WANDB_API_KEY)
-#     run = wandb.init(project=os.getenv("WANDB_PROJECT"),
-#                  entity=os.getenv("WANDB_ENTITY")
-#                  )
-#     print(f"Success → {run.url}")
-# except Exception as e:
-#     print(f"Warning: Failed to log in to wandb: {e}")
 
 ray.init(
     num_gpus=gpu_count,
@@ -90,7 +82,12 @@ def main(args):
                 "duration": args.duration,
                 "simulator_type": simulator_type,
                 "seed": seed,
+                "reward_type": args.reward_type,
             }
+            
+            # If reward_config is provided, parse it as JSON
+            if args.reward_config:
+                env_config["reward_config"] = json.loads(args.reward_config)
             
             # Create experiment name
             experiment_name = f"{args.policy}_{simulator_type}"
@@ -115,11 +112,37 @@ def main(args):
                 "entity": WANDB_ENTITY
             }
             
-            # Run experiment
-            if args.tune:
+            # Run experiment based on mode
+            if args.mode == "tune":
+                # Only do hyperparameter tuning
+                print("Running hyperparameter tuning...")
                 run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name, seed, wandb_config, simulator_type)
-            else:
+                
+            elif args.mode == "train":
+                # Only do training
+                print("Running training...")
                 run_training(args, algo_config, checkpoint_dir, experiment_name, seed, wandb_config, simulator_type)
+                
+            elif args.mode == "tune_then_train":
+                # First tune, then train with the best config
+                print("Running hyperparameter tuning followed by training...")
+                best_config = run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name, seed, wandb_config, simulator_type)
+                
+                # Update algo_config with the best parameters from tuning
+                if best_config:
+                    print("Using best hyperparameters from tuning for training")
+                    # Convert best_config to algo_config
+                    if args.policy == "PPO":
+                        algo_config = configure_ppo(args, env_config)
+                        # Update with best parameters (handling nested dicts)
+                        if "training" in best_config:
+                            for key, value in best_config["training"].items():
+                                algo_config.training(**{key: value})
+                
+                # Run training with the tuned config
+                run_training(args, algo_config, checkpoint_dir, experiment_name, seed, wandb_config, simulator_type)
+            else:
+                raise ValueError(f"Unknown mode: {args.mode}. Choose from 'tune', 'train', or 'tune_then_train'")
 
 def configure_ppo(args, env_config):
     env = env_creator(env_config)
@@ -199,10 +222,8 @@ def run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name
         entity=WANDB_ENTITY,
         api_key=WANDB_API_KEY,
         log_config=True,  # Log configuration parameters
-        # upload_checkpoints=True,  # Upload checkpoints to W&B
     )
-    # print("WANDB_API_KEY", WANDB_API_KEY, "WANDB_PROJECT", WANDB_PROJECT, "WANDB_ENTITY", WANDB_ENTITY)
-
+    
     # Run hyperparameter tuning
     tuner = tune.Tuner(
         algo_config.algo_class,
@@ -227,37 +248,41 @@ def run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name
     )
     
     results = tuner.fit()
-    # tuner.report(
-    #         {"episode_reward_mean": results[metric]},
-    #     )
     
+    # Get the best result and directly report metrics
     best_result = results.get_best_result(
         metric="env_runners/episode_return_mean",
         mode="max",
     )
     best_score = best_result.metrics["env_runners"]["episode_return_mean"]
-    best_ckpt  = best_result.checkpoint
+    best_ckpt = best_result.checkpoint
     print("Best score:", best_score, "\nBest checkpoint:", best_ckpt)
 
-    best_ckpt_path = os.path.join(checkpoint_dir, "best.ckpt")
-    best_ckpt.to_directory(best_ckpt_path)      # creates the folder
-    print("✓  Saved best checkpoint to", best_ckpt_path)
+    # Save checkpoint with reward case and seed info
+    reward_type = algo_config.env_config.get("reward_type", "unknown")
+    seed = algo_config.env_config.get("seed", "unknown")
+    simulator_type = algo_config.env_config.get("simulator_type", "unknown")
+    best_ckpt_path = os.path.join(checkpoint_dir, f"best_{reward_type}_seed{seed}_sim_{simulator_type}_tune.ckpt")
+    best_ckpt.to_directory(best_ckpt_path)
+    print(f"✓  Saved best tuned checkpoint to {best_ckpt_path} (reward_type: {reward_type}, seed: {seed}, simulator_type: {simulator_type})")
+
+    return best_result.config
 
 
 def run_training(args, algo_config, checkpoint_dir, experiment_name, seed, wandb_config, simulator_type):
+    # Configure training
+    stopper = CombinedStopper(
+        MaximumIterationStopper(max_iter=args.iterations),
+    )
+    
     # Configure WandbLoggerCallback with comprehensive logging
     wandb_logger = WandbLoggerCallback(
         project=WANDB_PROJECT,
         entity=WANDB_ENTITY,
         api_key=WANDB_API_KEY,
         log_config=True,  # Log configuration parameters
-        # upload_checkpoints=True,  # Upload checkpoints to W&B
     )
 
-    stopper = CombinedStopper(
-        MaximumIterationStopper(max_iter=args.iterations),
-    )
-    
     # Run training
     tuner = tune.Tuner(
         algo_config.algo_class,
@@ -276,20 +301,25 @@ def run_training(args, algo_config, checkpoint_dir, experiment_name, seed, wandb
     )
     
     results = tuner.fit()
-
-    print("Results run_training:", results)
-
-    # tune.report(
-    #         {"episode_reward_mean": results[metric]},
-    #     )
-   
+    
+    # Get the best result and directly report metrics
     best_result = results.get_best_result(
         metric="env_runners/episode_return_mean",
         mode="max",
     )
     best_score = best_result.metrics["env_runners"]["episode_return_mean"]
-    best_ckpt  = best_result.checkpoint
+    best_ckpt = best_result.checkpoint
     print("Best score:", best_score, "\nBest checkpoint:", best_ckpt)
+    
+    # Save checkpoint with reward case and seed info
+    reward_type = algo_config.env_config.get("reward_type", "unknown")
+    seed = algo_config.env_config.get("seed", "unknown")
+    simulator_type = algo_config.env_config.get("simulator_type", "unknown")
+    best_ckpt_path = os.path.join(checkpoint_dir, f"best_{reward_type}_seed{seed}_sim_{simulator_type}.ckpt")
+    best_ckpt.to_directory(best_ckpt_path)
+    print(f"✓  Saved best checkpoint to {best_ckpt_path} (reward_type: {reward_type}, seed: {seed}, simulator_type: {simulator_type})")
+    
+    return results
 
 register_env("FSS_env", lambda config: env_creator(config))
 print("Registered environment")
@@ -300,7 +330,9 @@ if __name__ == "__main__":
     # Training configuration arguments
     parser.add_argument("--policy", type=str, default="PPO", help="RL algorithm to use")
     parser.add_argument("--checkpoint-dir", type=str, default="./checkpoints", help="Directory to save checkpoints")
-    parser.add_argument("--tune", action="store_true", help="Perform hyperparameter tuning")
+    parser.add_argument("--mode", type=str, default="train", choices=["tune", "train", "tune_then_train"],
+                       help="Operation mode: 'tune' for hyperparameter tuning only, 'train' for training only, or 'tune_then_train' to do both")
+    parser.add_argument("--tune", action="store_true", help="DEPRECATED: Use --mode=tune instead")
     parser.add_argument("--num-samples-hyperparameter-tuning", type=int, default=20, help="Number of hyperparameter samples to run")
     parser.add_argument("--max-iterations-hyperparameter-tuning", type=int, default=25, help="Maximum number of training iterations")
     parser.add_argument("--grace-period-hyperparameter-tuning", type=int, default=10, help="Grace period for early stopping")
@@ -327,7 +359,18 @@ if __name__ == "__main__":
     parser.add_argument("--num-gpus-per-learner", type=float, default=1, help="Number of GPUs per learner")
     parser.add_argument("--num-cpus-per-learner", type=int, default=1, help="Number of CPUs per learner")
     
+    # Reward configuration arguments
+    parser.add_argument("--reward-type", type=str, default="case1", 
+                       help="Type of reward function to use (case1, case2, case3, or case4)")
+    parser.add_argument("--reward-config", type=str, default=None,
+                       help="JSON string with reward function parameters")
+    
     args = parser.parse_args()
+    
+    # Handle backward compatibility with --tune flag
+    if args.tune and args.mode == "train":
+        print("Warning: --tune flag is deprecated. Using --mode=tune instead")
+        args.mode = "tune"
 
     # Start training
-    main(args) 
+    main(args)
