@@ -50,10 +50,10 @@ srun enroot start --root --mount /dss/dsshome1/05/ge26sav2/autops-rl:/workspace 
     --rollout-fragment-length 128 \\
     --batch-mode "truncate_episodes" \\
     --checkpoint-freq 10 \\
-    --seeds \"42\" \\
-    --num-samples-hyperparameter-tuning 3 \\
-    --max-iterations-hyperparameter-tuning 3 \\
-    --grace-period-hyperparameter-tuning 2 \\
+    --seeds \"42,43,44,45,46\" \\
+    --num-samples-hyperparameter-tuning 20 \\
+    --max-iterations-hyperparameter-tuning 20 \\
+    --grace-period-hyperparameter-tuning 10 \\
     --num-targets 5 \\
     --num-observers 5 \\
     --time-step 1 \\

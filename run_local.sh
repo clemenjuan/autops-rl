@@ -40,10 +40,10 @@ python train_scripts/custom_trainable.py \
   --rollout-fragment-length 256 \
   --batch-mode "truncate_episodes" \
   --checkpoint-freq 5 \
-  --seeds "42" \
-  --num-samples-hyperparameter-tuning 10 \
-  --max-iterations-hyperparameter-tuning 15 \
-  --grace-period-hyperparameter-tuning 5 \
+  --seeds \"42,43,44,45,46\" \\
+  --num-samples-hyperparameter-tuning 20 \
+  --max-iterations-hyperparameter-tuning 20 \
+  --grace-period-hyperparameter-tuning 10 \
   --num-targets 20 \
   --num-observers 20 \
   --time-step 1 \
