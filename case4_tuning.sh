@@ -39,12 +39,17 @@ srun enroot start --root --mount /dss/dsshome1/05/ge26sav2/autops-rl:/workspace 
     --mode tune \\
     --iterations 100 \\
     --simulator-types \"everyone,centralized,decentralized\" \\
-    --num-env-runners 75 \\
-    --num-envs-per-runner 4 \\
-    --num-cpus-per-runner 1 \\
+    --num-env-runners 32 \\
+    --num-envs-per-runner 1 \\
+    --num-cpus-per-runner 2 \\
     --num-gpus-per-runner 0 \\
     --num-learners 4 \\
     --num-gpus-per-learner 1 \\
+    --checkpoint-freq 10 \\
+    --batch-size 8192 \\
+    --minibatch-size 512 \\
+    --rollout-fragment-length 256 \\
+    --batch-mode "truncate_episodes" \\
     --seeds \"42,43,44,45,46\" \\
     --num-samples-hyperparameter-tuning 20 \\
     --max-iterations-hyperparameter-tuning 25 \\
