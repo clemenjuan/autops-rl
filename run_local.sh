@@ -35,19 +35,19 @@ python train_scripts/custom_trainable.py \
   --num-gpus-per-runner 0 \
   --num-learners 1 \
   --num-gpus-per-learner 1 \
-  --batch-size 8192 \
+  --train-batch-size 8192 \
   --minibatch-size 512 \
   --rollout-fragment-length 256 \
   --batch-mode "truncate_episodes" \
   --checkpoint-freq 5 \
-  --seeds \"42,43,44,45,46\" \\
+  --seeds "42" \
   --num-samples-hyperparameter-tuning 20 \
-  --max-iterations-hyperparameter-tuning 20 \
-  --grace-period-hyperparameter-tuning 10 \
+  --max-iterations-hyperparameter-tuning 15 \
+  --grace-period-hyperparameter-tuning 5 \
   --num-targets 20 \
   --num-observers 20 \
   --time-step 1 \
-  --duration 86400 \
+  --duration 43200 \
   --reward-type case1
 
 conda deactivate

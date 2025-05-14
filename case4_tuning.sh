@@ -46,7 +46,7 @@ srun enroot start --root --mount /dss/dsshome1/05/ge26sav2/autops-rl:/workspace 
     --num-learners 4 \\
     --num-gpus-per-learner 1 \\
     --checkpoint-freq 10 \\
-    --batch-size 8192 \\
+    --train-batch-size 8192 \\
     --minibatch-size 512 \\
     --rollout-fragment-length 256 \\
     --batch-mode "truncate_episodes" \\

@@ -167,8 +167,6 @@ def configure_ppo(args, env_config):
             num_gpus_per_env_runner=args.num_gpus_per_runner,
             explore=True,
             env_to_module_connector=_env_to_module_pipeline,
-            batch_size=args.batch_size,
-            minibatch_size=args.minibatch_size,
             rollout_fragment_length=args.rollout_fragment_length,
             batch_mode=args.batch_mode,
             sample_timeout_s=None
@@ -190,6 +188,8 @@ def configure_ppo(args, env_config):
         .training(
             # Learning rate can be a schedule or a fixed value
             lr=1e-5 * (args.num_learners ** 0.5),
+            train_batch_size_per_learner=args.train_batch_size,
+            minibatch_size=args.minibatch_size,
         )
         .api_stack(
             enable_rl_module_and_learner=True,
@@ -209,6 +209,11 @@ def run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name
                 "lr": tune.loguniform(1e-5, 1e-3),
                 "gamma": tune.uniform(0.9, 0.999),
                 "lambda_": tune.uniform(0.9, 1.0),
+                "train_batch_size_per_learner": tune.choice([4096, 8192, 16384]),
+                "minibatch_size": tune.choice([256, 512, 1024])
+            },
+            "env_runners": {
+                "rollout_fragment_length": tune.choice([128, 256, 512])
             }
         }
     # Configure ASHA scheduler for early stopping
@@ -363,7 +368,7 @@ if __name__ == "__main__":
     parser.add_argument("--num-cpus-per-learner", type=int, default=1, help="Number of CPUs per learner")
     
     # Batch configuration arguments
-    parser.add_argument("--batch-size", type=int, default=8192, help="Total size of batches for policy updates")
+    parser.add_argument("--train-batch-size", type=int, default=8192, help="Total size of batches for policy updates per learner")
     parser.add_argument("--minibatch-size", type=int, default=512, help="Size of minibatches for SGD updates")
     parser.add_argument("--rollout-fragment-length", type=int, default=256, help="Steps collected per worker before sending")
     parser.add_argument("--batch-mode", type=str, default="truncate_episodes", choices=["truncate_episodes", "complete_episodes"],
