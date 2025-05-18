@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=80
 #SBATCH -o autops_tuning_case4_%j.out
 #SBATCH -e autops_tuning_case4_%j.err
-#SBATCH --time=1-00:00:00
+#SBATCH --time=2-00:00:00
 #SBATCH --mail-type=END
 #SBATCH --mail-user=clemente.juan@tum.de
 
@@ -50,10 +50,10 @@ srun enroot start --root --mount /dss/dsshome1/05/ge26sav2/autops-rl:/workspace 
     --minibatch-size 512 \\
     --rollout-fragment-length 256 \\
     --batch-mode "truncate_episodes" \\
-    --seeds \"42,43,44,45,46\" \\
+    --seeds \"42\" \\
     --num-samples-hyperparameter-tuning 20 \\
-    --max-iterations-hyperparameter-tuning 25 \\
-    --grace-period-hyperparameter-tuning 10 \\
+    --max-iterations-hyperparameter-tuning 15 \\
+    --grace-period-hyperparameter-tuning 5 \\
     --num-targets 20 \\
     --num-observers 20 \\
     --time-step 1 \\
