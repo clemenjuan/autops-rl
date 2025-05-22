@@ -7,5 +7,7 @@ launch.json
 ppo_checkpoints/
 checkpoints/
 checkpoints_local_test/
+checkpoints_local_train/
 *.png
 wandb/
+collected_metrics/

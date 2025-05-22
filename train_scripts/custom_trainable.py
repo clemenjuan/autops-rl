@@ -68,6 +68,9 @@ def main(args):
     else:
         simulator_types = [args.simulator_type]
     
+    # At the beginning of the main function, add:
+    os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
+    
     for simulator_type in simulator_types:
         for seed in seeds:
             print("\n\n================================================================================")
@@ -187,9 +190,11 @@ def configure_ppo(args, env_config):
         )
         .training(
             # Learning rate can be a schedule or a fixed value
-            lr=1e-5 * (args.num_learners ** 0.5),
+            lr=args.lr * (args.num_learners ** 0.5),
             train_batch_size_per_learner=args.train_batch_size,
             minibatch_size=args.minibatch_size,
+            gamma=args.gamma,
+            lambda_=args.lambda_val,
         )
         .api_stack(
             enable_rl_module_and_learner=True,
@@ -373,6 +378,9 @@ if __name__ == "__main__":
     parser.add_argument("--rollout-fragment-length", type=int, default=256, help="Steps collected per worker before sending")
     parser.add_argument("--batch-mode", type=str, default="truncate_episodes", choices=["truncate_episodes", "complete_episodes"],
                         help="How to build batches: 'truncate_episodes' for partial episodes, 'complete_episodes' for full episodes only")
+    parser.add_argument("--lr", type=float, default=5e-5, help="Learning rate")
+    parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
+    parser.add_argument("--lambda_val", type=float, default=0.95, help="GAE lambda parameter")
     
     # Reward configuration arguments
     parser.add_argument("--reward-type", type=str, default="case1", 

@@ -7,6 +7,7 @@ from ray.rllib.connectors.env_to_module import FlattenObservations
 import os
 from datetime import datetime
 import json
+import random
 
 
 class FSS_env(MultiAgentEnv):
@@ -95,6 +96,12 @@ class FSS_env(MultiAgentEnv):
         else:
             raise ValueError("Invalid simulator type. Choose from 'centralized', 'decentralized', or 'everyone'.")
 
+        # Initialize event tracking metrics
+        self.observation_events = {f"observer_{i}": [] for i in range(self.num_observers)}
+        self.communication_events = {f"observer_{i}": [] for i in range(self.num_observers)}
+        self.observation_counts = {f"observer_{i}": 0 for i in range(self.num_observers)}
+        self.communication_counts = {f"observer_{i}": 0 for i in range(self.num_observers)}
+
     #@override
     def get_observation_space(self, agent_id):
         # All observer agents have the same observation space in this implementation
@@ -115,7 +122,7 @@ class FSS_env(MultiAgentEnv):
         # Reset the environment to an initial state
         if seed is not None:
             self.seed = seed
-            np.random.seed(self.seed)
+            random.seed(self.seed)
 
         self.sim_time = 0
         self.latest_step_duration = 0
@@ -133,6 +140,12 @@ class FSS_env(MultiAgentEnv):
         
         # Reset the list of agents
         self.agents = self.possible_agents.copy()
+        
+        # Reset event tracking metrics
+        self.observation_events = {f"observer_{i}": [] for i in range(self.num_observers)}
+        self.communication_events = {f"observer_{i}": [] for i in range(self.num_observers)}
+        self.observation_counts = {f"observer_{i}": 0 for i in range(self.num_observers)}
+        self.communication_counts = {f"observer_{i}": 0 for i in range(self.num_observers)}
         
         # Generate observations for each agent
         observations = {}
@@ -154,9 +167,9 @@ class FSS_env(MultiAgentEnv):
         assert self.agents, "Cannot step an environment with no agents"
         assert set(action_dict.keys()) == set(self.agents), "Actions must be provided for all agents"
 
-        # Clear previous rewards before calculating new ones
-        rewards = {}
+        # Calculate rewards, new observations, etc. as you already do
         observations = {}
+        rewards = {}
         terminated = {}
         truncated = {}
         infos = {}
@@ -217,9 +230,7 @@ class FSS_env(MultiAgentEnv):
             truncated["__all__"] = False
             self.agents = []
 
-            # TODO: Save metrics with reward_details, global_observation_status_matrix and adjacency_matrix_acc
             # Save metrics to file for later analysis
-            # Create metrics directory if it doesn't exist
             metrics_dir = os.path.join("collected_metrics")
             os.makedirs(metrics_dir, exist_ok=True)
 
@@ -227,55 +238,27 @@ class FSS_env(MultiAgentEnv):
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             metrics_file = os.path.join(metrics_dir, f"metrics_{timestamp}_{self.reward_type}_simulator_type_{self.simulator_type}.json")
 
-            # Prepare metrics data with observation statistics
-            # Count observed targets
-            total_targets = len(self.simulator.target_satellites)
-            observed_targets = np.sum(np.any(self.simulator.global_observation_status_matrix == 3, axis=0))
-            observation_percentage = 100.0 * observed_targets / total_targets if total_targets > 0 else 0.0
-
-            # Calculate connectivity statistics
-            total_possible_connections = self.num_observers * (self.num_observers - 1)
-            active_connections = np.sum(self.simulator.adjacency_matrix_acc) - self.num_observers  # Subtract identity diagonal
-            connectivity_percentage = 100.0 * active_connections / total_possible_connections if total_possible_connections > 0 else 0.0
-
-            metrics_data = {
-                "simulation_params": {
-                    "num_targets": len(self.simulator.target_satellites),
-                    "num_observers": len(self.simulator.observer_satellites),
-                    "duration": self.duration,
-                    "time_step": self.time_step,
-                    "simulator_type": self.simulator_type,
-                    "reward_type": self.reward_type,
-                    "seed": self.seed
-                },
-                "observation_stats": {
-                    "total_targets": total_targets,
-                    "observed_targets": int(observed_targets),
-                    "observation_percentage": float(observation_percentage)
-                },
-                "connectivity_stats": {
-                    "total_possible_connections": int(total_possible_connections),
-                    "active_connections": int(active_connections),
-                    "connectivity_percentage": float(connectivity_percentage)
-                },                # Still keep the matrices for detailed analysis
-                "global_observation_status_avg": float(np.mean(self.simulator.global_observation_status_matrix)),
-                "global_observation_status": self.simulator.global_observation_status_matrix.tolist(),
-                "adjacency_matrix_acc_avg": float(np.mean(self.simulator.adjacency_matrix_acc)),
-                "adjacency_matrix_acc": self.simulator.adjacency_matrix_acc.tolist(),
-            }
-
+            # Collect comprehensive metrics including event tracking
+            metrics_data = self.collect_comprehensive_metrics()
+            
+            # Add termination information
+            metrics_data["is_terminal"] = True
+            metrics_data["step"] = self.simulator.time_step_number
+            metrics_data["sim_time"] = self.sim_time
+            
             # Save metrics to file
             with open(metrics_file, 'w') as f:
                 json.dump(metrics_data, f, indent=4)
 
-            # Print metrics
+            # Print summary metrics
             print(f"Special events detected: {self.special_events_count}")
             print(f"Special events for observing: {self.special_event_observe}")
             print(f"Special events for communicating: {self.special_event_communicate}")
+            print(f"Observed targets: {metrics_data['observation_stats']['observed_targets']} out of {metrics_data['observation_stats']['total_targets']} ({metrics_data['observation_stats']['observation_percentage']:.2f}%)")
             print(f"Forced termination at step {self.simulator.time_step_number}")
                 
+        
         return observations, rewards, terminated, truncated, infos
-
 
     def _generate_observation(self, agent):
         """
@@ -368,6 +351,99 @@ class FSS_env(MultiAgentEnv):
             return True
 
         return False
+
+
+    def _calculate_avg_steps_between_events(self, events_dict):
+        """Calculate average time steps between events for each agent"""
+        result = {}
+        for agent, events in events_dict.items():
+            if len(events) <= 1:
+                result[agent] = 0
+            else:
+                # Calculate time differences between consecutive events (in env steps)
+                steps_diffs = [events[i] - events[i-1] for i in range(1, len(events))]
+                result[agent] = sum(steps_diffs) / len(steps_diffs) if steps_diffs else 0
+        
+        # Add global average
+        all_events = [event for agent_events in events_dict.values() for event in agent_events]
+        all_events.sort()
+        if len(all_events) <= 1:
+            result["global_average"] = 0
+        else:
+            steps_diffs = [all_events[i] - all_events[i-1] for i in range(1, len(all_events))]
+            result["global_average"] = sum(steps_diffs) / len(steps_diffs) if steps_diffs else 0
+        
+        return result
+
+    def collect_comprehensive_metrics(self):
+        """Collect all relevant metrics in one place"""
+        
+        # Calculate observation stats
+        total_targets = self.num_targets
+        observed_targets = np.sum(np.any(self.simulator.global_observation_status_matrix == 3, axis=0))
+        observation_percentage = (observed_targets / total_targets) * 100 if total_targets > 0 else 0
+        
+        # Calculate connectivity stats
+        total_possible_connections = self.num_observers * (self.num_observers - 1)
+        active_connections = np.sum(self.simulator.adjacency_matrix_acc) - self.num_observers  # Remove self-connections
+        connectivity_percentage = (active_connections / total_possible_connections) * 100 if total_possible_connections > 0 else 0
+        
+        # Battery and storage levels
+        battery_levels = {f"observer_{i}": sat.epsys['EnergyAvailable'] / sat.epsys['EnergyStorage'] 
+                         for i, sat in enumerate(self.simulator.observer_satellites)}
+        storage_levels = {f"observer_{i}": sat.DataHand['StorageAvailable'] / sat.DataHand['DataStorage'] 
+                         for i, sat in enumerate(self.simulator.observer_satellites)}
+        
+        # Collect baseline metrics from the existing function
+        base_metrics = {
+            "simulator_type": self.simulator_type,
+            "num_observers": self.num_observers,
+            "num_targets": self.num_targets,
+            "time_step": self.time_step,
+            "duration": self.duration,
+            "current_time": self.sim_time,
+            "reward_type": self.reward_type,
+            "seed": self.seed,
+            
+            # Add observation stats
+            "observation_stats": {
+                "total_targets": int(total_targets),
+                "observed_targets": int(observed_targets),
+                "observation_percentage": float(observation_percentage)
+            },
+            
+            # Add connectivity stats
+            "connectivity_stats": {
+                "total_possible_connections": int(total_possible_connections),
+                "active_connections": int(active_connections),
+                "connectivity_percentage": float(connectivity_percentage)
+            },
+            
+            # Add resource stats
+            "resource_stats": {
+                "battery_levels": battery_levels,
+                "storage_levels": storage_levels,
+                "average_battery": float(np.mean(list(battery_levels.values()))),
+                "average_storage": float(np.mean(list(storage_levels.values())))
+            },
+            
+            # Add event tracking metrics
+            "event_stats": {
+                "special_events_count": self.special_events_count,
+                "special_event_observe": self.special_event_observe,
+                "special_event_communicate": self.special_event_communicate
+            },
+            
+            # Add summary matrices (as compact statistics)
+            "matrix_stats": {
+                "global_observation_status_avg": float(np.mean(self.simulator.global_observation_status_matrix)),
+                "adjacency_matrix_acc_avg": float(np.mean(self.simulator.adjacency_matrix_acc)),
+                "global_observation_counts": float(np.mean(self.simulator.global_observation_counts)),
+                "global_communication_counts": float(np.mean(self.simulator.global_communication_counts))
+            }
+        }
+        
+        return base_metrics
 
 def _env_to_module_pipeline(env):
     return FlattenObservations(

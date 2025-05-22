@@ -15,6 +15,9 @@ class RewardFunction:
         self.final_targets_bonus = 1.0 # Bonus factor given at the end of the mission (cases 3 and 4)
         self.depletion_penalty = 0
         
+        # Add global scaling factor
+        self.reward_scale = 0.01  # Scale all rewards to 1/100
+        
         # Apply configuration if provided
         if config:
             for key, value in config.items():
@@ -91,7 +94,8 @@ class Case1RewardFunction(RewardFunction):
         acknowledged_targets = np.sum(observer.observation_status_matrix > 0)
         reward += self.targets_bonus(acknowledged_targets, total_targets)
         
-        return reward
+        # Apply global scaling
+        return reward * self.reward_scale
 
 
 class Case2RewardFunction(RewardFunction):
@@ -123,7 +127,8 @@ class Case2RewardFunction(RewardFunction):
         unacknowledged_targets = total_targets - np.sum(observer.observation_status_matrix > 0)
         reward -= self.targets_bonus(unacknowledged_targets, total_targets)
         
-        return reward
+        # Apply global scaling
+        return reward * self.reward_scale
 
 
 class Case3RewardFunction(RewardFunction):
@@ -150,7 +155,8 @@ class Case3RewardFunction(RewardFunction):
             else:
                 reward += self.failed_action_penalty()
         
-        return reward
+        # Apply global scaling
+        return reward * self.reward_scale
     
     def calculate_global_bonus(self, global_observation_status):
         """Calculate global bonus based on total observed targets"""
@@ -183,7 +189,8 @@ class Case4RewardFunction(RewardFunction):
             else:
                 reward += self.failed_action_penalty()
         
-        return reward
+        # Apply global scaling
+        return reward * self.reward_scale
     
     def calculate_global_penalty(self, global_observation_status, num_targets):
         """Calculate global penalty based on unobserved targets"""

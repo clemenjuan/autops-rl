@@ -27,7 +27,10 @@ class Simulator():
         self.contacts_matrix = np.zeros((num_observers, num_targets), dtype=int)  # Current timestep contacted targets matrix
         self.contacts_matrix_acc = np.zeros((num_observers, num_targets), dtype=int)  # Accumulated contacted targets matrix
         self.target_satellites = [TargetSatellite(name=f"Target-{i+1}") for i in range(num_targets)]
-        self.observer_satellites = [ObserverSatellite(name=f"Observer-{i+1}", num_targets=num_targets, num_observers=num_observers) for i in range(num_observers)]
+        self.observer_satellites = [ObserverSatellite(name=f"Observer-{i+1}", 
+                                                     num_targets=num_targets, 
+                                                     num_observers=num_observers) 
+                                   for i in range(num_observers)]
         self.time_step = time_step
         self.time_step_number = 0
         self.duration = duration
