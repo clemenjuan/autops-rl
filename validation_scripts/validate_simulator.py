@@ -2,6 +2,11 @@ import unittest
 import os
 import time
 import numpy as np
+import sys
+# Add parent directory to path to allow importing src
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 from src.simulator import Simulator
 from src.satellites import ObserverSatellite, TargetSatellite
 from astropy import units # as u
@@ -376,18 +381,20 @@ class TestSatelliteSimulation(unittest.TestCase):
     
     def test_observation_accuracy(self):
         print("\n######### Observation Accuracy Test ##########################################\n")
-        # Define test positions around the limit distance of 263 km (263.47 km)
-        # Field of view is 20º, so angles between pointing direction and target greater than 10º should be out of view
+        # Define test positions around the limit distance of 52.7 km
+        # Field of view is 5º within pointing direction, so angles between pointing direction and target greater than 5º should be out of view
         # Define test positions and attitudes
         test_positions_and_attitudes = [
             # (observer position, target distance, attitude quaternion, should_observe)
-            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 100000, [1, 0, 0, 0], True),  # Perfect alignment
-            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 263000, [1, 0, 0, 0], True),  # On the edge of the max distance
-            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 264000, [1, 0, 0, 0], False),  # Just beyond the max distance
-            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 200000, [0.707, 0, 0.707, 0], False),  # 90-degree rotation
-            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 200000, [0.866, 0, -0.5, 0], False),  # negative 60-degree rotation
-            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 200000, [0.9848, 0, 0.1736, 0], False),  # 20-degree rotation
-            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 200000, [0.9960, 0, -0.0870, 0], True),  # -10-degree rotation
+            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 10000, [1, 0, 0, 0], True),   # Perfect alignment, well within range
+            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 50000, [1, 0, 0, 0], True),   # Close to max distance
+            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 52500, [1, 0, 0, 0], True),   # On the edge of the max distance
+            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 53000, [1, 0, 0, 0], False),  # Just beyond the max distance
+            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 30000, [0.707, 0, 0.707, 0], False),  # 90-degree rotation, out of FOV
+            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 30000, [0.866, 0, -0.5, 0], False),  # negative 60-degree rotation, out of FOV
+            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 30000, [0.9962, 0, 0.0872, 0], False),  # ~10-degree rotation, out of FOV (>5 degrees)
+            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 30000, [0.9988, 0, 0.0436, 0], True),   # ~5-degree rotation, on edge of FOV
+            ((7142846.101516889, -1129.3850175896163, 7380.564140244884), 30000, [0.9998, 0, -0.0218, 0], True),  # ~2.5-degree rotation, within FOV
         ]
 
         for pos1, distance, quaternion, should_observe in test_positions_and_attitudes:

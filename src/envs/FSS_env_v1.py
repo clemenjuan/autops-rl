@@ -101,6 +101,12 @@ class FSS_env(MultiAgentEnv):
         self.communication_events = {f"observer_{i}": [] for i in range(self.num_observers)}
         self.observation_counts = {f"observer_{i}": 0 for i in range(self.num_observers)}
         self.communication_counts = {f"observer_{i}": 0 for i in range(self.num_observers)}
+        
+        # Initialize reward history
+        self.reward_history = {
+            'total': [],
+            'standard_deviation': []
+        }
 
     #@override
     def get_observation_space(self, agent_id):
@@ -146,6 +152,12 @@ class FSS_env(MultiAgentEnv):
         self.communication_events = {f"observer_{i}": [] for i in range(self.num_observers)}
         self.observation_counts = {f"observer_{i}": 0 for i in range(self.num_observers)}
         self.communication_counts = {f"observer_{i}": 0 for i in range(self.num_observers)}
+        
+        # Reset reward history
+        self.reward_history = {
+            'total': [],
+            'standard_deviation': []
+        }
         
         # Generate observations for each agent
         observations = {}
@@ -217,6 +229,12 @@ class FSS_env(MultiAgentEnv):
             terminated[agent] = False
             truncated[agent] = False
             infos[agent] = {}
+
+   
+        
+        # Log total reward for this step
+        self.reward_history['total'].append(sum(rewards.values()))
+        self.reward_history['standard_deviation'].append(np.std(list(rewards.values())))
         
         # Always add the __all__ key to terminated and truncated
         terminated["__all__"] = False
@@ -231,7 +249,7 @@ class FSS_env(MultiAgentEnv):
             self.agents = []
 
             # Save metrics to file for later analysis
-            metrics_dir = os.path.join("collected_metrics")
+            metrics_dir = os.path.join("collected_metrics_v2")
             os.makedirs(metrics_dir, exist_ok=True)
 
             # Generate unique filename with timestamp
@@ -244,18 +262,18 @@ class FSS_env(MultiAgentEnv):
             # Add termination information
             metrics_data["is_terminal"] = True
             metrics_data["step"] = self.simulator.time_step_number
-            metrics_data["sim_time"] = self.sim_time
+            # metrics_data["sim_time"] = self.sim_time
             
             # Save metrics to file
             with open(metrics_file, 'w') as f:
                 json.dump(metrics_data, f, indent=4)
 
             # Print summary metrics
-            print(f"Special events detected: {self.special_events_count}")
-            print(f"Special events for observing: {self.special_event_observe}")
-            print(f"Special events for communicating: {self.special_event_communicate}")
-            print(f"Observed targets: {metrics_data['observation_stats']['observed_targets']} out of {metrics_data['observation_stats']['total_targets']} ({metrics_data['observation_stats']['observation_percentage']:.2f}%)")
-            print(f"Forced termination at step {self.simulator.time_step_number}")
+            # print(f"Special events detected: {self.special_events_count}")
+            # print(f"Special events for observing: {self.special_event_observe}")
+            # print(f"Special events for communicating: {self.special_event_communicate}")
+            # print(f"Observed targets: {metrics_data['observation_stats']['observed_targets']} out of {metrics_data['observation_stats']['total_targets']} ({metrics_data['observation_stats']['observation_percentage']:.2f}%)")
+            # print(f"Forced termination at step {self.simulator.time_step_number}")
                 
         
         return observations, rewards, terminated, truncated, infos
@@ -394,6 +412,11 @@ class FSS_env(MultiAgentEnv):
         storage_levels = {f"observer_{i}": sat.DataHand['StorageAvailable'] / sat.DataHand['DataStorage'] 
                          for i, sat in enumerate(self.simulator.observer_satellites)}
         
+        reward_stats = {
+            "total_reward": self.reward_history['total'],
+            "standard_deviation": self.reward_history['standard_deviation']
+        }
+        
         # Collect baseline metrics from the existing function
         base_metrics = {
             "simulator_type": self.simulator_type,
@@ -401,7 +424,6 @@ class FSS_env(MultiAgentEnv):
             "num_targets": self.num_targets,
             "time_step": self.time_step,
             "duration": self.duration,
-            "current_time": self.sim_time,
             "reward_type": self.reward_type,
             "seed": self.seed,
             
@@ -421,10 +443,10 @@ class FSS_env(MultiAgentEnv):
             
             # Add resource stats
             "resource_stats": {
-                "battery_levels": battery_levels,
-                "storage_levels": storage_levels,
                 "average_battery": float(np.mean(list(battery_levels.values()))),
-                "average_storage": float(np.mean(list(storage_levels.values())))
+                "standard_deviation_battery": float(np.std(list(battery_levels.values()))),
+                "average_storage": float(np.mean(list(storage_levels.values()))),
+                "standard_deviation_storage": float(np.std(list(storage_levels.values())))
             },
             
             # Add event tracking metrics
@@ -440,7 +462,8 @@ class FSS_env(MultiAgentEnv):
                 "adjacency_matrix_acc_avg": float(np.mean(self.simulator.adjacency_matrix_acc)),
                 "global_observation_counts": float(np.mean(self.simulator.global_observation_counts)),
                 "global_communication_counts": float(np.mean(self.simulator.global_communication_counts))
-            }
+            },
+            "reward_stats": reward_stats
         }
         
         return base_metrics

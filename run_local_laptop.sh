@@ -7,9 +7,9 @@ eval "$(conda shell.bash hook)"
 conda activate autops-rl
 
 # Set environment variables
-export WANDB_API_KEY="4b5c9c4ae3ffb150f67942dec8cc7d9f6fbcd558"
-export WANDB_PROJECT="autops-rl"
-export WANDB_ENTITY="sps-tum"
+# export WANDB_API_KEY="4b5c9c4ae3ffb150f67942dec8cc7d9f6fbcd558"
+# export WANDB_PROJECT="autops-rl"
+# export WANDB_ENTITY="sps-tum"
 
 # Add the project root to PYTHONPATH - use quotes to handle spaces in path
 export PYTHONPATH="$PYTHONPATH:$(pwd)"
@@ -21,6 +21,9 @@ mkdir -p "$LOCAL_CHECKPOINT_DIR"
 
 # Add this line before ray.init() in your script
 export RAY_DEDUP_LOGS=0
+
+# Set wandb to offline mode
+export WANDB_MODE=offline
 
 # Run hyperparameter tuning with optimized settings
 python train_scripts/custom_trainable.py \
@@ -44,7 +47,7 @@ python train_scripts/custom_trainable.py \
   --num-targets 20 \
   --num-observers 20 \
   --time-step 1 \
-  --duration 1000 \
+  --duration 100 \
   --reward-type case1
 
 conda deactivate

@@ -11,3 +11,4 @@ checkpoints_local_train/
 *.png
 wandb/
 collected_metrics/
+collected_metrics_v2/

@@ -6,17 +6,20 @@ class RewardFunction:
         # Default parameters
         self.standby_penalty = 0.01 # Penalty for doing nothing
         self.k = 0.01 # Resource consumption penalty factor
-        self.rho = 0.03 # Communication success reward factor
-        self.lambda_val = 0.1 # New observation reward factor
+        self.rho = 0.0001 # Communication success reward factor
+        self.lambda_val = 1 # New observation reward factor
         self.mu = 0.01 # Failed communication penalty factor
         self.observation_reward = 0.1 # Reward for successful observation
         self.mission_complete_bonus = 0 # Bonus for completing mission
         self.targets_bonus_factor = 0.01 # Bonus factor for remaining/observed targets
-        self.final_targets_bonus = 1.0 # Bonus factor given at the end of the mission (cases 3 and 4)
+        self.final_targets_bonus = 0.1 # Bonus factor given at the end of the mission (cases 3 and 4)
         self.depletion_penalty = 0
         
         # Add global scaling factor
-        self.reward_scale = 0.01  # Scale all rewards to 1/100
+        self.reward_scale = 0.001  # Scale all rewards to 1/1000
+        
+        # Add maximum data transmission cap for reward calculation
+        self.max_data_reward = 1  # Cap communication reward contribution
         
         # Apply configuration if provided
         if config:
@@ -41,8 +44,10 @@ class RewardFunction:
         return -self.mu
     
     def successful_communication_reward(self, result_info):
-        """Reward for successful communication"""
-        return self.rho * result_info.get("data_transmitted", 0)
+        """Reward for successful communication - capped to prevent imbalance"""
+        data_transmitted = result_info.get("data_transmitted", 0)
+        # Cap the reward to prevent it from dominating other rewards
+        return min(self.rho * data_transmitted, self.max_data_reward)
     
     def new_observation_reward(self, pointing_accuracy):
         """Reward for new observation, scaled by pointing accuracy"""
@@ -71,7 +76,7 @@ class Case1RewardFunction(RewardFunction):
     """
     def calculate_reward(self, action_type, observer, result_info):
         reward = self.resource_penalty(observer)
-        
+        # print(f"Resource penalty: {reward}")
         if action_type == "standby":
             # Small penalty for doing nothing
             reward -= self.standby_penalty
@@ -79,6 +84,7 @@ class Case1RewardFunction(RewardFunction):
         elif action_type == "communication":
             if result_info.get("successful", False):
                 reward += self.successful_communication_reward(result_info)
+                print(f"Successful communication reward: {reward}")
             else:
                 reward += self.failed_action_penalty()
         
@@ -86,14 +92,16 @@ class Case1RewardFunction(RewardFunction):
             if result_info.get("successful", False):
                 reward += self.successful_observation_reward()
                 reward += self.new_observation_reward(result_info.get("pointing_accuracy"))
+                print(f"Successful observation reward: {reward}")
             else:
                 reward += self.failed_action_penalty()
-        
+        # print(f"After communication and observation: {reward}")
         # Add positive reward for each acknowledged target
         total_targets = len(observer.observation_status_matrix)
         acknowledged_targets = np.sum(observer.observation_status_matrix > 0)
-        reward += self.targets_bonus(acknowledged_targets, total_targets)
-        
+
+        reward += self.targets_bonus(acknowledged_targets, total_targets)	
+        # print(f"Targets bonus: {reward}")
         # Apply global scaling
         return reward * self.reward_scale
 
@@ -162,7 +170,7 @@ class Case3RewardFunction(RewardFunction):
         """Calculate global bonus based on total observed targets"""
         # Count how many targets have been observed by at least one agent
         observed_targets = np.sum(np.any(global_observation_status == 3, axis=0))
-        return self.final_targets_bonus * observed_targets  # Adjust multiplier as needed
+        return self.final_targets_bonus * observed_targets * self.reward_scale # Adjust multiplier as needed
 
 
 class Case4RewardFunction(RewardFunction):
@@ -197,7 +205,7 @@ class Case4RewardFunction(RewardFunction):
         # Count how many targets have not been observed by any agent
         observed_targets = np.sum(np.any(global_observation_status == 3, axis=0))
         unobserved_targets = num_targets - observed_targets
-        return -self.final_targets_bonus * unobserved_targets  # Adjust multiplier as needed
+        return -self.final_targets_bonus * unobserved_targets * self.reward_scale	 # Adjust multiplier as needed
 
 
 def get_reward_function(reward_type, config=None):

@@ -201,7 +201,7 @@ class Simulator():
             # Check for resource depletion
             if observer.epsys['EnergyAvailable'] < 0 or observer.DataHand['StorageAvailable'] < 0:
                 print(f"Satellite energy or storage depleted ({observer.name}). Terminating simulation.")
-                reward += self.check_depletion(observer)
+                reward += self.reward_function.check_depletion(observer)
                 self.breaker = True
             
             self.batteries[i] = max(observer.epsys['EnergyAvailable'] / observer.epsys['EnergyStorage'], 0)
