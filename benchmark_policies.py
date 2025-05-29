@@ -13,18 +13,13 @@ from ray import tune
 from ray.rllib.algorithms.algorithm import Algorithm
 from ray.rllib.core.rl_module import RLModule
 from ray.tune.registry import register_env
-
 from src.envs.FSS_env_v1 import FSS_env
 from rule_based_policy import RuleBasedPolicy
 from mip_policy import MIPPolicy
 from benchmark_utils import BenchmarkMetrics, get_system_info
-
-
 def env_creator(env_config):
     """Environment creator function for Ray registration"""
     return FSS_env(env_config)
-
-
 class PolicyBenchmark:
     def __init__(self, env_config, system_info):
         self.env_config = env_config
@@ -145,8 +140,6 @@ class PolicyBenchmark:
         print(f"✓ Completed episode with {policy_name} on {self.env_config['simulator_type']} in {episode_time:.2f}s ({step_count} steps)")
         
         return metrics.get_results()
-
-
 def get_checkpoint_paths():
     """
     Define checkpoint paths for each case.
@@ -155,30 +148,36 @@ def get_checkpoint_paths():
     """
     
     # Base directory for checkpoints
-    checkpoint_base = "checkpoints_local_train"
+    checkpoint_base = "checkpoints"
     
     # Define checkpoint paths for each case
     # UPDATE THESE PATHS TO MATCH YOUR ACTUAL CHECKPOINT LOCATIONS
     checkpoint_paths = {
-        "case1": os.path.abspath(f"{checkpoint_base}/everyone/best_case1_seed42_sim_everyone.ckpt"),
-        # Only test one for now to avoid the distributed training issue
-        "case2": os.path.abspath(f"{checkpoint_base}/everyone/best_case1_seed42_sim_everyone.ckpt"),
-        # "case3": os.path.abspath(f"{checkpoint_base}/everyone/best_case1_seed42_sim_everyone.ckpt"),
-        # "case4": os.path.abspath(f"{checkpoint_base}/everyone/best_case1_seed42_sim_everyone.ckpt"),
-    }
-
-    # When you have more checkpoints, use these paths:
-    #     "case1": os.path.abspath(f"{checkpoint_base}/everyone/best_case1_seed42_sim_everyone.ckpt"),
-    #     "case2": os.path.abspath(f"{checkpoint_base}/everyone/best_case2_seed42_sim_everyone.ckpt"),
-    #     "case3": os.path.abspath(f"{checkpoint_base}/everyone/best_case3_seed42_sim_everyone.ckpt"),
-    #     "case4": os.path.abspath(f"{checkpoint_base}/everyone/best_case4_seed42_sim_everyone.ckpt"),
-    # }
-    
+        "case1": os.path.abspath(f"{checkpoint_base}/best_case1_seed42_sim_everyone.ckpt"),
+        "case2": os.path.abspath(f"{checkpoint_base}/best_case2_seed44_sim_everyone.ckpt"),
+        "case3": os.path.abspath(f"{checkpoint_base}/best_case3_seed42_sim_everyone.ckpt"),
+        "case4": os.path.abspath(f"{checkpoint_base}/best_case4_seed44_sim_everyone.ckpt"),
+    }    
     return checkpoint_paths
-
-
 def run_benchmark_suite(config_sets, num_episodes=5, max_steps_per_episode=None):
     """Run benchmark across all configurations and policies"""
+    
+    # Test if any RL policies can actually be loaded
+    checkpoint_paths = get_checkpoint_paths()
+    system_info = get_system_info()
+    test_config = {"num_observers": 5, "num_targets": 10, "time_step": 1, "duration": 100, "seed": 47, "reward_type": "case1", "simulator_type": "everyone"}
+    test_benchmark = PolicyBenchmark(test_config, system_info)
+    
+    working_policies = 0
+    for case_name, checkpoint_path in checkpoint_paths.items():
+        if os.path.exists(checkpoint_path):
+            rl_module = test_benchmark.load_rl_module(checkpoint_path, case_name)
+            if rl_module is not None:
+                working_policies += 1
+    
+    if working_policies == 0:
+        print("❌ No RL policies could be loaded - stopping benchmark")
+        return [], None
     
     print("="*80)
     print("STARTING COMPREHENSIVE BENCHMARK")
@@ -338,8 +337,6 @@ def run_benchmark_suite(config_sets, num_episodes=5, max_steps_per_episode=None)
     print(f"{'='*80}")
     
     return all_results, experiment_dir
-
-
 def main():
     parser = argparse.ArgumentParser(description="Benchmark RL policies against baselines across simulator types")
     parser.add_argument("--configs", type=str, default="small", 
@@ -370,7 +367,7 @@ def main():
             "5_agents_10_targets": {
                 "num_observers": 5, "num_targets": 10,
                 "time_step": 1, "duration": 100,  # Very short for testing
-                "seed": 42, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1"
             }
         }
     elif args.configs == "large":
@@ -378,27 +375,27 @@ def main():
             "20_agents_100_targets": {
                 "num_observers": 20, "num_targets": 100,
                 "time_step": 1, "duration": 86400,
-                "seed": 42, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1"
             },
             "20_agents_500_targets": {
                 "num_observers": 20, "num_targets": 500,
                 "time_step": 1, "duration": 86400,
-                "seed": 42, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1"
             },
             "50_agents_500_targets": {
                 "num_observers": 50, "num_targets": 500,
                 "time_step": 1, "duration": 86400,
-                "seed": 42, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1"
             },
             "100_agents_1000_targets": {
                 "num_observers": 100, "num_targets": 1000,
                 "time_step": 1, "duration": 86400,
-                "seed": 42, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1"
             },
             "1000_agents_10000_targets": {
                 "num_observers": 1000, "num_targets": 10000,
                 "time_step": 1, "duration": 86400,
-                "seed": 42, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1"
             }
         }
     elif args.configs == "all":
@@ -406,27 +403,27 @@ def main():
             "20_agents_100_targets": {
                 "num_observers": 20, "num_targets": 100,
                 "time_step": 1, "duration": 86400,
-                "seed": 42, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1"
             },
             "20_agents_500_targets": {
                 "num_observers": 20, "num_targets": 500,
                 "time_step": 1, "duration": 86400,
-                "seed": 42, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1"
             },
             "50_agents_500_targets": {
                 "num_observers": 50, "num_targets": 500,
                 "time_step": 1, "duration": 86400,
-                "seed": 42, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1"
             },
             "100_agents_1000_targets": {
                 "num_observers": 100, "num_targets": 1000,
                 "time_step": 1, "duration": 86400,
-                "seed": 42, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1"
             },
             "1000_agents_10000_targets": {
                 "num_observers": 1000, "num_targets": 10000,
                 "time_step": 1, "duration": 86400,
-                "seed": 42, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1"
             }
         }
     else:  # standard
@@ -434,17 +431,17 @@ def main():
             "20_agents_100_targets": {
                 "num_observers": 20, "num_targets": 100,
                 "time_step": 1, "duration": 86400,
-                "seed": 42, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1"
             },
             "20_agents_500_targets": {
                 "num_observers": 20, "num_targets": 500,
                 "time_step": 1, "duration": 86400,
-                "seed": 42, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1"
             },
             "50_agents_500_targets": {
                 "num_observers": 50, "num_targets": 500,
                 "time_step": 1, "duration": 86400,
-                "seed": 42, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1"
             }
         }
     
@@ -456,7 +453,6 @@ def main():
             max_steps_per_episode=args.max_steps
         )
         
-        print(f"\n🎉 Benchmark completed successfully!")
         print(f"📁 Experiment saved in: {experiment_dir}")
         print(f"📊 To analyze results, run:")
         print(f"    python analyze_results.py {experiment_dir / 'benchmark_results.json'}")
@@ -471,7 +467,5 @@ def main():
             ray.shutdown()
         except:
             pass
-
-
 if __name__ == "__main__":
     main() 

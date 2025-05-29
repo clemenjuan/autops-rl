@@ -131,6 +131,7 @@ class BenchmarkMetrics:
             "policy_name": self.policy_name,
             "num_agents": self.num_agents,
             "num_targets": self.num_targets,
+            "simulator_type": getattr(self, 'simulator_type', 'unknown'),
             "system_info": self.system_info,
             "timing": {
                 "episode_time": self.episode_time,
