@@ -15,7 +15,7 @@ class Satellite(ABC):
     def __init__(self, orbit=None, epsys=None, commsys=None, DataHand=None, PropSys=None, Optic=None, category=None, name=None, attitude=None, availability=None, instrumentation=None, RewardFunction=None):
         # Sun-synchronous parameters
 
-        semimajoraxis_sso = random.uniform(7070, 7170)  # Corresponding to 700-800 km altitudes
+        semimajoraxis_sso = random.uniform(6970, 7270)  # Corresponding to 600-900 km altitudes
         J2 = 1.08263e-3  # Second zonal harmonic of Earth's gravitational potential
         omega_E = 7.2921159e-5  # rad/s, Earth's rotation rate
         R_Earth = 6378.137  # km, Mean Earth radius
@@ -23,12 +23,11 @@ class Satellite(ABC):
         #n_eq = math.sqrt(398600.5 / semimajoraxis_sso**3)  # sqrt(mu/a^3), where mu is Earth's gravitational parameter
         RAAN_ChangeSSO=0.986
 
-        # Calculate inclination for SSO
+        # Calculate inclination for SSO, highest density for debris in these orbits
         #cos_i = (-2 * math.pi * semimajoraxis_sso**3 * n_eq / (J2 * omega_E * R_Earth**2))**(1/7)
         cos_i = RAAN_ChangeSSO/(-9.96*(R_Earth/semimajoraxis_sso)**(7/2)) 
         inclination = math.acos(cos_i) * 180 / math.pi  # Convert from radians to degrees
-        #inclination=98.2
-        #print(inclination)
+        inclination = inclination + random.uniform(-5,5)
         
         if orbit is None:
             orbit = {
@@ -55,7 +54,7 @@ class Satellite(ABC):
             epsys = {
                 'EnergyStorage': 84*3600,    #From Endurosat battery pack [W]*[s]=[J]
                 'SolarPanelSize': 0.4*0.3, # deployable solar panels 12U solar panel area [m2]
-                'EnergyAvailable': random.randint(20,70)*3600,
+                'EnergyAvailable': random.uniform(0.2,0.7)*84*3600,
                 'Efficiency': 0.3,  # Efficiency of the solar panels
                 'SolarConstant': 1370 # W/m2, Solar constant
                 # prod = area * efficiency * solarconstant
@@ -77,8 +76,8 @@ class Satellite(ABC):
 
         if DataHand is None:
             DataHand = {
-                'DataStorage': 8*64e9, # Maximum storage onboard. 8*64G[bytes]=[bites], from ISISpace bus
-                'StorageAvailable': random.uniform(2,7) * 64e9, # Storage available for observation
+                'DataStorage': 32e9, # Maximum storage onboard. 32G[bytes]=[bites], from ISISpace bus
+                'StorageAvailable': random.uniform(0.2,0.7) * 32e9, # Storage available for observation
                 'DataSize': 52, # Data package size per satellite in bytes
             }
         
@@ -368,7 +367,58 @@ class ObserverSatellite(Satellite):
     Represents an observer satellite that can detect and observe target satellites.
     """
     def __init__(self, num_targets, num_observers, name="observer", *args, **kwargs):
-        super().__init__(name = name, *args, **kwargs)
+        # Extract the observer index from the name (format: "Observer-{index}")
+        try:
+            # Parse the observer index from the name string
+            if '-' in name:
+                observer_index = int(name.split('-')[1]) - 1  # Subtract 1 to make it 0-indexed
+            else:
+                observer_index = 0  # Default index if name doesn't follow expected format
+        except (IndexError, ValueError):
+            observer_index = 0  # Handle any parsing errors
+        
+        # Set up Walker delta formation
+        total_sats = num_observers
+        num_planes = min(5, num_observers)  # Use at most 5 orbital planes
+        sats_per_plane = math.ceil(total_sats / num_planes)
+        
+        # Calculate positions in the constellation
+        plane_idx = observer_index % num_planes
+        position_in_plane = observer_index // num_planes
+        
+        # Base parameters for all satellites in formation
+        semimajoraxis = random.uniform(7070, 7170)  # 700-800 km altitude
+        inclination = 56.0 
+        eccentricity = 0.001  # Near-circular orbits
+        
+        # Calculate RAAN for each plane (evenly distributed)
+        raan = (plane_idx * 360.0 / num_planes) % 360
+        
+        # Calculate argument of perigee
+        arg_perigee = 0.0
+        
+        # Calculate mean anomaly with phase shift between planes
+        phase_shift = 360.0 / (sats_per_plane * num_planes)
+        relative_spacing = 1  # F parameter in Walker notation
+        mean_anomaly = (position_in_plane * 360.0 / sats_per_plane + 
+                        plane_idx * relative_spacing * phase_shift) % 360
+        
+        # Create orbit dictionary
+        self.orbit = {
+            'x': 0, 'y': 0, 'z': 0, 'vx': 0, 'vy': 0, 'vz': 0, 'radius': 0,
+            'mean_anomaly': mean_anomaly,
+            'semimajoraxis': semimajoraxis,
+            'inclination': inclination,
+            'eccentricity': eccentricity,
+            'raan': raan,
+            'arg_of_perigee': arg_perigee,
+            'true_anomaly': mean_anomaly  # Initialize true anomaly to mean anomaly
+        }
+                    
+        super().__init__(name=name, *args, **kwargs)
+        
+        # Store observer-specific attributes
+        self.observer_index = observer_index
         self.num_observers = num_observers
         self.observation_status_matrix = np.zeros(num_targets, dtype=np.int32)  # 0: undetected, 1: detected, 2: being observed, 3: observed
         self.pointing_accuracy_matrix = np.zeros(num_targets, dtype=np.float32)  # pointing accuracy for each target
@@ -406,7 +456,7 @@ class ObserverSatellite(Satellite):
         self.global_observation_counts = np.zeros((num_observers,num_targets), dtype=int)  # Global matrix to track the number of observations for each target
 
     def evaluate_pointing_accuracy(self, target_satellite, time_step):
-        # Field of view limited to 20º
+        # Field of view limited to 10º
         # Evaluate pointing accuracy for each observer satellite with respect to each target satellite if they are in range. Otherwise return 0.
         distance = self.distance_between(target_satellite, time_step)
         # print(f"Distance between {self.name} and {target_satellite.name}: {distance:.2f} km")
@@ -444,8 +494,8 @@ class ObserverSatellite(Satellite):
             angular_distance_deg = np.degrees(angular_distance)
             # print(f"Angular distance: {angular_distance_deg:.2f} degrees")
 
-            if angular_distance_deg <= 10:
-                normalized_pointing_accuracy = max(0, (10 - angular_distance_deg) / 10)
+            if angular_distance_deg <= 5:
+                normalized_pointing_accuracy = max(0, (5 - angular_distance_deg) / 5)
                 return normalized_pointing_accuracy
             else:
                 return 0

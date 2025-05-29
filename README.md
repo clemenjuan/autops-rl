@@ -15,6 +15,11 @@ A reinforcement learning framework for autonomous satellite coordination and rea
   - [Training](#training)
   - [Local Testing](#local-testing)
   - [Evaluation](#evaluation)
+- [Benchmarking](#benchmarking)
+  - [Quick Testing](#quick-testing)
+  - [Running Full Benchmarks](#running-full-benchmarks)
+  - [Analyzing Results](#analyzing-results)
+  - [Experiment Organization](#experiment-organization)
 - [Code Structure](#code-structure)
 - [Configuration](#configuration)
 - [PPO Training Details](#ppo-training-details)
@@ -34,6 +39,9 @@ AUTOPS-RL is a framework for training reinforcement learning policies for autono
 - **Multi-seed Training**: Support for training with multiple random seeds for robust evaluation
 - **Wandb Integration**: Experiment tracking and visualization with Weights & Biases
 - **Multiple Reward Cases**: Four different reward structures (case1-case4) for exploring different learning approaches
+- **Comprehensive Benchmarking**: Compare RL policies against rule-based and MIP baselines with detailed performance metrics
+- **Cross-Network Testing**: Evaluate policy generalization across different network topologies
+- **Organized Experiment Management**: Automatic organization of results and analysis in structured experiment folders
 
 ## Installation
 
@@ -83,64 +91,101 @@ sbatch sbatch_autops-rl.sh
 For hyperparameter tuning with specific reward cases:
 
 ```bash
-sbatch case1_tuning.sh  # For case1 reward function
-sbatch case2_tuning.sh  # For case2 reward function
-sbatch case3_tuning.sh  # For case3 reward function
-sbatch case4_tuning.sh  # For case4 reward function
+sbatch case1_tuning.sh
+sbatch case2_tuning.sh
+sbatch case3_tuning.sh
+sbatch case4_tuning.sh
 ```
 
-To quickly test if the container and environment are working correctly:
+### Local Testing
+
+For quick testing on your local machine:
 
 ```bash
-sbatch case1_test.sh  # Runs a quick test with minimal resources
-```
-
-The SLURM script configures the environment and runs the training with appropriate parameters. Check Configuration section for more details.
-
-```bash
-python train_scripts/custom_trainable.py \
---policy PPO \
---checkpoint-dir /workspace/checkpoints_${SLURM_JOB_ID} \
---mode tune \
---iterations 10000 \
---simulator-types "everyone,centralized,decentralized" \
---num-env-runners 90 \
---num-envs-per-runner 1 \
---num-cpus-per-runner 1 \
---num-gpus-per-runner 0 \
---num-learners 4 \
---num-gpus-per-learner 1 \
---num-cpus-per-learner 1 \
---seeds "42,43,44,45,46" \
---reward-type case1 \
---num-samples-hyperparameter-tuning 20 \
---max-iterations-hyperparameter-tuning 25 \
---grace-period-hyperparameter-tuning 10
-```
-
-### Local Training
-You can run the local training/tuning with:
-
-```bash
-# Make the script executable (Unix/Linux/macOS only)
-chmod +x run_local.sh
-
-# Run the script    
 ./run_local.sh
 ```
 
-You will automatically activate the conda environment previously installed. You can adjust the parameters in the `run_local.sh` script similarly to the HPC training script to test different configurations.
-
+This runs a minimal training session locally to verify the setup.
 
 ### Evaluation
 
-After training, you can evaluate the trained models:
+To evaluate a trained policy:
 
 ```bash
-python eval_scripts/evaluate_policy.py \
-  --checkpoint-dir /path/to/checkpoints \
-  --simulator-type "everyone" \
-  --seed 42
+cd eval_scripts
+python evaluate_policy.py --checkpoint-path /path/to/checkpoint --num-episodes 10
+```
+
+## Benchmarking
+
+The benchmarking system compares RL policies against rule-based and MIP baselines across different network configurations. It automatically tests policy generalization by evaluating policies trained on one simulator type (e.g., "everyone") on all three simulator types ("everyone", "centralized", "decentralized").
+
+### Prerequisites
+
+Before running benchmarks, make sure to activate the conda environment:
+
+```bash
+conda activate autops-rl
+```
+
+### Quick Testing
+
+```bash
+# Test with small configuration (for development/testing)
+python benchmark_policies.py --configs small --episodes 3 --max-steps 50
+```
+
+### Running Full Benchmarks
+
+```bash
+# Standard benchmarks (recommended for most comparisons)
+python benchmark_policies.py --configs standard --episodes 10
+
+# Large-scale benchmarks (for comprehensive analysis)
+python benchmark_policies.py --configs large --episodes 5
+
+# All configurations (comprehensive but time-consuming)
+python benchmark_policies.py --configs all --episodes 5
+```
+
+### Analyzing Results
+
+Results are automatically organized in timestamped experiment folders:
+
+```bash
+# Analyze a specific experiment
+python analyze_results.py experiments/benchmark_20250529_113520/benchmark_results.json
+
+# Or use the path suggested by the benchmark output
+```
+
+### Experiment Organization
+
+Each benchmark run creates a self-contained experiment folder:
+
+```
+experiments/
+└── benchmark_20250529_113520/
+    ├── benchmark_results.json          # Raw results data
+    ├── experiment_metadata.json        # Experiment configuration
+    ├── README.md                       # Experiment description
+    └── analysis/                       # Generated analysis
+        ├── summary_statistics.csv
+        ├── performance_table.tex
+        ├── performance_comparison.png
+        └── ...
+```
+
+### Organizing Existing Results
+
+If you have old benchmark results files, you can organize them into the new structure:
+
+```bash
+# Organize existing results files
+python organize_existing_results.py benchmark_results_*.json
+
+# Delete original files after organizing (optional)
+python organize_existing_results.py benchmark_results_*.json --delete-originals
 ```
 
 ## Code Structure
@@ -168,6 +213,19 @@ python eval_scripts/evaluate_policy.py \
 ├── eval_scripts/                 # Evaluation scripts
 │   └── evaluate_policy.py        # Evaluation script   
 ├── utils/                        # Utility functions
+├── experiments/                  # Organized experiment results
+│   ├── benchmark_YYYYMMDD_HHMMSS/ # Individual experiment folders
+│   │   ├── benchmark_results.json
+│   │   ├── experiment_metadata.json
+│   │   ├── README.md
+│   │   └── analysis/
+│   └── ...
+├── benchmark_policies.py         # Main benchmarking script
+├── analyze_results.py            # Results analysis script
+├── organize_existing_results.py  # Script to organize old results
+├── rule_based_policy.py          # Rule-based baseline policy
+├── mip_policy.py                 # MIP baseline policy
+└── benchmark_utils.py            # Benchmarking utilities
 ```
 
 
@@ -210,6 +268,20 @@ The training process can be configured with various command-line arguments:
   - `--num-gpus-per-learner`: Number of GPUs per learner (default: 1)
   - `--num-cpus-per-learner`: Number of CPUs per learner (default: 1)
 
+- **Benchmarking Parameters**:
+  - `--configs`: Configuration set ("small", "standard", "large", "all")
+  - `--episodes`: Number of episodes per configuration (default: 5)
+  - `--max-steps`: Maximum steps per episode for testing
+
+## PPO Training Details
+
+We use Proximal Policy Optimization (PPO) with the following key features:
+
+- **Multi-agent coordination**: Each satellite is controlled by the same policy but receives different observations
+- **Distributed training**: Leverages Ray's distributed computing capabilities
+- **Experience replay**: Efficient sampling and learning from collected experiences
+- **Hyperparameter tuning**: Automated search for optimal training parameters
+
 ## Results
 
 Training results are logged to Weights & Biases for easy visualization and comparison. The system tracks metrics such as:
@@ -219,6 +291,15 @@ Training results are logged to Weights & Biases for easy visualization and compa
 - Training throughput
 - Policy loss
 - Value function loss
+
+Benchmarking results provide comprehensive performance analysis including:
+
+- Cross-network generalization studies
+- Computational efficiency metrics
+- Action distribution analysis
+- Resource utilization patterns
+
+All benchmarking results are automatically organized in timestamped experiment folders for easy management and reproducibility.
 
 ## Citation
 

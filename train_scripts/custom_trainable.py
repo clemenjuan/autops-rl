@@ -68,6 +68,9 @@ def main(args):
     else:
         simulator_types = [args.simulator_type]
     
+    # At the beginning of the main function, add:
+    os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
+    
     for simulator_type in simulator_types:
         for seed in seeds:
             print("\n\n================================================================================")
@@ -151,7 +154,8 @@ def configure_ppo(args, env_config):
     algo_config = (
         PPOConfig()
         .environment("FSS_env", env_config=env_config)
-        .framework("torch")
+        .framework("torch",
+                   torch_compile_learner=True)
         # Configure learners (replaces num_gpus)
         .learners(
             num_learners=args.num_learners,
@@ -166,9 +170,8 @@ def configure_ppo(args, env_config):
             num_gpus_per_env_runner=args.num_gpus_per_runner,
             explore=True,
             env_to_module_connector=_env_to_module_pipeline,
-            #add these parameters to check if reward works now
-            rollout_fragment_length="auto",
-            batch_mode="complete_episodes",
+            rollout_fragment_length=args.rollout_fragment_length,
+            batch_mode=args.batch_mode,
             sample_timeout_s=None
         )
         .rl_module(
@@ -176,7 +179,7 @@ def configure_ppo(args, env_config):
                 rl_module_spec=RLModuleSpec(
                 module_class=PPOTorchRLModule,
                 model_config={
-                    "head_fcnet_hiddens": [64,64], #[256,256],
+                    "head_fcnet_hiddens": [256,256],
                     "head_fcnet_activation": "relu",
                 },
             ),
@@ -187,7 +190,11 @@ def configure_ppo(args, env_config):
         )
         .training(
             # Learning rate can be a schedule or a fixed value
-            lr=1e-5 * (args.num_learners ** 0.5),
+            lr=args.lr * (args.num_learners ** 0.5),
+            train_batch_size_per_learner=args.train_batch_size,
+            minibatch_size=args.minibatch_size,
+            gamma=args.gamma,
+            lambda_=args.lambda_val,
         )
         .api_stack(
             enable_rl_module_and_learner=True,
@@ -207,6 +214,11 @@ def run_hyperparameter_tuning(args, algo_config, checkpoint_dir, experiment_name
                 "lr": tune.loguniform(1e-5, 1e-3),
                 "gamma": tune.uniform(0.9, 0.999),
                 "lambda_": tune.uniform(0.9, 1.0),
+                "train_batch_size_per_learner": tune.choice([4096, 8192, 16384]),
+                "minibatch_size": tune.choice([256, 512, 1024])
+            },
+            "env_runners": {
+                "rollout_fragment_length": tune.choice([128, 256, 512])
             }
         }
     # Configure ASHA scheduler for early stopping
@@ -337,6 +349,7 @@ if __name__ == "__main__":
     parser.add_argument("--max-iterations-hyperparameter-tuning", type=int, default=25, help="Maximum number of training iterations")
     parser.add_argument("--grace-period-hyperparameter-tuning", type=int, default=10, help="Grace period for early stopping")
     parser.add_argument("--iterations", type=int, default=1000, help="Number of training iterations")
+    parser.add_argument("--checkpoint-freq", type=int, default=10, help="Frequency of checkpoints during training")
     parser.add_argument("--resume", action="store_true", help="Resume tuning from the specified checkpoint directory")
     parser.add_argument("--checkpoint", type=str, help="Path to checkpoint file for continuing training")
     parser.add_argument("--best-config", type=str, help="Path to best config JSON file for continuing training")
@@ -351,13 +364,23 @@ if __name__ == "__main__":
     parser.add_argument("--duration", type=int, default=86400, help="Duration of simulation in seconds")
     
     # Runner and learner configuration
-    parser.add_argument("--num-env-runners", type=int, default=10, help="Number of environment runners")
+    parser.add_argument("--num-env-runners", type=int, default=32, help="Number of environment runners")
     parser.add_argument("--num-envs-per-runner", type=int, default=1, help="Number of environments per runner")
-    parser.add_argument("--num-cpus-per-runner", type=int, default=1, help="Number of CPUs per runner")
+    parser.add_argument("--num-cpus-per-runner", type=int, default=2, help="Number of CPUs per runner")
     parser.add_argument("--num-gpus-per-runner", type=float, default=0, help="Number of GPUs per runner")
     parser.add_argument("--num-learners", type=int, default=1, help="Number of learners")
     parser.add_argument("--num-gpus-per-learner", type=float, default=1, help="Number of GPUs per learner")
     parser.add_argument("--num-cpus-per-learner", type=int, default=1, help="Number of CPUs per learner")
+    
+    # Batch configuration arguments
+    parser.add_argument("--train-batch-size", type=int, default=8192, help="Total size of batches for policy updates per learner")
+    parser.add_argument("--minibatch-size", type=int, default=512, help="Size of minibatches for SGD updates")
+    parser.add_argument("--rollout-fragment-length", type=int, default=256, help="Steps collected per worker before sending")
+    parser.add_argument("--batch-mode", type=str, default="truncate_episodes", choices=["truncate_episodes", "complete_episodes"],
+                        help="How to build batches: 'truncate_episodes' for partial episodes, 'complete_episodes' for full episodes only")
+    parser.add_argument("--lr", type=float, default=5e-5, help="Learning rate")
+    parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
+    parser.add_argument("--lambda_val", type=float, default=0.95, help="GAE lambda parameter")
     
     # Reward configuration arguments
     parser.add_argument("--reward-type", type=str, default="case1", 

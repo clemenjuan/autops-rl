@@ -27,7 +27,10 @@ class Simulator():
         self.contacts_matrix = np.zeros((num_observers, num_targets), dtype=int)  # Current timestep contacted targets matrix
         self.contacts_matrix_acc = np.zeros((num_observers, num_targets), dtype=int)  # Accumulated contacted targets matrix
         self.target_satellites = [TargetSatellite(name=f"Target-{i+1}") for i in range(num_targets)]
-        self.observer_satellites = [ObserverSatellite(name=f"Observer-{i+1}", num_targets=num_targets, num_observers=num_observers) for i in range(num_observers)]
+        self.observer_satellites = [ObserverSatellite(name=f"Observer-{i+1}", 
+                                                     num_targets=num_targets, 
+                                                     num_observers=num_observers) 
+                                   for i in range(num_observers)]
         self.time_step = time_step
         self.time_step_number = 0
         self.duration = duration
@@ -198,7 +201,7 @@ class Simulator():
             # Check for resource depletion
             if observer.epsys['EnergyAvailable'] < 0 or observer.DataHand['StorageAvailable'] < 0:
                 print(f"Satellite energy or storage depleted ({observer.name}). Terminating simulation.")
-                reward += self.check_depletion(observer)
+                reward += self.reward_function.check_depletion(observer)
                 self.breaker = True
             
             self.batteries[i] = max(observer.epsys['EnergyAvailable'] / observer.epsys['EnergyStorage'], 0)
@@ -338,22 +341,36 @@ class CentralizedSimulator(Simulator):
     Only 1 observer satellite (relay satellite) has communication with the rest of the observation satellites. 
     The observer satellites can only communicate with the relay.
     """
-    def __init__(self, num_targets: int = 100, num_observers: int = 5, time_step: float = 1, duration: float = 24 * 60) -> None:
-        super().__init__(num_targets, num_observers, time_step, duration)
+    def __init__(self, 
+                num_targets: int = 100, 
+                num_observers: int = 5, 
+                time_step: float = 1, 
+                duration: float = 24 * 60,
+                reward_type: str = "case1",
+                reward_config: dict = None) -> None:
+        super().__init__(num_targets, num_observers, time_step, duration, reward_type, reward_config)
         # set one random satellite to act as relay - it correspond to assign to the band the value of 5
         self.observer_satellites[random.randint(0, num_observers - 1)].commsys['band'] = 5
+
 class DecentralizedSimulator(Simulator):
     """
     Everyone can talk with everyone
     Decentralized simulator for the Gymnasium environment.
     Each observer satellite can communicate with the rest of the observation satellites that share the same type of band communication.
     """
-    def __init__(self, num_targets: int = 100, num_observers: int = 5, time_step: float = 1, duration: float = 24 * 60) -> None:
-        super().__init__(num_targets, num_observers, time_step, duration)
+    def __init__(self, 
+                num_targets: int = 100, 
+                num_observers: int = 5, 
+                time_step: float = 1, 
+                duration: float = 24 * 60,
+                reward_type: str = "case1",
+                reward_config: dict = None) -> None:
+        super().__init__(num_targets, num_observers, time_step, duration, reward_type, reward_config)
 
         # self.observer_satellites[random.randint(0, num_observers - 1)].commsys['band'] = 1
 
         # All the bands are defined randomly in the Class Satellite in the satellites.py
+
 class MixedSimulator(CentralizedSimulator, DecentralizedSimulator):
     """
     Mixed simulator for the Gymnasium environment.
@@ -362,8 +379,14 @@ class MixedSimulator(CentralizedSimulator, DecentralizedSimulator):
 
     Different cases: decentralized with random band allocation, some 5 and some random, cnetralized with more 5 bands.
     """
-    def __init__(self, num_targets: int = 100, num_observers: int = 5, time_step: float = 1, duration: float = 24 * 60) -> None:
-        super().__init__(num_targets, num_observers, time_step, duration)
+    def __init__(self, 
+                num_targets: int = 100, 
+                num_observers: int = 5, 
+                time_step: float = 1, 
+                duration: float = 24 * 60,
+                reward_type: str = "case1",
+                reward_config: dict = None) -> None:
+        super().__init__(num_targets, num_observers, time_step, duration, reward_type, reward_config)
 
         # set one random number of observer satellites to act as relay - it correspond to assign to the band the value of 5
         # All the other band are defined in the Class Satellite in the satellites.py

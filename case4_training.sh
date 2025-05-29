@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# SLURM directives with reduced resources
+# SLURM directives
 #SBATCH -p lrz-hgx-h100-94x4
-#SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=16
-#SBATCH -o autops_test_case1_%j.out
-#SBATCH -e autops_test_case1_%j.err
-#SBATCH --time=0-00:30:00
+#SBATCH --gres=gpu:4
+#SBATCH --cpus-per-task=80
+#SBATCH -o autops_training_case4_%j.out
+#SBATCH -e autops_training_case4_%j.err
+#SBATCH --time=2-00:00:00
 #SBATCH --mail-type=END
 #SBATCH --mail-user=clemente.juan@tum.de
 
@@ -32,26 +32,31 @@ srun enroot start --root --mount /dss/dsshome1/05/ge26sav2/autops-rl:/workspace 
     # Print available GPUs
     nvidia-smi
     
-    # Run the training script with reduced parameters
+    # Run the training script
     python /workspace/train_scripts/custom_trainable.py \\
     --policy PPO \\
-    --checkpoint-dir /workspace/checkpoints_case1_test_${SLURM_JOB_ID} \\
-    --mode tune \\
-    --iterations 5 \\
-    --simulator-types \"everyone\" \\
-    --num-env-runners 8 \\
-    --num-envs-per-runner 2 \\
-    --num-cpus-per-runner 1 \\
+    --checkpoint-dir /workspace/checkpoints_case4_training_${SLURM_JOB_ID} \\
+    --mode train \\
+    --iterations 300 \\
+    --simulator-types \"everyone,centralized,decentralized\" \\
+    --num-env-runners 32 \\
+    --num-envs-per-runner 1 \\
+    --num-cpus-per-runner 2 \\
     --num-gpus-per-runner 0 \\
-    --num-learners 1 \\
+    --num-learners 4 \\
     --num-gpus-per-learner 1 \\
-    --seeds \"42\" \\
-    --num-samples-hyperparameter-tuning 3 \\
-    --max-iterations-hyperparameter-tuning 3 \\
-    --grace-period-hyperparameter-tuning 2 \\
-    --num-targets 5 \\
-    --num-observers 5 \\
+    --checkpoint-freq 20 \\
+    --train-batch-size 4096 \\
+    --minibatch-size 256 \\
+    --rollout-fragment-length 128 \\
+    --batch-mode \"truncate_episodes\" \\
+    --lr 2e-5 \\
+    --gamma 0.972 \\
+    --lambda_val 0.975 \\
+    --seeds \"42,43,44,45,46\" \\
+    --num-targets 100 \\
+    --num-observers 20 \\
     --time-step 1 \\
-    --duration 3600 \\
-    --reward-type case1
+    --duration 86400 \\
+    --reward-type case4
 " 

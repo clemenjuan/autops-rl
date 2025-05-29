@@ -9,7 +9,7 @@ class OpticPayload:
         self.WAVELENGTH = 700e-9 # Upper limit of visible light
         #self.dim_obj_list= [0.3, 3, 5, 10, 25]
         # labels = ['6U Cubesat', 'Iridium', 'Starlink', 'Sentinel', 'Envisat']
-        self.dim_obj= 5 # Starlink
+        self.dim_obj= 1 # meters
         # Simera Optic Payload
         # focal length = 0.0933m
         # aperture diameter = 0.1175m

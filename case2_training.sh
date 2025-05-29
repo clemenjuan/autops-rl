@@ -4,8 +4,8 @@
 #SBATCH -p lrz-hgx-h100-94x4
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=80
-#SBATCH -o autops_tuning_case3_%j.out
-#SBATCH -e autops_tuning_case3_%j.err
+#SBATCH -o autops_training_case2_%j.out
+#SBATCH -e autops_training_case2_%j.err
 #SBATCH --time=2-00:00:00
 #SBATCH --mail-type=END
 #SBATCH --mail-user=clemente.juan@tum.de
@@ -35,9 +35,9 @@ srun enroot start --root --mount /dss/dsshome1/05/ge26sav2/autops-rl:/workspace 
     # Run the training script
     python /workspace/train_scripts/custom_trainable.py \\
     --policy PPO \\
-    --checkpoint-dir /workspace/checkpoints_case3_tuning_${SLURM_JOB_ID} \\
-    --mode tune \\
-    --iterations 100 \\
+    --checkpoint-dir /workspace/checkpoints_case2_training_${SLURM_JOB_ID} \\
+    --mode train \\
+    --iterations 300 \\
     --simulator-types \"everyone,centralized,decentralized\" \\
     --num-env-runners 32 \\
     --num-envs-per-runner 1 \\
@@ -45,18 +45,18 @@ srun enroot start --root --mount /dss/dsshome1/05/ge26sav2/autops-rl:/workspace 
     --num-gpus-per-runner 0 \\
     --num-learners 4 \\
     --num-gpus-per-learner 1 \\
-    --checkpoint-freq 10 \\
-    --train-batch-size 8192 \\
-    --minibatch-size 512 \\
-    --rollout-fragment-length 256 \\
-    --batch-mode "truncate_episodes" \\
-    --seeds \"42\" \\
-    --num-samples-hyperparameter-tuning 20 \\
-    --max-iterations-hyperparameter-tuning 15 \\
-    --grace-period-hyperparameter-tuning 5 \\
-    --num-targets 20 \\
+    --checkpoint-freq 20 \\
+    --train-batch-size 4096 \\
+    --minibatch-size 256 \\
+    --rollout-fragment-length 128 \\
+    --batch-mode \"truncate_episodes\" \\
+    --lr 5e-5 \\
+    --gamma 0.98 \\
+    --lambda_val 0.93 \\
+    --seeds \"42,43,44,45,46\" \\
+    --num-targets 100 \\
     --num-observers 20 \\
     --time-step 1 \\
     --duration 86400 \\
-    --reward-type case3
+    --reward-type case2
 " 

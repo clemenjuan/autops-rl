@@ -10,3 +10,4 @@ astropy==7.0.1
 tensorboard==2.19.0
 wandb==0.19.8
 torch==2.6.0
+seaborn==0.13.2
