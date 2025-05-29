@@ -30,7 +30,7 @@ python train_scripts/custom_trainable.py \
   --policy PPO \
   --mode train \
   --checkpoint-dir "$LOCAL_CHECKPOINT_DIR" \
-  --iterations 1 \
+  --iterations 3 \
   --simulator-types "everyone" \
   --num-env-runners 4 \
   --num-envs-per-runner 1 \

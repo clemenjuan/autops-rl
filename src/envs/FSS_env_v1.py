@@ -233,6 +233,7 @@ class FSS_env(MultiAgentEnv):
    
         
         # Log total reward for this step
+        # print(f"Rewards: {rewards}")
         self.reward_history['total'].append(sum(rewards.values()))
         self.reward_history['standard_deviation'].append(np.std(list(rewards.values())))
         
@@ -413,8 +414,8 @@ class FSS_env(MultiAgentEnv):
                          for i, sat in enumerate(self.simulator.observer_satellites)}
         
         reward_stats = {
-            "total_reward": self.reward_history['total'],
-            "standard_deviation": self.reward_history['standard_deviation']
+            "total_reward_avg": np.mean(self.reward_history['total']),
+            "total_reward_std_avg": np.std(self.reward_history['total'])
         }
         
         # Collect baseline metrics from the existing function
