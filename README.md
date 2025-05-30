@@ -23,6 +23,7 @@ A reinforcement learning framework for autonomous satellite coordination and rea
 - [Code Structure](#code-structure)
 - [Configuration](#configuration)
 - [PPO Training Details](#ppo-training-details)
+- [Baseline Policies](#baseline-policies)
 - [Results](#results)
 - [Citation](#citation)
 - [License](#license)
@@ -34,14 +35,16 @@ AUTOPS-RL is a framework for training reinforcement learning policies for autono
 ## Features
 
 - **Multiple Simulator Types**: Support for different coordination approaches (everyone, centralized, decentralized)
+- **Cross-Network Evaluation**: Comprehensive testing of policy generalization across different network topologies
 - **Distributed Training**: Efficient training using Ray's distributed computing framework
 - **Configurable Environment**: Adjustable number of targets, observers, and simulation parameters
 - **Multi-seed Training**: Support for training with multiple random seeds for robust evaluation
 - **Wandb Integration**: Experiment tracking and visualization with Weights & Biases
 - **Multiple Reward Cases**: Four different reward structures (case1-case4) for exploring different learning approaches
 - **Comprehensive Benchmarking**: Compare RL policies against rule-based and MIP baselines with detailed performance metrics
-- **Cross-Network Testing**: Evaluate policy generalization across different network topologies
+- **Fair Baseline Comparison**: Consistent resource thresholds across all baseline policies for fair evaluation
 - **Organized Experiment Management**: Automatic organization of results and analysis in structured experiment folders
+- **Advanced Analytics**: Scaling analysis, action distribution studies, and performance visualization
 
 ## Installation
 
@@ -66,7 +69,6 @@ conda deactivate
 ```
 
 This local setup is useful for quick testing and development before running full-scale training on HPC environments. This environment is used by the `run_local.sh` script (see below).
-
 
 ### HPC Environment (LRZ AI Systems)
 
@@ -118,75 +120,84 @@ python evaluate_policy.py --checkpoint-path /path/to/checkpoint --num-episodes 1
 
 ## Benchmarking
 
-The benchmarking system compares RL policies against rule-based and MIP baselines across different network configurations. It automatically tests policy generalization by evaluating policies trained on one simulator type (e.g., "everyone") on all three simulator types ("everyone", "centralized", "decentralized").
-
-### Prerequisites
-
-Before running benchmarks, make sure to activate the conda environment:
-
-```bash
-conda activate autops-rl
-```
+The benchmarking system provides comprehensive evaluation of trained RL policies against baseline methods across different network topologies and scales.
 
 ### Quick Testing
 
+For rapid development and testing:
+
 ```bash
-# Test with small configuration (for development/testing)
-python benchmark_policies.py --configs small --episodes 3 --max-steps 50
+# Quick test with minimal configurations
+python benchmark_policies.py --configs small --episodes 2 --max-steps 50
+
+# Test specific policy types
+python benchmark_policies.py --configs small --episodes 1 --max-steps 20
 ```
 
 ### Running Full Benchmarks
 
+For comprehensive evaluation:
+
 ```bash
-# Standard benchmarks (recommended for most comparisons)
-python benchmark_policies.py --configs standard --episodes 10
+# Standard benchmark (recommended)
+python benchmark_policies.py --configs standard --episodes 5
 
-# Large-scale benchmarks (for comprehensive analysis)
-python benchmark_policies.py --configs large --episodes 5
-
-# All configurations (comprehensive but time-consuming)
-python benchmark_policies.py --configs all --episodes 5
+# Extended evaluation with longer episodes
+python benchmark_policies.py --configs large --episodes 10
 ```
+
+**Configuration Sets:**
+
+- **`small`**: Quick testing with shorter episodes (500 time steps) across all three simulator types
+- **`standard`**: Full-day simulations (86400 time steps) testing cross-network generalization
+- **`large`**: Extended 2-day simulations (172800 time steps) for comprehensive cross-network evaluation
+
+**Simulator Types Evaluated:**
+- **`centralized`**: Single relay satellite handles all inter-satellite communications
+- **`decentralized`**: Satellites communicate based on compatible communication bands  
+- **`everyone`**: All satellites can communicate directly with each other
+
+**Note**: All configurations use 20 agents and 100 targets to match the trained RL model's observation space. The focus is on **cross-network generalization** - evaluating how well policies trained on one simulator type perform across different network topologies.
 
 ### Analyzing Results
 
-Results are automatically organized in timestamped experiment folders:
+After running benchmarks, analyze the results:
 
 ```bash
-# Analyze a specific experiment
-python analyze_results.py experiments/benchmark_20250529_113520/benchmark_results.json
+# Analyze specific experiment
+python analyze_results.py experiments/benchmark_YYYYMMDD_HHMMSS/benchmark_results.json
 
-# Or use the path suggested by the benchmark output
+# This generates:
+# - Performance comparison plots (NET per agent, mission completion %, resource usage)
+# - Action distribution analysis (stacked bar charts by simulator type)
+# - Simulator comparison tables (LaTeX format)
+# - Comprehensive console summary
 ```
 
 ### Experiment Organization
 
-Each benchmark run creates a self-contained experiment folder:
+Results are automatically organized in timestamped experiment folders:
 
 ```
 experiments/
-└── benchmark_20250529_113520/
-    ├── benchmark_results.json          # Raw results data
-    ├── experiment_metadata.json        # Experiment configuration
-    ├── README.md                       # Experiment description
-    └── analysis/                       # Generated analysis
-        ├── summary_statistics.csv
-        ├── performance_table.tex
-        ├── performance_comparison.png
-        └── ...
+└── benchmark_YYYYMMDD_HHMMSS/           # Experiment timestamp
+    ├── benchmark_results.json           # Raw benchmark data
+    ├── experiment_metadata.json         # System info and configs
+    ├── analysis/                        # Generated analysis
+    │   ├── performance_comparison.png   # Main performance plots
+    │   ├── action_distribution.png      # Stacked bar charts by simulator
+    │   ├── summary_statistics.csv       # Statistical summary
+    │   └── simulator_comparison_table.tex # LaTeX comparison table
+    └── README.md                        # Experiment documentation
 ```
 
-### Organizing Existing Results
+**Generated Visualizations:**
 
-If you have old benchmark results files, you can organize them into the new structure:
+1. **Performance Comparison**: Boxplots comparing NET per agent, mission completion percentage, average resources remaining, and simulation time across policies and simulator types
 
-```bash
-# Organize existing results files
-python organize_existing_results.py benchmark_results_*.json
+2. **Action Distribution**: Stacked bar charts showing the percentage breakdown of actions (Idle/Communicate/Observe) for each policy across all three simulator types, providing clear insights into behavioral differences
 
-# Delete original files after organizing (optional)
-python organize_existing_results.py benchmark_results_*.json --delete-originals
-```
+3. **Statistical Tables**: LaTeX-formatted tables with mean±std statistics for easy inclusion in research papers
 
 ## Code Structure
 
@@ -225,9 +236,11 @@ python organize_existing_results.py benchmark_results_*.json --delete-originals
 ├── organize_existing_results.py  # Script to organize old results
 ├── rule_based_policy.py          # Rule-based baseline policy
 ├── mip_policy.py                 # MIP baseline policy
-└── benchmark_utils.py            # Benchmarking utilities
+├── benchmark_utils.py            # Benchmarking utilities
+├── debug_action.py               # Action computation debugging
+├── debug_action_format.py        # Action format debugging
+└── debug_obs_format.py           # Observation format debugging
 ```
-
 
 ## Configuration
 
@@ -269,7 +282,7 @@ The training process can be configured with various command-line arguments:
   - `--num-cpus-per-learner`: Number of CPUs per learner (default: 1)
 
 - **Benchmarking Parameters**:
-  - `--configs`: Configuration set ("small", "standard", "large", "all")
+  - `--configs`: Configuration set ("small", "standard", "large")
   - `--episodes`: Number of episodes per configuration (default: 5)
   - `--max-steps`: Maximum steps per episode for testing
 
@@ -281,6 +294,30 @@ We use Proximal Policy Optimization (PPO) with the following key features:
 - **Distributed training**: Leverages Ray's distributed computing capabilities
 - **Experience replay**: Efficient sampling and learning from collected experiences
 - **Hyperparameter tuning**: Automated search for optimal training parameters
+
+## Baseline Policies
+
+The benchmarking system includes two carefully designed baseline policies for fair comparison:
+
+### Rule-Based Policy
+A heuristic policy that makes decisions based on battery and storage levels:
+- **Low battery** (< 30%): Idle to conserve energy
+- **High storage** (> 70%): Prioritize communication to offload data
+- **Good battery + low storage**: Prioritize observation when targets are available
+- **Balanced approach**: Choose between observation and communication based on current state
+
+### MIP Policy  
+A simplified Mixed Integer Programming approach that:
+- Formulates action selection as a utility maximization problem
+- Considers observation utility (unobserved targets × pointing accuracy)
+- Considers communication utility (storage level × communication ability)
+- Applies the same resource constraints as the rule-based policy
+
+**Consistent Thresholds**: Both baseline policies use identical resource thresholds:
+- Battery: Low=30%, High=80%
+- Storage: Low=30%, High=70%
+
+This ensures fair comparison and eliminates configuration bias between baselines.
 
 ## Results
 
@@ -294,10 +331,11 @@ Training results are logged to Weights & Biases for easy visualization and compa
 
 Benchmarking results provide comprehensive performance analysis including:
 
-- Cross-network generalization studies
-- Computational efficiency metrics
-- Action distribution analysis
-- Resource utilization patterns
+- **Cross-network generalization studies**: How well policies trained on one simulator type perform on others
+- **Computational efficiency metrics**: Performance vs. computational cost analysis
+- **Action distribution analysis**: Understanding policy behavior patterns
+- **Resource utilization patterns**: Battery and storage management strategies
+- **Scaling analysis**: Performance trends with increasing problem size
 
 All benchmarking results are automatically organized in timestamped experiment folders for easy management and reproducibility.
 

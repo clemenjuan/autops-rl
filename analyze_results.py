@@ -226,165 +226,94 @@ def generate_simulator_comparison_table(df, output_file):
 
 
 def create_visualizations(df, output_dir):
-    """Create various visualizations of the results"""
+    """Create visualizations for the benchmark results"""
     
-    output_dir = Path(output_dir)
-    output_dir.mkdir(exist_ok=True)
+    plt.style.use('seaborn-v0_8')
     
-    # Set style
-    plt.style.use('default')
-    sns.set_palette("husl")
+    # 1. Performance comparison across policies and configurations
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
     
-    # 1. Performance comparison across methods
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    # NET per agent
+    sns.boxplot(data=df, x='config', y='net_per_agent', hue='policy', ax=ax1)
+    ax1.set_title('NET per Agent by Configuration and Policy')
+    ax1.set_xlabel('Configuration')
+    ax1.tick_params(axis='x', rotation=45)
     
-    metrics = ['net_per_agent', 'mission_percentage', 'average_resources', 'simulation_time']
-    titles = ['NET per Agent', 'Mission Completion (%)', 'Average Resources Left', 'Simulation Time (s)']
+    # Mission percentage (set y-axis from 0 to 100 for better visualization)
+    sns.boxplot(data=df, x='config', y='mission_percentage', hue='policy', ax=ax2)
+    ax2.set_title('Mission Completion % by Configuration and Policy')
+    ax2.set_xlabel('Configuration')
+    ax2.set_ylim(0, 100)  # Better visualization
+    ax2.tick_params(axis='x', rotation=45)
     
-    for i, (metric, title) in enumerate(zip(metrics, titles)):
-        ax = axes[i//2, i%2]
-        
-        # Create box plot - Fixed: directly use the dataframe instead of pivot/melt
-        sns.boxplot(data=df, x='config', y=metric, hue='policy', ax=ax)
-        ax.set_title(title)
-        ax.set_xlabel('Configuration')
-        ax.set_ylabel(title)
-        ax.tick_params(axis='x', rotation=45)
-        
-        # Fix y-axis scaling for mission completion and average resources
-        if metric == 'mission_percentage':
-            ax.set_ylim(0, 100)  # 0 to 100%
-        elif metric == 'average_resources':
-            ax.set_ylim(0, 1)    # 0 to 1 (normalized resources)
-        
-        if i == 0:  # Add legend only to first subplot
-            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-        else:
-            ax.legend().remove()
+    # Average resources (set y-axis from 0 to 1 for better visualization)
+    sns.boxplot(data=df, x='config', y='average_resources', hue='policy', ax=ax3)
+    ax3.set_title('Average Resources Left by Configuration and Policy')
+    ax3.set_xlabel('Configuration')
+    ax3.set_ylim(0, 1)  # Better visualization
+    ax3.tick_params(axis='x', rotation=45)
+    
+    # Simulation time
+    sns.boxplot(data=df, x='config', y='simulation_time', hue='policy', ax=ax4)
+    ax4.set_title('Simulation Time by Configuration and Policy')
+    ax4.set_xlabel('Configuration')
+    ax4.tick_params(axis='x', rotation=45)
     
     plt.tight_layout()
     plt.savefig(output_dir / 'performance_comparison.png', dpi=300, bbox_inches='tight')
     plt.close()
     
-    # 2. Simulator type comparison
-    if len(df['simulator_type'].unique()) > 1:
-        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-        
-        for i, (metric, title) in enumerate(zip(metrics, titles)):
-            ax = axes[i//2, i%2]
-            
-            # Create box plot comparing simulator types
-            sns.boxplot(data=df, x='simulator_type', y=metric, hue='policy', ax=ax)
-            ax.set_title(f'{title} by Simulator Type')
-            ax.set_xlabel('Simulator Type')
-            ax.set_ylabel(title)
-            ax.tick_params(axis='x', rotation=45)
-            
-            # Fix y-axis scaling
-            if metric == 'mission_percentage':
-                ax.set_ylim(0, 100)
-            elif metric == 'average_resources':
-                ax.set_ylim(0, 1)
-            
-            if i == 0:
-                ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
-            else:
-                ax.legend().remove()
-        
-        plt.tight_layout()
-        plt.savefig(output_dir / 'simulator_type_comparison.png', dpi=300, bbox_inches='tight')
-        plt.close()
+    # 2. Action distribution visualization (stacked bar charts by configuration)
+    configs = df['config'].unique()
+    n_configs = len(configs)
     
-    # 3. Action distribution
+    fig, axes = plt.subplots(1, n_configs, figsize=(6*n_configs, 6))
+    if n_configs == 1:
+        axes = [axes]  # Make it iterable for single config
+    
     action_cols = ['action_0_percent', 'action_1_percent', 'action_2_percent']
-    action_labels = ['Idle', 'Communicate', 'Observe']
+    action_names = ['Idle', 'Communicate', 'Observe']
+    colors = ['lightblue', 'orange', 'lightgreen']
     
-    fig, axes = plt.subplots(1, len(df['config'].unique()), figsize=(20, 5))
-    if len(df['config'].unique()) == 1:
-        axes = [axes]
-    
-    for i, config in enumerate(df['config'].unique()):
+    for i, config in enumerate(configs):
         config_data = df[df['config'] == config]
+        policies = config_data['policy'].unique()
         
-        # Average action percentages by policy
-        action_means = config_data.groupby('policy')[action_cols].mean()
+        # Calculate mean percentages for each policy
+        policy_means = {}
+        for policy in policies:
+            policy_data = config_data[config_data['policy'] == policy]
+            policy_means[policy] = [
+                policy_data['action_0_percent'].mean(),
+                policy_data['action_1_percent'].mean(), 
+                policy_data['action_2_percent'].mean()
+            ]
         
         # Create stacked bar chart
-        ax = axes[i] if len(axes) > 1 else axes[0]
-        action_means.plot(kind='bar', stacked=True, ax=ax, 
-                         color=['lightblue', 'orange', 'lightgreen'])
-        ax.set_title(f'Action Distribution - {config}')
-        ax.set_xlabel('Policy')
-        ax.set_ylabel('Percentage')
-        ax.legend(action_labels, bbox_to_anchor=(1.05, 1), loc='upper left')
-        ax.tick_params(axis='x', rotation=45)
+        bottom = np.zeros(len(policies))
+        
+        for j, (action_name, color) in enumerate(zip(action_names, colors)):
+            values = [policy_means[policy][j] for policy in policies]
+            bars = axes[i].bar(policies, values, bottom=bottom, label=action_name, color=color)
+            bottom += values
+        
+        axes[i].set_title(f'Action Distribution - {config}')
+        axes[i].set_xlabel('Policy')
+        axes[i].set_ylabel('Percentage')
+        axes[i].set_ylim(0, 100)
+        
+        # Rotate x-axis labels if needed
+        if len(max(policies, key=len)) > 8:  # If policy names are long
+            axes[i].tick_params(axis='x', rotation=45)
+    
+    # Add a single legend outside the plot area
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, 0.95), ncol=3)
     
     plt.tight_layout()
+    plt.subplots_adjust(top=0.85)  # Make room for the legend
     plt.savefig(output_dir / 'action_distribution.png', dpi=300, bbox_inches='tight')
     plt.close()
-    
-    # 4. Scaling analysis (if multiple configs)
-    if len(df['config'].unique()) > 1:
-        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
-        
-        # NET vs problem size
-        ax1 = axes[0]
-        problem_sizes = []
-        net_means = {}
-        
-        for policy in df['policy'].unique():
-            net_means[policy] = []
-        
-        for config in df['config'].unique():
-            config_data = df[df['config'] == config]
-            agents = config_data['num_agents'].iloc[0]
-            targets = config_data['num_targets'].iloc[0]
-            problem_size = agents * targets
-            problem_sizes.append(problem_size)
-            
-            for policy in df['policy'].unique():
-                policy_data = config_data[config_data['policy'] == policy]
-                net_mean = policy_data['net_per_agent'].mean()
-                net_means[policy].append(net_mean)
-        
-        for policy in df['policy'].unique():
-            ax1.plot(problem_sizes, net_means[policy], 'o-', label=policy)
-        
-        ax1.set_xlabel('Problem Size (Agents × Targets)')
-        ax1.set_ylabel('NET per Agent')
-        ax1.set_title('Computational Scaling')
-        ax1.set_xscale('log')
-        ax1.legend()
-        ax1.grid(True, alpha=0.3)
-        
-        # Mission completion vs problem size
-        ax2 = axes[1]
-        mission_means = {}
-        
-        for policy in df['policy'].unique():
-            mission_means[policy] = []
-        
-        for config in df['config'].unique():
-            config_data = df[df['config'] == config]
-            
-            for policy in df['policy'].unique():
-                policy_data = config_data[config_data['policy'] == policy]
-                mission_mean = policy_data['mission_percentage'].mean()
-                mission_means[policy].append(mission_mean)
-        
-        for policy in df['policy'].unique():
-            ax2.plot(problem_sizes, mission_means[policy], 'o-', label=policy)
-        
-        ax2.set_xlabel('Problem Size (Agents × Targets)')
-        ax2.set_ylabel('Mission Completion (%)')
-        ax2.set_title('Mission Performance Scaling')
-        ax2.set_xscale('log')
-        ax2.legend()
-        ax2.grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        plt.savefig(output_dir / 'scaling_analysis.png', dpi=300, bbox_inches='tight')
-        plt.close()
     
     print(f"✓ Visualizations saved to {output_dir}")
 

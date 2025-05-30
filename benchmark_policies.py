@@ -12,6 +12,8 @@ import torch
 from ray import tune
 from ray.rllib.algorithms.algorithm import Algorithm
 from ray.rllib.core.rl_module import RLModule
+from ray.rllib.core.rl_module.rl_module import RLModuleSpec
+from ray.rllib.algorithms.ppo.torch.default_ppo_torch_rl_module import DefaultPPOTorchRLModule
 from ray.tune.registry import register_env
 from src.envs.FSS_env_v1 import FSS_env
 from rule_based_policy import RuleBasedPolicy
@@ -38,14 +40,101 @@ class PolicyBenchmark:
             raise
         
     def load_rl_module(self, checkpoint_path, case_name):
-        """Load RL module directly (lighter approach, following compute_actions.py pattern)"""
+        """Load RL module from checkpoint using RLLib's recommended approach"""
         try:
-            # Load just the RL module without distributed training infrastructure
-            rl_module = RLModule.from_checkpoint(
-                Path(checkpoint_path) / "learner_group" / "learner" / "rl_module"
-            )
-            print(f"✓ Loaded RL module for {case_name} from {checkpoint_path}")
-            return rl_module
+            print(f"Loading {case_name} from {checkpoint_path}")
+            
+            # Method 1: Direct state dict loading (now that we know the structure)
+            try:
+                state_path = Path(checkpoint_path) / "learner_group" / "learner" / "rl_module" / "autops-rl_policy" / "module_state.pkl"
+                if state_path.exists():
+                    print(f"Loading state dict from {state_path}")
+                    
+                    import pickle
+                    import torch
+                    
+                    # Load the state dict (it's numpy arrays)
+                    with open(state_path, 'rb') as f:
+                        numpy_state_dict = pickle.load(f)
+                    
+                    # Convert numpy arrays to PyTorch tensors
+                    torch_state_dict = {}
+                    for key, value in numpy_state_dict.items():
+                        if isinstance(value, np.ndarray):
+                            torch_state_dict[key] = torch.from_numpy(value.copy())  # Make a copy to avoid warnings
+                        else:
+                            torch_state_dict[key] = value
+                    
+                    print(f"Converted {len(torch_state_dict)} parameters from numpy to torch")
+                    
+                    # Create a module with the exact architecture we see in the checkpoint
+                    from ray.rllib.algorithms.ppo.torch.ppo_torch_rl_module import PPOTorchRLModule
+                    
+                    # The model config should match what we see in the state dict
+                    model_config = {
+                        "fcnet_hiddens": [256, 256],      # Encoder layers: 3062->256->256
+                        "fcnet_activation": "relu",
+                        "use_lstm": False,
+                        "vf_share_layers": False,         # Separate actor/critic encoders
+                        # Head configurations for the policy and value networks after encoding
+                        "head_fcnet_hiddens": [256, 256], # Policy/Value heads: 256->256->256->output
+                        "head_fcnet_activation": "relu",
+                    }
+                    
+                    rl_module = PPOTorchRLModule(
+                        observation_space=self.env.observation_space,
+                        action_space=self.env.action_space,
+                        model_config=model_config,
+                    )
+                    
+                    # Load the converted state dict
+                    result = rl_module.load_state_dict(torch_state_dict, strict=False)
+                    print(f"✓ Successfully loaded trained weights for {case_name}")
+                    print(f"  Missing keys: {result.missing_keys}")
+                    print(f"  Unexpected keys: {result.unexpected_keys}")
+                    return rl_module
+                    
+            except Exception as direct_error:
+                print(f"Direct state dict loading failed: {direct_error}")
+                import traceback
+                traceback.print_exc()
+            
+            # Method 2: Try RLModule.from_checkpoint (fallback)
+            try:
+                rl_module_path = Path(checkpoint_path) / "learner_group" / "learner" / "rl_module" / "autops-rl_policy"
+                if rl_module_path.exists():
+                    rl_module = RLModule.from_checkpoint(rl_module_path)
+                    print(f"✓ Loaded RL module for {case_name} directly from checkpoint")
+                    return rl_module
+            except Exception as direct_error:
+                print(f"RLModule.from_checkpoint failed: {direct_error}")
+            
+            # Method 3: Try Algorithm loading with resource override (last resort)
+            try:
+                print("Trying algorithm loading as last resort...")
+                # Set environment to minimize resource usage
+                import os
+                os.environ['RAY_OVERRIDE_RESOURCES'] = '{"CPU": 2}'
+                os.environ['CUDA_VISIBLE_DEVICES'] = ''
+                
+                from ray.rllib.algorithms.algorithm import Algorithm
+                algo = Algorithm.from_checkpoint(checkpoint_path)
+                
+                # Get the module
+                rl_module = algo.get_module()
+                if hasattr(rl_module, '_rl_modules'):
+                    rl_module = rl_module._rl_modules.get("autops-rl_policy", rl_module)
+                
+                # Stop the algorithm immediately
+                algo.stop()
+                print(f"✓ Loaded RL module for {case_name} via Algorithm")
+                return rl_module
+                
+            except Exception as algo_error:
+                print(f"Algorithm loading failed: {algo_error}")
+                
+            return None
+            
         except Exception as e:
             print(f"✗ Failed to load RL module for {case_name}: {e}")
             return None
@@ -78,7 +167,7 @@ class PolicyBenchmark:
             
             # Compute actions for all agents
             if policy_name.startswith("Case"):
-                # RL policy - use RLModule directly (following compute_actions.py pattern)
+                # RL policy - use RLModule directly with proper tensor formatting
                 action_start_time = time.time()
                 actions = {}
                 
@@ -86,16 +175,67 @@ class PolicyBenchmark:
                 for agent_id, agent_obs in obs.items():
                     if agent_id.startswith("observer_"):
                         try:
-                            # Use forward_inference like in compute_actions.py
-                            action_result = policy.forward_inference({"obs": agent_obs})
-                            # Extract the action from the result
-                            if hasattr(action_result, 'get'):
-                                action = action_result.get('actions', 0)
+                            # Convert observation to tensor and add batch dimension
+                            import torch
+                            
+                            # Debug: Print observation format
+                            # print(f"Debug: agent_obs type: {type(agent_obs)}")
+                            if isinstance(agent_obs, dict):
+                                # print(f"Debug: agent_obs keys: {list(agent_obs.keys())}")
+                                # Flatten all observation components into a single array
+                                # This matches how RLLib processes dict observations
+                                obs_components = []
+                                for key in sorted(agent_obs.keys()):  # Sort for consistency
+                                    component = agent_obs[key]
+                                    if isinstance(component, np.ndarray):
+                                        obs_components.append(component.flatten())
+                                    else:
+                                        obs_components.append(np.array([component]).flatten())
+                                
+                                actual_obs = np.concatenate(obs_components)
+                                # print(f"Debug: flattened obs shape: {actual_obs.shape}")
                             else:
-                                action = 0  # Default action if something goes wrong
+                                actual_obs = agent_obs
+                                # print(f"Debug: direct obs shape: {actual_obs.shape}")
+                            
+                            if isinstance(actual_obs, np.ndarray):
+                                obs_tensor = torch.from_numpy(actual_obs).float()
+                            else:
+                                obs_tensor = torch.tensor(actual_obs, dtype=torch.float32)
+                            
+                            # Add batch dimension (RLModule expects batched input)
+                            obs_batch = obs_tensor.unsqueeze(0)  # Shape: (1, obs_dim)
+                            
+                            # Use forward_inference with proper input format
+                            with torch.no_grad():  # No gradients needed for inference
+                                action_result = policy.forward_inference({"obs": obs_batch})
+                            
+                            # Extract the action from the result - we know it's action_dist_inputs
+                            if isinstance(action_result, dict) and 'action_dist_inputs' in action_result:
+                                action_logits = action_result['action_dist_inputs']  # Shape: [1, 3]
+                                
+                                # For discrete actions, we have several options:
+                                # Option 1: Deterministic (argmax) - use the most likely action
+                                action = action_logits.argmax(dim=-1).item()  # Get scalar action
+                                
+                                # Option 2: Stochastic sampling (uncomment to use instead)
+                                # import torch.nn.functional as F
+                                # from torch.distributions import Categorical
+                                # dist = Categorical(logits=action_logits)
+                                # action = dist.sample().item()
+                                
+                            else:
+                                print(f"Unexpected action result format: {action_result}")
+                                action = 0
+                            
+                            # Ensure action is a valid integer for the environment
+                            action = int(action)
                             actions[agent_id] = action
+                            
                         except Exception as e:
                             print(f"Warning: Action computation failed for {agent_id}, using default action: {e}")
+                            import traceback
+                            traceback.print_exc()
                             actions[agent_id] = 0  # Default to idle action
                 
                 action_time = time.time() - action_start_time
@@ -349,99 +489,88 @@ def main():
     
     args = parser.parse_args()
     
-    # Initialize Ray (required for loading RL checkpoints)
+    # Initialize Ray in local mode to keep things simple
     try:
-        gpu_count = torch.cuda.device_count() if torch.cuda.is_available() else 0
-        ray.init(num_gpus=gpu_count, local_mode=True)  # Use local_mode for simpler debugging
+        print("Initializing Ray in local mode...")
+        ray.init(
+            local_mode=True,  # Single process, no distributed overhead
+            ignore_reinit_error=True,
+            include_dashboard=False,
+        )
         
         # Register the environment with Ray
         register_env("FSS_env", env_creator)
+        print("✓ Ray initialized successfully")
         
     except Exception as e:
         print(f"Warning: Ray initialization failed: {e}")
-        print("Continuing without Ray (RL policies will not work)")
+        print("Continuing without Ray")
     
     # Define configuration sets
     if args.configs == "small":
         config_sets = {
-            "5_agents_10_targets": {
-                "num_observers": 5, "num_targets": 10,
-                "time_step": 1, "duration": 100,  # Very short for testing
-                "seed": 47, "reward_type": "case1"
+            # Quick testing with shorter episodes across all simulator types
+            "20_agents_100_targets_centralized": {
+                "num_observers": 20, "num_targets": 100,
+                "time_step": 1, "duration": 500,  # Shorter for testing
+                "seed": 47, "reward_type": "case1",
+                "simulator_type": "centralized"
+            },
+            "20_agents_100_targets_decentralized": {
+                "num_observers": 20, "num_targets": 100,
+                "time_step": 1, "duration": 500,  # Shorter for testing
+                "seed": 47, "reward_type": "case1",
+                "simulator_type": "decentralized"
+            },
+            "20_agents_100_targets_everyone": {
+                "num_observers": 20, "num_targets": 100,
+                "time_step": 1, "duration": 500,  # Shorter for testing
+                "seed": 47, "reward_type": "case1",
+                "simulator_type": "everyone"
             }
         }
     elif args.configs == "large":
         config_sets = {
-            "20_agents_100_targets": {
+            # Extended duration testing across all simulator types
+            "20_agents_100_targets_centralized": {
                 "num_observers": 20, "num_targets": 100,
-                "time_step": 1, "duration": 86400,
-                "seed": 47, "reward_type": "case1"
+                "time_step": 1, "duration": 172800,  # 2 days
+                "seed": 47, "reward_type": "case1",
+                "simulator_type": "centralized"
             },
-            "20_agents_500_targets": {
-                "num_observers": 20, "num_targets": 500,
-                "time_step": 1, "duration": 86400,
-                "seed": 47, "reward_type": "case1"
-            },
-            "50_agents_500_targets": {
-                "num_observers": 50, "num_targets": 500,
-                "time_step": 1, "duration": 86400,
-                "seed": 47, "reward_type": "case1"
-            },
-            "100_agents_1000_targets": {
-                "num_observers": 100, "num_targets": 1000,
-                "time_step": 1, "duration": 86400,
-                "seed": 47, "reward_type": "case1"
-            },
-            "1000_agents_10000_targets": {
-                "num_observers": 1000, "num_targets": 10000,
-                "time_step": 1, "duration": 86400,
-                "seed": 47, "reward_type": "case1"
-            }
-        }
-    elif args.configs == "all":
-        config_sets = {
-            "20_agents_100_targets": {
+            "20_agents_100_targets_decentralized": {
                 "num_observers": 20, "num_targets": 100,
-                "time_step": 1, "duration": 86400,
-                "seed": 47, "reward_type": "case1"
+                "time_step": 1, "duration": 172800,  # 2 days
+                "seed": 47, "reward_type": "case1",
+                "simulator_type": "decentralized"
             },
-            "20_agents_500_targets": {
-                "num_observers": 20, "num_targets": 500,
-                "time_step": 1, "duration": 86400,
-                "seed": 47, "reward_type": "case1"
-            },
-            "50_agents_500_targets": {
-                "num_observers": 50, "num_targets": 500,
-                "time_step": 1, "duration": 86400,
-                "seed": 47, "reward_type": "case1"
-            },
-            "100_agents_1000_targets": {
-                "num_observers": 100, "num_targets": 1000,
-                "time_step": 1, "duration": 86400,
-                "seed": 47, "reward_type": "case1"
-            },
-            "1000_agents_10000_targets": {
-                "num_observers": 1000, "num_targets": 10000,
-                "time_step": 1, "duration": 86400,
-                "seed": 47, "reward_type": "case1"
+            "20_agents_100_targets_everyone": {
+                "num_observers": 20, "num_targets": 100,
+                "time_step": 1, "duration": 172800,  # 2 days
+                "seed": 47, "reward_type": "case1",
+                "simulator_type": "everyone"
             }
         }
     else:  # standard
         config_sets = {
-            "20_agents_100_targets": {
+            # Standard cross-network evaluation - matches training config exactly
+            "20_agents_100_targets_centralized": {
                 "num_observers": 20, "num_targets": 100,
                 "time_step": 1, "duration": 86400,
-                "seed": 47, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1",
+                "simulator_type": "centralized"
             },
-            "20_agents_500_targets": {
-                "num_observers": 20, "num_targets": 500,
+            "20_agents_100_targets_decentralized": {
+                "num_observers": 20, "num_targets": 100,
                 "time_step": 1, "duration": 86400,
-                "seed": 47, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1",
+                "simulator_type": "decentralized"
             },
-            "50_agents_500_targets": {
-                "num_observers": 50, "num_targets": 500,
+            "20_agents_100_targets_everyone": {
+                "num_observers": 20, "num_targets": 100,
                 "time_step": 1, "duration": 86400,
-                "seed": 47, "reward_type": "case1"
+                "seed": 47, "reward_type": "case1",
+                "simulator_type": "everyone"
             }
         }
     
@@ -452,10 +581,12 @@ def main():
             num_episodes=args.episodes,
             max_steps_per_episode=args.max_steps
         )
-        
-        print(f"📁 Experiment saved in: {experiment_dir}")
-        print(f"📊 To analyze results, run:")
-        print(f"    python analyze_results.py {experiment_dir / 'benchmark_results.json'}")
+        if experiment_dir:  # Check if experiment_dir is not None
+            print(f"📁 Experiment saved in: {experiment_dir}")
+            print(f"📊 To analyze results, run:")
+            print(f"    python analyze_results.py {experiment_dir / 'benchmark_results.json'}")
+        else:
+            print("❌ No experiment directory created - benchmark failed")
         
     except Exception as e:
         print(f"❌ Benchmark failed: {e}")

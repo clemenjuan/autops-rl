@@ -10,8 +10,13 @@ class MIPPolicy:
     relaxation as a heuristic for the actual MIP problem.
     """
     
-    def __init__(self, time_horizon=5):
+    def __init__(self, time_horizon=5, battery_threshold_high=0.8, battery_threshold_low=0.3,
+                 storage_threshold_high=0.7, storage_threshold_low=0.3):
         self.time_horizon = time_horizon
+        self.battery_threshold_high = battery_threshold_high
+        self.battery_threshold_low = battery_threshold_low
+        self.storage_threshold_high = storage_threshold_high
+        self.storage_threshold_low = storage_threshold_low
     
     def compute_actions(self, observations, env):
         """
@@ -59,12 +64,12 @@ class MIPPolicy:
         utility_communicate = self._calculate_communication_utility(agent_idx, obs)
         utility_observe = self._calculate_observation_utility(agent_idx, obs)
         
-        # Apply resource constraints
-        if battery_level < 0.2:  # Low battery constraint
+        # Apply resource constraints (now consistent with rule-based policy)
+        if battery_level < self.battery_threshold_low:  # Low battery constraint
             utility_communicate *= 0.1
             utility_observe *= 0.1
         
-        if storage_level > 0.9:  # High storage constraint
+        if storage_level > self.storage_threshold_high:  # High storage constraint
             utility_observe *= 0.1  # Discourage more observation
             utility_communicate *= 2.0  # Encourage communication
         
@@ -112,5 +117,9 @@ class MIPPolicy:
         return {
             "policy_type": "mip",
             "time_horizon": self.time_horizon,
+            "battery_threshold_high": self.battery_threshold_high,
+            "battery_threshold_low": self.battery_threshold_low,
+            "storage_threshold_high": self.storage_threshold_high,
+            "storage_threshold_low": self.storage_threshold_low,
             "note": "Simplified MIP using greedy heuristic"
         } 
