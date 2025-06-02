@@ -40,103 +40,71 @@ class PolicyBenchmark:
             raise
         
     def load_rl_module(self, checkpoint_path, case_name):
-        """Load RL module from checkpoint using direct file loading"""
+        """Load RL module from checkpoint using simplified approach"""
         try:
             print(f"Loading {case_name} from {checkpoint_path}")
             
             from pathlib import Path
-            import torch
+            checkpoint_path = Path(checkpoint_path).resolve()
             
-            checkpoint_path = Path(checkpoint_path)
             if not checkpoint_path.exists():
                 print(f"Checkpoint path does not exist: {checkpoint_path}")
                 return None
             
-            # Method 1: Try loading the saved PyTorch model directly
+            print(f"Checkpoint directory contents:")
+            for item in checkpoint_path.rglob("*"):
+                if item.is_file():
+                    print(f"  {item.relative_to(checkpoint_path)}")
+            
+            # Try Ray Algorithm loading (simplest approach)
             try:
-                # Look for the actual model file inside the checkpoint
-                model_files = list(checkpoint_path.rglob("*.pt")) + list(checkpoint_path.rglob("*.pth"))
-                if model_files:
-                    model_file = model_files[0]  # Take the first one found
-                    print(f"Found model file: {model_file}")
-                    
-                    # Load the PyTorch model state dict
-                    state_dict = torch.load(model_file, map_location='cpu')
-                    
-                    # Create a simple wrapper that can do forward inference
-                    class SimpleRLModule:
-                        def __init__(self, state_dict):
-                            self.state_dict = state_dict
-                            # Try to reconstruct the model structure
-                            self.setup_model()
-                        
-                        def setup_model(self):
-                            # This is a simplified approach - you might need to adjust based on your model structure
-                            import torch.nn as nn
-                            
-                            # Infer input/output dimensions from state dict
-                            input_dim = None
-                            output_dim = None
-                            
-                            for key, tensor in self.state_dict.items():
-                                if 'fc' in key.lower() or 'linear' in key.lower():
-                                    if 'weight' in key:
-                                        if input_dim is None:
-                                            input_dim = tensor.shape[1]
-                                        output_dim = tensor.shape[0]
-                            
-                            if input_dim is None or output_dim is None:
-                                print("Could not infer model dimensions, using defaults")
-                                input_dim = 256  # Adjust based on your env
-                                output_dim = 3   # Number of actions
-                            
-                            # Create a simple model
-                            self.model = nn.Sequential(
-                                nn.Linear(input_dim, 128),
-                                nn.ReLU(),
-                                nn.Linear(128, 64),
-                                nn.ReLU(),
-                                nn.Linear(64, output_dim)
-                            )
-                            
-                            # Try to load compatible weights
-                            try:
-                                self.model.load_state_dict(self.state_dict, strict=False)
-                            except:
-                                print("Could not load state dict, using random weights")
+                print("Trying Ray Algorithm loading...")
+                import os
+                # Minimize resources
+                os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Force CPU
+                
+                from ray.rllib.algorithms.algorithm import Algorithm
+                
+                # Try loading with string path
+                algo = Algorithm.from_checkpoint(str(checkpoint_path))
+                
+                # Get the policy/module
+                policy = algo.get_policy("autops-rl_policy")
+                if policy is not None:
+                    print(f"✓ Loaded policy for {case_name}")
+                    # Create a wrapper that mimics RLModule interface
+                    class PolicyWrapper:
+                        def __init__(self, policy):
+                            self.policy = policy
                         
                         def forward_inference(self, inputs):
                             obs = inputs["obs"]
-                            with torch.no_grad():
-                                action_logits = self.model(obs)
-                            return {"action_dist_inputs": action_logits}
+                            # Use policy.compute_actions_from_input_dict
+                            actions, state_outs, extra = self.policy.compute_actions_from_input_dict(
+                                {"obs": obs}
+                            )
+                            return {"action_dist_inputs": actions}
                     
-                    rl_module = SimpleRLModule(state_dict)
-                    print(f"✓ Loaded RL module for {case_name} from PyTorch file")
-                    return rl_module
-                    
-            except Exception as pt_error:
-                print(f"PyTorch model loading failed: {pt_error}")
-            
-            # Method 2: Try the original approach but handle URI errors
-            try:
-                import os
-                os.environ['CUDA_VISIBLE_DEVICES'] = ''
+                    wrapper = PolicyWrapper(policy)
+                    algo.stop()
+                    return wrapper
                 
-                # Use string path instead of URI
-                from ray.rllib.algorithms.algorithm import Algorithm
-                algo = Algorithm.from_checkpoint(str(checkpoint_path))
-                
+                # Try getting the module directly
                 rl_module = algo.get_module()
-                if hasattr(rl_module, '_rl_modules'):
-                    rl_module = rl_module._rl_modules.get("autops-rl_policy", rl_module)
+                if rl_module is not None:
+                    if hasattr(rl_module, '_rl_modules'):
+                        rl_module = rl_module._rl_modules.get("autops-rl_policy", rl_module)
+                    print(f"✓ Loaded RL module for {case_name}")
+                    algo.stop()
+                    return rl_module
                 
                 algo.stop()
-                print(f"✓ Loaded RL module for {case_name} via Algorithm")
-                return rl_module
+                print(f"Could not extract policy or module from {case_name}")
                 
             except Exception as algo_error:
                 print(f"Algorithm loading failed: {algo_error}")
+                import traceback
+                traceback.print_exc()
             
             return None
             
@@ -293,46 +261,42 @@ class PolicyBenchmark:
     
 def get_checkpoint_paths():
     """
-    Define checkpoint paths for each case.
-    Updated for LRZ server paths inside Enroot container.
+    Define checkpoint paths for each case with auto-detection.
     """
-    # Base directory for checkpoints inside Enroot container
-    checkpoint_base = "/workspace"  # Changed from /dss/dsshome1/05/ge26sav2/autops-rl
+    # Base directory for checkpoints (adjust for your server)
+    checkpoint_base = "checkpoints" 
     
-    # Define checkpoint paths for each case
-    # UPDATE THESE PATHS TO MATCH YOUR ACTUAL CHECKPOINT LOCATIONS
-    checkpoint_paths = {
-        "case1": f"{checkpoint_base}/checkpoints_case1_training_5164693/everyone/best_case1_seed44_sim_everyone.ckpt",
-        "case2": f"{checkpoint_base}/checkpoints_case2_training_5164694/everyone/best_case2_seed43_sim_everyone.ckpt",
-        "case3": f"{checkpoint_base}/checkpoints_case3_training_5162300/everyone/best_case3_seed45_sim_everyone.ckpt",
-        "case4": f"{checkpoint_base}/checkpoints_case4_training_5162301/everyone/best_case4_seed46_sim_everyone.ckpt",
-    }
+    print("Auto-detecting checkpoint paths...")
+    import glob
     
-    # Auto-detect available checkpoints if job IDs not specified
-    if "XXXXX" in str(checkpoint_paths):
-        print("Auto-detecting checkpoint paths...")
-        import glob
+    auto_paths = {}
+    for case_name in ["case1", "case2", "case3", "case4"]:
+        # Look for training directories for this case
+        patterns = [
+            f"{checkpoint_base}/checkpoints_{case_name}_training_*/everyone/best_{case_name}_seed*_sim_everyone.ckpt",
+            f"{checkpoint_base}/checkpoints_{case_name}_training_*/**/best_{case_name}_seed*_sim_everyone.ckpt",
+            f"./checkpoints_{case_name}_training_*/everyone/best_{case_name}_seed*_sim_everyone.ckpt",
+            f"./checkpoints_{case_name}_training_*/**/best_{case_name}_seed*_sim_everyone.ckpt",
+            f"checkpoints_{case_name}_training_*/everyone/best_{case_name}_seed*_sim_everyone.ckpt",
+            f"checkpoints_{case_name}_training_*/**/best_{case_name}_seed*_sim_everyone.ckpt",
+        ]
         
-        auto_paths = {}
-        for case_name in ["case1", "case2", "case3", "case4"]:
-            # Look for training directories for this case
-            pattern = f"{checkpoint_base}/checkpoints_{case_name}_training_*/everyone/best_{case_name}_seed*_sim_everyone.ckpt"
-            matches = glob.glob(pattern)
-            
-            if matches:
-                # Use the most recent one (largest job ID)
-                auto_paths[case_name] = sorted(matches)[-1]
-                print(f"  Found {case_name}: {auto_paths[case_name]}")
-            else:
-                print(f"  ⚠️  No checkpoint found for {case_name}")
+        matches = []
+        for pattern in patterns:
+            matches.extend(glob.glob(pattern, recursive=True))
         
-        # Update paths with auto-detected ones
-        checkpoint_paths.update(auto_paths)
+        if matches:
+            # Use the most recent one (largest job ID)
+            auto_paths[case_name] = sorted(matches)[-1]
+            print(f"  Found {case_name}: {auto_paths[case_name]}")
+        else:
+            print(f"  ⚠️  No checkpoint found for {case_name}")
+            print(f"    Searched patterns: {patterns}")
     
     # Verify paths exist
     verified_paths = {}
-    for case_name, path in checkpoint_paths.items():
-        if "XXXXX" not in path and os.path.exists(path):
+    for case_name, path in auto_paths.items():
+        if os.path.exists(path):
             verified_paths[case_name] = path
             print(f"✓ Verified {case_name}: {path}")
         else:
@@ -343,8 +307,29 @@ def get_checkpoint_paths():
 def run_benchmark_suite(config_sets, num_episodes=5, max_steps_per_episode=None):
     """Run benchmark across all configurations and policies"""
     
-    # Test if any RL policies can actually be loaded
+    print("="*80)
+    print("DEBUGGING CHECKPOINT DETECTION")
+    print("="*80)
+    
+    # Print current directory and contents
+    import os
+    print(f"Current working directory: {os.getcwd()}")
+    print("Contents of current directory:")
+    for item in os.listdir('.'):
+        if 'checkpoint' in item.lower() or 'case' in item.lower():
+            print(f"  📁 {item}")
+    
+    # Test checkpoint detection
     checkpoint_paths = get_checkpoint_paths()
+    
+    if not checkpoint_paths:
+        print("❌ No checkpoint paths found! Please check:")
+        print("1. Are you in the right directory?")
+        print("2. Do checkpoint directories exist?")
+        print("3. Are checkpoint files named correctly?")
+        return [], None
+    
+    # Continue with rest of function...
     system_info = get_system_info()
     test_config = {"num_observers": 20, "num_targets": 100, "time_step": 1, "duration": 100, "seed": 47, "reward_type": "case1", "simulator_type": "everyone"}
     test_benchmark = PolicyBenchmark(test_config, system_info)
