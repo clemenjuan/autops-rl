@@ -42,63 +42,7 @@ class PolicyBenchmark:
     def load_rl_module(self, checkpoint_path, case_name):
         """Load RL module from checkpoint using RLLib's recommended approach"""
         try:
-            print(f"Loading {case_name} from {checkpoint_path}")
-            
-            # Method 1: Direct state dict loading (now that we know the structure)
-            try:
-                state_path = Path(checkpoint_path) / "learner_group" / "learner" / "rl_module" / "autops-rl_policy" / "module_state.pkl"
-                if state_path.exists():
-                    print(f"Loading state dict from {state_path}")
-                    
-                    import pickle
-                    import torch
-                    
-                    # Load the state dict (it's numpy arrays)
-                    with open(state_path, 'rb') as f:
-                        numpy_state_dict = pickle.load(f)
-                    
-                    # Convert numpy arrays to PyTorch tensors
-                    torch_state_dict = {}
-                    for key, value in numpy_state_dict.items():
-                        if isinstance(value, np.ndarray):
-                            torch_state_dict[key] = torch.from_numpy(value.copy())  # Make a copy to avoid warnings
-                        else:
-                            torch_state_dict[key] = value
-                    
-                    print(f"Converted {len(torch_state_dict)} parameters from numpy to torch")
-                    
-                    # Create a module with the exact architecture we see in the checkpoint
-                    from ray.rllib.algorithms.ppo.torch.ppo_torch_rl_module import PPOTorchRLModule
-                    
-                    # The model config should match what we see in the state dict
-                    model_config = {
-                        "fcnet_hiddens": [256, 256],      # Encoder layers: 3062->256->256
-                        "fcnet_activation": "relu",
-                        "use_lstm": False,
-                        "vf_share_layers": False,         # Separate actor/critic encoders
-                        # Head configurations for the policy and value networks after encoding
-                        "head_fcnet_hiddens": [256, 256], # Policy/Value heads: 256->256->256->output
-                        "head_fcnet_activation": "relu",
-                    }
-                    
-                    rl_module = PPOTorchRLModule(
-                        observation_space=self.env.observation_space,
-                        action_space=self.env.action_space,
-                        model_config=model_config,
-                    )
-                    
-                    # Load the converted state dict
-                    result = rl_module.load_state_dict(torch_state_dict, strict=False)
-                    print(f"✓ Successfully loaded trained weights for {case_name}")
-                    print(f"  Missing keys: {result.missing_keys}")
-                    print(f"  Unexpected keys: {result.unexpected_keys}")
-                    return rl_module
-                    
-            except Exception as direct_error:
-                print(f"Direct state dict loading failed: {direct_error}")
-                import traceback
-                traceback.print_exc()
-            
+            print(f"Loading {case_name} from {checkpoint_path}")           
             # Method 2: Try RLModule.from_checkpoint (fallback)
             try:
                 rl_module_path = Path(checkpoint_path) / "learner_group" / "learner" / "rl_module" / "autops-rl_policy"
@@ -160,17 +104,15 @@ class PolicyBenchmark:
         step_count = 0
         
         print(f"Running episode with {policy_name} on {self.env_config['simulator_type']} simulator...")
-        episode_start_time = time.time()
+        episode_start_time = time.perf_counter()
         
         while not done and (max_steps is None or step_count < max_steps):
-            step_start_time = time.time()
+            step_start_time = time.perf_counter()
             
             # Compute actions for all agents
             if policy_name.startswith("Case"):
                 # RL policy - use RLModule directly with proper tensor formatting
-                action_start_time = time.time()
                 actions = {}
-                
                 # For each agent, compute action using the RL module
                 for agent_id, agent_obs in obs.items():
                     if agent_id.startswith("observer_"):
@@ -208,7 +150,9 @@ class PolicyBenchmark:
                             
                             # Use forward_inference with proper input format
                             with torch.no_grad():  # No gradients needed for inference
+                                action_start_time = time.perf_counter()
                                 action_result = policy.forward_inference({"obs": obs_batch})
+                                action_time = time.perf_counter() - action_start_time
                             
                             # Extract the action from the result - we know it's action_dist_inputs
                             if isinstance(action_result, dict) and 'action_dist_inputs' in action_result:
@@ -237,20 +181,18 @@ class PolicyBenchmark:
                             import traceback
                             traceback.print_exc()
                             actions[agent_id] = 0  # Default to idle action
-                
-                action_time = time.time() - action_start_time
-                
+
             elif policy_name == "RuleBased":
                 # Rule-based policy
-                action_start_time = time.time()
+                action_start_time = time.perf_counter()
                 actions = policy.compute_actions(obs, self.env)
-                action_time = time.time() - action_start_time
+                action_time = time.perf_counter() - action_start_time
                 
             elif policy_name == "MIP":
                 # MIP policy
-                action_start_time = time.time()
+                action_start_time = time.perf_counter()
                 actions = policy.compute_actions(obs, self.env)
-                action_time = time.time() - action_start_time
+                action_time = time.perf_counter() - action_start_time
             
             # Record action timing and choices
             metrics.add_action_time(action_time)
@@ -259,7 +201,7 @@ class PolicyBenchmark:
             
             # Step environment
             obs, rewards, terminated, truncated, info = self.env.step(actions)
-            step_time = time.time() - step_start_time
+            step_time = time.perf_counter() - step_start_time
             
             # Record step metrics
             metrics.add_step_time(step_time)
@@ -270,7 +212,7 @@ class PolicyBenchmark:
             step_count += 1
         
         # Record episode timing
-        episode_time = time.time() - episode_start_time
+        episode_time = time.perf_counter() - episode_start_time
         metrics.set_episode_time(episode_time)
         
         # Get final environment metrics
@@ -279,26 +221,62 @@ class PolicyBenchmark:
         
         print(f"✓ Completed episode with {policy_name} on {self.env_config['simulator_type']} in {episode_time:.2f}s ({step_count} steps)")
         
-        return metrics.get_results()
+        # Add step_count to the results before returning
+        results = metrics.get_results()
+        results['step_count'] = step_count
+        
+        return results
+    
+    
 def get_checkpoint_paths():
     """
     Define checkpoint paths for each case.
-    Since you only trained on 'everyone' simulator, we use those checkpoints
-    but test them across all three simulator types.
+    Updated for LRZ server paths inside Enroot container.
     """
-    
-    # Base directory for checkpoints
-    checkpoint_base = "checkpoints"
+    # Base directory for checkpoints inside Enroot container
+    checkpoint_base = "/workspace"  # Changed from /dss/dsshome1/05/ge26sav2/autops-rl
     
     # Define checkpoint paths for each case
     # UPDATE THESE PATHS TO MATCH YOUR ACTUAL CHECKPOINT LOCATIONS
     checkpoint_paths = {
-        "case1": os.path.abspath(f"{checkpoint_base}/best_case1_seed42_sim_everyone.ckpt"),
-        "case2": os.path.abspath(f"{checkpoint_base}/best_case2_seed44_sim_everyone.ckpt"),
-        "case3": os.path.abspath(f"{checkpoint_base}/best_case3_seed42_sim_everyone.ckpt"),
-        "case4": os.path.abspath(f"{checkpoint_base}/best_case4_seed44_sim_everyone.ckpt"),
-    }    
-    return checkpoint_paths
+        "case1": f"{checkpoint_base}/checkpoints_case1_training_5164693/everyone/best_case1_seed44_sim_everyone.ckpt",
+        "case2": f"{checkpoint_base}/checkpoints_case2_training_5164694/everyone/best_case2_seed43_sim_everyone.ckpt",
+        "case3": f"{checkpoint_base}/checkpoints_case3_training_5162300/everyone/best_case3_seed45_sim_everyone.ckpt",
+        "case4": f"{checkpoint_base}/checkpoints_case4_training_5162301/everyone/best_case4_seed46_sim_everyone.ckpt",
+    }
+    
+    # Auto-detect available checkpoints if job IDs not specified
+    if "XXXXX" in str(checkpoint_paths):
+        print("Auto-detecting checkpoint paths...")
+        import glob
+        
+        auto_paths = {}
+        for case_name in ["case1", "case2", "case3", "case4"]:
+            # Look for training directories for this case
+            pattern = f"{checkpoint_base}/checkpoints_{case_name}_training_*/everyone/best_{case_name}_seed*_sim_everyone.ckpt"
+            matches = glob.glob(pattern)
+            
+            if matches:
+                # Use the most recent one (largest job ID)
+                auto_paths[case_name] = sorted(matches)[-1]
+                print(f"  Found {case_name}: {auto_paths[case_name]}")
+            else:
+                print(f"  ⚠️  No checkpoint found for {case_name}")
+        
+        # Update paths with auto-detected ones
+        checkpoint_paths.update(auto_paths)
+    
+    # Verify paths exist
+    verified_paths = {}
+    for case_name, path in checkpoint_paths.items():
+        if "XXXXX" not in path and os.path.exists(path):
+            verified_paths[case_name] = path
+            print(f"✓ Verified {case_name}: {path}")
+        else:
+            print(f"✗ Missing {case_name}: {path}")
+    
+    return verified_paths
+
 def run_benchmark_suite(config_sets, num_episodes=5, max_steps_per_episode=None):
     """Run benchmark across all configurations and policies"""
     

@@ -33,6 +33,7 @@ def create_summary_dataframe(results):
             'action_0_percent': result['metrics']['action_distribution']['action_0'],  # Idle
             'action_1_percent': result['metrics']['action_distribution']['action_1'],  # Communicate
             'action_2_percent': result['metrics']['action_distribution']['action_2'],  # Observe
+            'step_count': result.get('step_count', 0),
         }
         rows.append(row)
     
@@ -61,7 +62,7 @@ def generate_latex_table(df, output_file):
     latex_content.append("\\medskip")
     latex_content.append("")
     latex_content.append("\\begin{tabular}{lcccc}")
-    latex_content.append("\\textbf{Method} & \\textbf{NET per agent} & \\textbf{Mission (\\%)} & \\textbf{Avg Resources} & \\textbf{Sim Time} \\\\")
+    latex_content.append("\\textbf{Method} & \\textbf{NET per Action} & \\textbf{Mission (\\%)} & \\textbf{Avg Resources} & \\textbf{Sim Steps} \\\\")
     latex_content.append("\\hline")
     
     # Group by configuration
@@ -167,56 +168,96 @@ def generate_action_distribution_table(df, output_file):
 
 
 def generate_simulator_comparison_table(df, output_file):
-    """Generate LaTeX table comparing simulator types"""
+    """Generate a LaTeX table comparing performance across simulators and policies"""
     
-    # Group by simulator_type and policy, calculate means and stds
-    summary_stats = df.groupby(['simulator_type', 'policy']).agg({
-        'net_per_agent': ['mean', 'std'],
-        'mission_percentage': ['mean', 'std'],
-        'average_resources': ['mean', 'std'],
-        'simulation_time': ['mean', 'std'],
-    }).round(3)
+    # Define simulator type mappings and order
+    simulator_mapping = {
+        'centralized': 'Centralized coordination',
+        'decentralized': 'Constrained decentralized coordination', 
+        'everyone': 'Fully decentralized coordination'
+    }
     
-    # Flatten column names
-    summary_stats.columns = ['_'.join(col).strip() for col in summary_stats.columns]
+    simulator_order = ['centralized', 'decentralized', 'everyone']
     
-    latex_content = []
-    latex_content.append("\\begin{table}[htbp]")
-    latex_content.append("\\centering")
-    latex_content.append("\\caption{Performance Comparison Across Different Simulator Types}")
-    latex_content.append("\\label{tab:simulator_comparison}")
-    latex_content.append("\\medskip")
-    latex_content.append("")
-    latex_content.append("\\begin{tabular}{lcccc}")
-    latex_content.append("\\textbf{Method} & \\textbf{NET per agent} & \\textbf{Mission (\\%)} & \\textbf{Avg Resources} & \\textbf{Sim Time} \\\\")
-    latex_content.append("\\hline")
+    # Define policy name mappings
+    policy_mapping = {
+        'case1': 'Case1',
+        'case2': 'Case2', 
+        'case3': 'Case3',
+        'case4': 'Case4',
+        'mip': 'MIP',
+        'rule_based': 'RuleBased'
+    }
     
-    # Group by simulator type
-    simulator_types = df['simulator_type'].unique()
-    for sim_type in simulator_types:
-        latex_content.append(f"\\multicolumn{{5}}{{c}}{{\\textbf{{{sim_type.title()} Simulator}}}} \\\\")
-        
-        sim_data = summary_stats.loc[sim_type]
-        
-        for policy in sim_data.index:
-            net_mean = sim_data.loc[policy, 'net_per_agent_mean']
-            net_std = sim_data.loc[policy, 'net_per_agent_std']
-            mission_mean = sim_data.loc[policy, 'mission_percentage_mean']
-            mission_std = sim_data.loc[policy, 'mission_percentage_std']
-            resources_mean = sim_data.loc[policy, 'average_resources_mean']
-            resources_std = sim_data.loc[policy, 'average_resources_std']
-            sim_time_mean = sim_data.loc[policy, 'simulation_time_mean']
-            sim_time_std = sim_data.loc[policy, 'simulation_time_std']
+    # Define policy order (RL policies first, then baselines)
+    policy_order = ['case1', 'case2', 'case3', 'case4', 'mip', 'rule_based']
+    
+    # Calculate statistics grouped by simulator type and policy
+    stats = {}
+    for sim_type in simulator_order:
+        if sim_type not in stats:
+            stats[sim_type] = {}
             
-            latex_content.append(
-                f"{policy} & {net_mean:.3f}±{net_std:.3f} & {mission_mean:.1f}±{mission_std:.1f} & "
-                f"{resources_mean:.2f}±{resources_std:.2f} & {sim_time_mean:.1f}±{sim_time_std:.1f} \\\\"
-            )
-        
-        latex_content.append("\\hline")
+        sim_data = df[df['config'].str.contains(sim_type)]
+        if sim_data.empty:
+            continue
+            
+        for policy in policy_order:
+            policy_data = sim_data[sim_data['policy'] == policy]
+            if not policy_data.empty:
+                stats[sim_type][policy] = {
+                    'net_per_agent': (policy_data['net_per_agent'].mean(), policy_data['net_per_agent'].std()),
+                    'mission_percentage': (policy_data['mission_percentage'].mean(), policy_data['mission_percentage'].std()),
+                    'average_resources': (policy_data['average_resources'].mean(), policy_data['average_resources'].std()),
+                    'step_count': (policy_data['step_count'].mean(), policy_data['step_count'].std())
+                }
     
-    latex_content.append("\\end{tabular}")
-    latex_content.append("\\end{table}")
+    # Generate LaTeX table
+    latex_content = [
+        "\\begin{table}[htbp]",
+        "\\centering",
+        "\\caption{Performance Comparison Across Different Configurations}",
+        "\\label{tab:performance_comparison}",
+        "\\medskip",
+        "",
+        "\\begin{tabular}{lcccc}",
+        "\\textbf{Method} & \\textbf{NET per Action ($\\mu$s)} & \\textbf{Mission (\\%)} & \\textbf{Avg Resources} & \\textbf{Sim Steps} \\\\",
+        "\\hline"
+    ]
+    
+    # Add data for each simulator type
+    for i, sim_type in enumerate(simulator_order):
+        if sim_type not in stats or not stats[sim_type]:
+            continue
+            
+        # Add simulator section header
+        latex_content.append(f"\\multicolumn{{5}}{{c}}{{\\textbf{{{simulator_mapping[sim_type]}}}}} \\\\")
+        
+        # Add policies for this simulator type
+        for policy in policy_order:
+            if policy in stats[sim_type]:
+                data = stats[sim_type][policy]
+                policy_name = policy_mapping[policy]
+                
+                # Format values with mean±std
+                net_mean, net_std = data['net_per_agent']
+                mission_mean, mission_std = data['mission_percentage'] 
+                resources_mean, resources_std = data['average_resources']
+                steps_mean, steps_std = data['step_count']
+                
+                row = f"{policy_name} & {net_mean:.3f}$\\pm${net_std:.3f} & {mission_mean:.1f}$\\pm${mission_std:.1f} & {resources_mean:.2f}$\\pm${resources_std:.2f} & {steps_mean:.0f}$\\pm${steps_std:.0f} \\\\"
+                latex_content.append(row)
+        
+        # Add horizontal line after each section (except the last)
+        if i < len(simulator_order) - 1:
+            latex_content.append("\\hline")
+    
+    # Close the table
+    latex_content.extend([
+        "\\hline",
+        "\\end{tabular}",
+        "\\end{table}"
+    ])
     
     # Write to file
     with open(output_file, 'w') as f:
@@ -233,10 +274,11 @@ def create_visualizations(df, output_dir):
     # 1. Performance comparison across policies and configurations
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
     
-    # NET per agent
+    # NET per agent (now in microseconds)
     sns.boxplot(data=df, x='config', y='net_per_agent', hue='policy', ax=ax1)
-    ax1.set_title('NET per Agent by Configuration and Policy')
+    ax1.set_title('NET per Agent by Configuration and Policy (μs)')
     ax1.set_xlabel('Configuration')
+    ax1.set_ylabel('NET per Agent (μs)')
     ax1.tick_params(axis='x', rotation=45)
     
     # Mission percentage (set y-axis from 0 to 100 for better visualization)
@@ -253,11 +295,14 @@ def create_visualizations(df, output_dir):
     ax3.set_ylim(0, 1)  # Better visualization
     ax3.tick_params(axis='x', rotation=45)
     
-    # Simulation time
-    sns.boxplot(data=df, x='config', y='simulation_time', hue='policy', ax=ax4)
-    ax4.set_title('Simulation Time by Configuration and Policy')
-    ax4.set_xlabel('Configuration')
-    ax4.tick_params(axis='x', rotation=45)
+    # Simulation steps (check if column exists)
+    if 'step_count' in df.columns:
+        sns.boxplot(data=df, x='config', y='step_count', hue='policy', ax=ax4)
+        ax4.set_title('Simulation Steps Completed by Configuration and Policy')
+        ax4.set_xlabel('Configuration')
+        ax4.tick_params(axis='x', rotation=45)
+    else:
+        print("⚠️  step_count not found")
     
     plt.tight_layout()
     plt.savefig(output_dir / 'performance_comparison.png', dpi=300, bbox_inches='tight')
@@ -376,6 +421,76 @@ def print_simulator_type_summary(df):
             print(f"{policy:15} | NET: {net_mean:6.3f}±{net_std:5.3f} | Mission: {mission_mean:5.1f}±{mission_std:4.1f}%")
 
 
+def print_performance_summary(df):
+    """Print a summary of key performance metrics"""
+    print("\n" + "="*80)
+    print("PERFORMANCE SUMMARY")
+    print("="*80)
+    print("NET: Normalized Execution Time per Agent (microseconds)")
+    print("Mission: Mission completion percentage")
+    print("="*80)
+    
+    for config in df['config'].unique():
+        # Extract simulator type from config name
+        if 'centralized' in config.lower():
+            sim_type = 'CENTRALIZED'
+        elif 'decentralized' in config.lower():
+            sim_type = 'DECENTRALIZED'
+        elif 'everyone' in config.lower():
+            sim_type = 'EVERYONE'
+        else:
+            sim_type = config.upper()
+            
+        print(f"\nSimulator Type: {sim_type}")
+        print("-" * 50)
+        
+        config_data = df[df['config'] == config]
+        
+        for policy in config_data['policy'].unique():
+            policy_data = config_data[config_data['policy'] == policy]
+            net_mean = policy_data['net_per_agent'].mean()
+            net_std = policy_data['net_per_agent'].std()
+            mission_mean = policy_data['mission_percentage'].mean()
+            mission_std = policy_data['mission_percentage'].std()
+            
+            print(f"{policy:15} | NET: {net_mean:6.3f}±{net_std:5.3f}μs | Mission: {mission_mean:5.1f}±{mission_std:4.1f}%")
+
+
+def process_single_result(result):
+    """Process a single benchmark result into a flat dictionary"""
+    
+    # Extract basic info
+    config = result.get('config', 'unknown')
+    policy = result.get('policy', 'unknown')
+    
+    # Extract metrics with proper error handling
+    metrics = result.get('metrics', {})
+    
+    # Scale NET to microseconds for readability
+    net_per_agent = metrics.get('net_per_agent', 0) * 1e6  # Convert to microseconds
+    
+    processed = {
+        'config': config,
+        'policy': policy,
+        'episode_reward': result.get('episode_reward', 0),
+        'net_per_agent': net_per_agent,  # Now in microseconds
+        'mission_percentage': metrics.get('mission_percentage', 0),
+        'average_resources': metrics.get('average_resources_left', 0),
+        'simulation_time': metrics.get('simulation_time', 0),
+        'step_count': result.get('step_count', 0),
+    }
+    
+    # Add action distribution
+    action_dist = metrics.get('action_distribution', {})
+    processed.update({
+        'action_0_percent': action_dist.get('action_0', 0),
+        'action_1_percent': action_dist.get('action_1', 0), 
+        'action_2_percent': action_dist.get('action_2', 0),
+    })
+    
+    return processed
+
+
 def main():
     parser = argparse.ArgumentParser(description="Analyze benchmark results")
     parser.add_argument("results_file", help="Path to benchmark results JSON file")
@@ -422,6 +537,7 @@ def main():
     # Print summaries to console
     print_action_distribution_summary(df)
     print_simulator_type_summary(df)
+    print_performance_summary(df)
     
     # Generate LaTeX tables
     generate_latex_table(df, output_dir / 'performance_table.tex')
