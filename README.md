@@ -236,10 +236,7 @@ experiments/
 ├── organize_existing_results.py  # Script to organize old results
 ├── rule_based_policy.py          # Rule-based baseline policy
 ├── mip_policy.py                 # MIP baseline policy
-├── benchmark_utils.py            # Benchmarking utilities
-├── debug_action.py               # Action computation debugging
-├── debug_action_format.py        # Action format debugging
-└── debug_obs_format.py           # Observation format debugging
+└── benchmark_utils.py            # Benchmarking utilities
 ```
 
 ## Configuration
@@ -303,7 +300,7 @@ The benchmarking system includes two carefully designed baseline policies for fa
 A heuristic policy that makes decisions based on battery and storage levels:
 - **Low battery** (< 30%): Idle to conserve energy
 - **High storage** (> 70%): Prioritize communication to offload data
-- **Good battery + low storage**: Prioritize observation when targets are available
+- **Good battery (> 80%) + low storage (< 30%)**: Prioritize observation when targets are available
 - **Balanced approach**: Choose between observation and communication based on current state
 
 ### MIP Policy  
@@ -312,12 +309,6 @@ A simplified Mixed Integer Programming approach that:
 - Considers observation utility (unobserved targets × pointing accuracy)
 - Considers communication utility (storage level × communication ability)
 - Applies the same resource constraints as the rule-based policy
-
-**Consistent Thresholds**: Both baseline policies use identical resource thresholds:
-- Battery: Low=30%, High=80%
-- Storage: Low=30%, High=70%
-
-This ensures fair comparison and eliminates configuration bias between baselines.
 
 ## Results
 
