@@ -1,5 +1,3 @@
-Results/
-Results_centralized/
 .venv/
 __pycache__/
 .DS_Store
@@ -13,3 +11,9 @@ wandb/
 collected_metrics/
 collected_metrics_v2/
 experiments/
+EUCASS2025/
+analysis/
+
+# Results directories - ignore uncompressed folders but keep .zip files
+results/*/
+!results/*.zip

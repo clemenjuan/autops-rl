@@ -37,8 +37,8 @@ srun enroot start --root --mount /dss/dsshome1/05/ge26sav2/autops-rl:/workspace 
     --policy PPO \\
     --checkpoint-dir /workspace/checkpoints_case3_training_${SLURM_JOB_ID} \\
     --mode train \\
-    --iterations 300 \\
-    --simulator-types \"everyone,centralized,decentralized\" \\
+    --iterations 100 \\
+    --simulator-types \"everyone\" \\
     --num-env-runners 32 \\
     --num-envs-per-runner 1 \\
     --num-cpus-per-runner 2 \\

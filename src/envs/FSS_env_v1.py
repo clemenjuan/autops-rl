@@ -400,7 +400,9 @@ class FSS_env(MultiAgentEnv):
         # Calculate observation stats
         total_targets = self.num_targets
         observed_targets = np.sum(np.any(self.simulator.global_observation_status_matrix == 3, axis=0))
-        observation_percentage = (observed_targets / total_targets) * 100 if total_targets > 0 else 0
+        # observation_percentage = (observed_targets / total_targets) * 100 if total_targets > 0 else 0
+
+        observation_percentage = (np.mean(self.simulator.global_observation_status_matrix)/3)*100
         
         # Calculate connectivity stats
         total_possible_connections = self.num_observers * (self.num_observers - 1)

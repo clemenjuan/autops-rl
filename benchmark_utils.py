@@ -50,7 +50,7 @@ class BenchmarkMetrics:
         self.action_times = []
         self.step_times = []
         self.episode_time = 0
-        
+        self.step_count = 0
         # Action tracking
         self.action_counts = defaultdict(int)  # Total count of each action
         self.total_actions = defaultdict(int)  # Total actions per agent
@@ -60,6 +60,8 @@ class BenchmarkMetrics:
         
         # Environment metrics (set at end of episode)
         self.env_metrics = {}
+        
+        self.results = []
     
     def add_action_time(self, time_seconds):
         """Add time taken to compute actions"""
@@ -131,6 +133,8 @@ class BenchmarkMetrics:
             "policy_name": self.policy_name,
             "num_agents": self.num_agents,
             "num_targets": self.num_targets,
+            "simulator_type": getattr(self, 'simulator_type', 'unknown'),
+            "step_count": self.step_count,
             "system_info": self.system_info,
             "timing": {
                 "episode_time": self.episode_time,
@@ -156,4 +160,4 @@ class BenchmarkMetrics:
                 "total_actions": dict(self.total_actions),
                 "env_metrics": self.env_metrics,
             }
-        } 
+        }

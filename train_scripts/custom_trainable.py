@@ -92,12 +92,25 @@ def main(args):
             if args.reward_config:
                 env_config["reward_config"] = json.loads(args.reward_config)
             
-            # Create experiment name
-            experiment_name = f"{args.policy}_{simulator_type}"
+            # Extract bonus values for run naming
+            bonus_suffix = ""
+            if env_config.get("reward_config"):
+                targets_bonus = env_config["reward_config"].get("targets_bonus_factor", "")
+                final_bonus = env_config["reward_config"].get("final_targets_bonus", "")
+                if targets_bonus != "" and final_bonus != "":
+                    bonus_suffix = f"_bonus{targets_bonus}"
+            
+            # Create experiment name with more descriptive information
+            experiment_name = f"{args.policy}_{args.reward_type}{bonus_suffix}_{simulator_type}_seed{seed}"
             if slurm_job_id != "local":
                 experiment_name += f"_job{slurm_job_id}"
             else:
                 experiment_name += "_local"
+            
+            # Create descriptive WandB run name
+            wandb_run_name = f"{args.reward_type}{bonus_suffix}_{simulator_type}_seed{seed}"
+            if slurm_job_id != "local":
+                wandb_run_name += f"_job{slurm_job_id}"
             
             # Create checkpoint directory
             checkpoint_dir = os.path.join(args.checkpoint_dir, simulator_type)
