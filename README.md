@@ -566,6 +566,7 @@ A heuristic centralized approach that makes decisions based on battery and stora
 - **Low battery** (< 30%): Idle to conserve energy
 - **High storage** (> 70%): Prioritize communication to offload data
 - **Good battery (> 80%) + low storage (< 30%)**: Prioritize observation when targets are available
+- **Good battery (> 80%) + low storage (< 30%)**: Prioritize observation when targets are available
 - **Balanced approach**: Choose between observation and communication based on current state
 
 ### MIP Centralized Method  
