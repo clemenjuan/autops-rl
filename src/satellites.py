@@ -180,7 +180,7 @@ class Satellite(ABC):
         if not isinstance(self.orbit, dict):
             raise TypeError(f"Expected orbit to be a dict, found {type(self.orbit)} instead.")
 
-        a = self.orbit['semimajoraxis']  # the semimajor axis in meters
+        a = self.orbit['semimajoraxis'] * 1000  # Convert from km to meters for calculation
         e = self.orbit['eccentricity']
         i = math.radians(self.orbit['inclination'])
         omega = math.radians(self.orbit['arg_of_perigee'])
@@ -210,17 +210,16 @@ class Satellite(ABC):
             n * r / math.sqrt(1 - e ** 2) * math.sin(i)
         )
 
-        # update the orbit parameters
+        # update the orbit parameters - convert positions back to km
         self.orbit.update({
-        'x': x,
-        'y': y,
-        'z': z,
-        'vx': v[0],
-        'vy': v[1],
-        'vz': v[2],
-        'radius': r,
-        'mean_anomaly': math.degrees(M),
-        'true_anomaly': math.degrees(theta),
+            'x': x / 1000,  # Convert back to km
+            'y': y / 1000,  # Convert back to km  
+            'z': z / 1000,  # Convert back to km
+            'vx': v[0] / 1000,  # Convert back to km/s
+            'vy': v[1] / 1000,  # Convert back to km/s
+            'vz': v[2] / 1000,  # Convert back to km/s
+            'radius': r / 1000,  # Convert back to km
+            'true_anomaly': math.degrees(theta),
         })
 
         return self.orbit,(x, y, z), v  # return the position and velocity vectors of the satellite
@@ -404,7 +403,7 @@ class ObserverSatellite(Satellite):
                         plane_idx * relative_spacing * phase_shift) % 360
         
         # Create orbit dictionary
-        self.orbit = {
+        orbit = {
             'x': 0, 'y': 0, 'z': 0, 'vx': 0, 'vy': 0, 'vz': 0, 'radius': 0,
             'mean_anomaly': mean_anomaly,
             'semimajoraxis': semimajoraxis,
@@ -415,7 +414,7 @@ class ObserverSatellite(Satellite):
             'true_anomaly': mean_anomaly  # Initialize true anomaly to mean anomaly
         }
                     
-        super().__init__(name=name, *args, **kwargs)
+        super().__init__(orbit=orbit, name=name, *args, **kwargs)
         
         # Store observer-specific attributes
         self.observer_index = observer_index

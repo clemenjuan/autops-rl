@@ -651,7 +651,7 @@ def run_sensitivity_benchmark(cases_to_test, best_seeds, num_episodes=5, max_ste
 def main():
     parser = argparse.ArgumentParser(description="Benchmark sensitivity analysis results")
     parser.add_argument("--bonus-groups", type=str, required=True,
-                       choices=["bonus01", "bonus0", "bonus05", "bonus10", "all"],
+                       choices=["bonus01", "bonus0", "bonus05", "bonus10", "bonus20", "bonus50", "all"],
                        help="Which bonus groups to test")
     parser.add_argument("--episodes", type=int, default=15,
                        help="Number of episodes per case")
@@ -684,6 +684,16 @@ def main():
         "case2_bonus10": 45,
         "case3_bonus10": 46,
         "case4_bonus10": 42,
+        # Bonus 2.0, correctly gets checkpoints_caseX_bonus20_XXXXXX/ folder, not the seeds  
+        "case1_bonus20": 45, 
+        "case2_bonus20": 45, 
+        "case3_bonus20": 42, 
+        "case4_bonus20": 42, 
+        # Bonus 5.0, correctly gets checkpoints_caseX_bonus50_XXXXXX/ folder, not the seeds  
+        "case1_bonus50": 43,
+        "case2_bonus50": 45, 
+        "case3_bonus50": 43, 
+        "case4_bonus50": 43, 
     }
     
     # Define which cases to test based on argument
@@ -697,6 +707,10 @@ def main():
         cases_to_test = [f"case{i}_bonus05" for i in range(1, 5)]
     elif args.bonus_groups == "bonus10":
         cases_to_test = [f"case{i}_bonus10" for i in range(1, 5)]
+    elif args.bonus_groups == "bonus20":
+        cases_to_test = [f"case{i}_bonus20" for i in range(1, 5)]
+    elif args.bonus_groups == "bonus50":
+        cases_to_test = [f"case{i}_bonus50" for i in range(1, 5)]
     
     # Initialize Ray in local mode to keep things simple (like working benchmark_policies.py)
     try:

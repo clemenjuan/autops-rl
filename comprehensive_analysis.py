@@ -171,7 +171,7 @@ def generate_comprehensive_latex_table(df, output_file):
     # Order methods and scaling factors
     method_order = ['RuleBased', 'MIP', 'case1', 'case2', 'case3', 'case4']
     simulator_order = ['centralized', 'decentralized', 'everyone']
-    scaling_order = ['baseline', 'bonus0', 'bonus01', 'bonus05', 'bonus10']
+    scaling_order = ['baseline', 'bonus0', 'bonus01', 'bonus05', 'bonus10', 'bonus20', 'bonus50']
     
     # Organize by coordination type
     for sim_type in simulator_order:
@@ -216,12 +216,12 @@ def generate_comprehensive_latex_table(df, output_file):
             method_has_data = False
             
             # Check all scaling factors for this method and simulator type
-            for scaling in ['bonus0', 'bonus01', 'bonus05', 'bonus10']:
+            for scaling in ['bonus0', 'bonus01', 'bonus05', 'bonus10', 'bonus20', 'bonus50']:
                 if (method, scaling, sim_type) in grouped.index:
                     row = grouped.loc[(method, scaling, sim_type)]
                     
                     # Fix scaling factor display mapping
-                    scaling_display = scaling.replace('bonus0', '0.0').replace('bonus01', '0.01').replace('bonus05', '0.05').replace('bonus10', '1.0')
+                    scaling_display = scaling.replace('bonus0', '0.0').replace('bonus01', '0.01').replace('bonus05', '0.05').replace('bonus10', '1.0').replace('bonus20', '2.0').replace('bonus50', '5.0')
                     
                     # Extract values
                     exec_mean = row[('execution_time_us', 'mean')]
@@ -308,7 +308,7 @@ def generate_action_distribution_plot(df, output_dir):
     available_simulators = [s for s in simulator_order if s in df['simulator_type'].unique()]
     
     # Increased figure size and spacing
-    fig, axes = plt.subplots(len(available_simulators), 1, figsize=(14, 5*len(available_simulators)))
+    fig, axes = plt.subplots(len(available_simulators), 1, figsize=(16, 5*len(available_simulators)))
     if len(available_simulators) == 1:
         axes = [axes]
     
@@ -364,8 +364,8 @@ def generate_action_distribution_plot(df, output_dir):
                         method_legend_added.add(method)
             else:
                 # RL methods - group by scaling factor (alpha value)
-                scaling_order = ['bonus0', 'bonus01', 'bonus05', 'bonus10']
-                scaling_labels = ['0.0', '0.1', '0.5', '1.0']  # Corrected alpha values
+                scaling_order = ['bonus0', 'bonus01', 'bonus05', 'bonus10', 'bonus20', 'bonus50']
+                scaling_labels = ['0.0', '0.1', '0.5', '1.0', '2.0', '5.0']  # Corrected alpha values
                 
                 for scaling, scaling_label in zip(scaling_order, scaling_labels):
                     scaling_data = method_data[method_data['scaling_factor'] == scaling]
@@ -400,7 +400,7 @@ def generate_action_distribution_plot(df, output_dir):
             sorted_alpha_keys.append('Baseline')
         
         # Add alpha values in order
-        for alpha_val in ['α = 0.0', 'α = 0.1', 'α = 0.5', 'α = 1.0']:
+        for alpha_val in ['α = 0.0', 'α = 0.1', 'α = 0.5', 'α = 1.0', 'α = 2.0', 'α = 5.0']:
             if alpha_val in alpha_groups:
                 sorted_alpha_keys.append(alpha_val)
         
@@ -593,7 +593,7 @@ def generate_mission_accomplishment_boxplot(df, output_dir):
     available_simulators = [s for s in simulator_order if s in df['simulator_type'].unique()]
     
     # Increased figure size and spacing
-    fig, axes = plt.subplots(len(available_simulators), 1, figsize=(14, 5*len(available_simulators)))
+    fig, axes = plt.subplots(len(available_simulators), 1, figsize=(16, 5*len(available_simulators)))
     if len(available_simulators) == 1:
         axes = [axes]
     
@@ -634,8 +634,8 @@ def generate_mission_accomplishment_boxplot(df, output_dir):
                         legend_added.add(method)
             else:
                 # RL methods - group by scaling factor (alpha value)
-                scaling_order = ['bonus0', 'bonus01', 'bonus05', 'bonus10']
-                scaling_labels = ['0.0', '0.1', '0.5', '1.0']  # Corrected alpha values
+                scaling_order = ['bonus0', 'bonus01', 'bonus05', 'bonus10', 'bonus20', 'bonus50']
+                scaling_labels = ['0.0', '0.1', '0.5', '1.0', '2.0', '5.0']  # Corrected alpha values
                 
                 for scaling, scaling_label in zip(scaling_order, scaling_labels):
                     scaling_data = method_data[method_data['scaling_factor'] == scaling]
@@ -662,7 +662,7 @@ def generate_mission_accomplishment_boxplot(df, output_dir):
             sorted_alpha_keys.append('Baseline')
         
         # Add alpha values in order
-        for alpha_val in ['α = 0.0', 'α = 0.1', 'α = 0.5', 'α = 1.0']:
+        for alpha_val in ['α = 0.0', 'α = 0.1', 'α = 0.5', 'α = 1.0', 'α = 2.0', 'α = 5.0']:
             if alpha_val in alpha_groups:
                 sorted_alpha_keys.append(alpha_val)
         
@@ -822,7 +822,7 @@ def generate_resource_utilization_boxplot(df, output_dir):
     available_simulators = [s for s in simulator_order if s in df['simulator_type'].unique()]
     
     # Increased figure size and spacing
-    fig, axes = plt.subplots(len(available_simulators), 1, figsize=(14, 5*len(available_simulators)))
+    fig, axes = plt.subplots(len(available_simulators), 1, figsize=(16, 5*len(available_simulators)))
     if len(available_simulators) == 1:
         axes = [axes]
     
@@ -863,8 +863,8 @@ def generate_resource_utilization_boxplot(df, output_dir):
                         legend_added.add(method)
             else:
                 # RL methods - group by scaling factor (alpha value)
-                scaling_order = ['bonus0', 'bonus01', 'bonus05', 'bonus10']
-                scaling_labels = ['0.0', '0.1', '0.5', '1.0']  # Corrected alpha values
+                scaling_order = ['bonus0', 'bonus01', 'bonus05', 'bonus10', 'bonus20', 'bonus50']
+                scaling_labels = ['0.0', '0.1', '0.5', '1.0', '2.0', '5.0']  # Corrected alpha values
                 
                 for scaling, scaling_label in zip(scaling_order, scaling_labels):
                     scaling_data = method_data[method_data['scaling_factor'] == scaling]
@@ -891,7 +891,7 @@ def generate_resource_utilization_boxplot(df, output_dir):
             sorted_alpha_keys.append('Baseline')
         
         # Add alpha values in order
-        for alpha_val in ['α = 0.0', 'α = 0.1', 'α = 0.5', 'α = 1.0']:
+        for alpha_val in ['α = 0.0', 'α = 0.1', 'α = 0.5', 'α = 1.0', 'α = 2.0', 'α = 5.0']:
             if alpha_val in alpha_groups:
                 sorted_alpha_keys.append(alpha_val)
         

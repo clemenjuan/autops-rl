@@ -7,7 +7,7 @@ class RewardFunction:
         self.standby_penalty = 0.01 # Penalty for doing nothing
         self.k = 0.01 # Resource consumption penalty factor
         self.rho = 0.0001 # Communication success reward factor
-        self.lambda_val = 1 # observation reward factor
+        self.lambda_val = 1 # observation reward factor (pointing accuracy)
         self.mu = 0.01 # Failed action penalty factor
         self.observation_reward = 0.1 # Reward for successful observation
         self.mission_complete_bonus = 0 # Bonus for completing mission
