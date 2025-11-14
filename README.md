@@ -22,6 +22,11 @@ conda activate autops-rl
 git clone https://gitlab.lrz.de/sps/autops/autops-rl.git
 cd autops-rl
 pip install -r requirements.txt
+
+# Set WANDB API key for experiment tracking (required)
+export WANDB_API_KEY="your_key_here"
+export WANDB_PROJECT="your_project_here"
+export WANDB_ENTITY="your_entity_here"
 ```
 
 ### Local Testing
