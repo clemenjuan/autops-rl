@@ -138,5 +138,21 @@ $(document).ready(function() {
     
     // Setup video autoplay for carousel
     setupVideoCarouselAutoplay();
+    
+    // Initialize medium-zoom for all zoomable images
+    // Wait for medium-zoom to be available (it's loaded with defer)
+    function initImageZoom() {
+        if (typeof mediumZoom !== 'undefined') {
+            mediumZoom('.zoomable-image', {
+                margin: 24,
+                background: '#000',
+                scrollOffset: 0
+            });
+        } else {
+            // Retry after a short delay if medium-zoom isn't loaded yet
+            setTimeout(initImageZoom, 100);
+        }
+    }
+    initImageZoom();
 
 })
