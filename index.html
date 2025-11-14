@@ -211,6 +211,60 @@
 </section>
 <!-- End paper abstract -->
 
+<!-- Key Findings Section -->
+<section class="section hero">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">Key Findings</h2>
+    <div class="columns">
+      <div class="column is-one-third">
+        <div class="content has-text-centered">
+          <div class="box" style="height: 100%;">
+            <h3 class="title is-4">Performance</h3>
+            <p class="is-size-5 has-text-weight-bold" style="color: #2563eb;">60-70%</p>
+            <p>Remaining resources maintained across all coordination topologies, demonstrating efficient resource management while maintaining high mission performance.</p>
+          </div>
+        </div>
+      </div>
+      <div class="column is-one-third">
+        <div class="content has-text-centered">
+          <div class="box" style="height: 100%;">
+            <h3 class="title is-4">Inference Speed</h3>
+            <p class="is-size-5 has-text-weight-bold" style="color: #2563eb;">~4μs</p>
+            <p>Average inference time per decision on NVIDIA Jetson Orin Nano (7W power mode), confirming real-time feasibility for onboard deployment.</p>
+          </div>
+        </div>
+      </div>
+      <div class="column is-one-third">
+        <div class="content has-text-centered">
+          <div class="box" style="height: 100%;">
+            <h3 class="title is-4">Generalization</h3>
+            <p class="is-size-5 has-text-weight-bold" style="color: #2563eb;">Cross-Topology</p>
+            <p>Policies trained in fully decentralized environments generalize effectively to centralized and constrained decentralized topologies, demonstrating robust coordination strategies.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="columns" style="margin-top: 1rem;">
+      <div class="column is-full">
+        <div class="content has-text-justified">
+          <p>
+            <strong>Hardware Validation:</strong> The trained policies were evaluated on an NVIDIA Jetson Orin Nano operating in 7W power mode, 
+            a configuration specifically designed for resource-constrained applications. This computing platform has been identified as a promising 
+            candidate for AI-enabled nanosatellite missions due to its balance of size, computational capability, and power efficiency. The empirical 
+            results demonstrate that the developed neural network policies can be executed in real-time on low-power onboard systems without 
+            compromising mission-critical response times.
+          </p>
+          <p style="margin-top: 1rem;">
+            <strong>Reward Function Insights:</strong> Negative reward functions maintain more balanced operational modes even under communication 
+            limitations, with observation activities remaining above 20% in constrained scenarios. This aligns with research suggesting that shifting 
+            reward functions towards values equal to or lower than zero leads to faster convergence and better optimal decisions.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- Methodology Section -->
 <section class="section hero">
   <div class="container is-max-desktop">
@@ -357,61 +411,6 @@
     </div>
   </div>
 </section>
-
-<!-- Key Findings Section -->
-<section class="section hero">
-  <div class="container is-max-desktop">
-    <h2 class="title is-3 has-text-centered">Key Findings</h2>
-    <div class="columns">
-      <div class="column is-one-third">
-        <div class="content has-text-centered">
-          <div class="box" style="height: 100%;">
-            <h3 class="title is-4">Performance</h3>
-            <p class="is-size-5 has-text-weight-bold" style="color: #2563eb;">60-70%</p>
-            <p>Remaining resources maintained across all coordination topologies, demonstrating efficient resource management while maintaining high mission performance.</p>
-          </div>
-        </div>
-      </div>
-      <div class="column is-one-third">
-        <div class="content has-text-centered">
-          <div class="box" style="height: 100%;">
-            <h3 class="title is-4">Inference Speed</h3>
-            <p class="is-size-5 has-text-weight-bold" style="color: #2563eb;">~4μs</p>
-            <p>Average inference time per decision on NVIDIA Jetson Orin Nano (7W power mode), confirming real-time feasibility for onboard deployment.</p>
-          </div>
-        </div>
-      </div>
-      <div class="column is-one-third">
-        <div class="content has-text-centered">
-          <div class="box" style="height: 100%;">
-            <h3 class="title is-4">Generalization</h3>
-            <p class="is-size-5 has-text-weight-bold" style="color: #2563eb;">Cross-Topology</p>
-            <p>Policies trained in fully decentralized environments generalize effectively to centralized and constrained decentralized topologies, demonstrating robust coordination strategies.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="columns" style="margin-top: 1rem;">
-      <div class="column is-full">
-        <div class="content has-text-justified">
-          <p>
-            <strong>Hardware Validation:</strong> The trained policies were evaluated on an NVIDIA Jetson Orin Nano operating in 7W power mode, 
-            a configuration specifically designed for resource-constrained applications. This computing platform has been identified as a promising 
-            candidate for AI-enabled nanosatellite missions due to its balance of size, computational capability, and power efficiency. The empirical 
-            results demonstrate that the developed neural network policies can be executed in real-time on low-power onboard systems without 
-            compromising mission-critical response times.
-          </p>
-          <p style="margin-top: 1rem;">
-            <strong>Reward Function Insights:</strong> Negative reward functions maintain more balanced operational modes even under communication 
-            limitations, with observation activities remaining above 20% in constrained scenarios. This aligns with research suggesting that shifting 
-            reward functions towards values equal to or lower than zero leads to faster convergence and better optimal decisions.
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
 
 
 
