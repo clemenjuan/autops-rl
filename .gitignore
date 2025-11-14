@@ -7,6 +7,7 @@ checkpoints/
 checkpoints_local_test/
 checkpoints_local_train/
 *.png
+!static/images/*.png
 wandb/
 collected_metrics/
 collected_metrics_v2/
