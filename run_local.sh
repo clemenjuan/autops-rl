@@ -7,7 +7,8 @@ eval "$(conda shell.bash hook)"
 conda activate autops-rl
 
 # Set environment variables
-export WANDB_API_KEY="4b5c9c4ae3ffb150f67942dec8cc7d9f6fbcd558"
+# WANDB_API_KEY should be set in your environment or .env file
+# export WANDB_API_KEY="your_key_here"
 export WANDB_PROJECT="autops-rl"
 export WANDB_ENTITY="sps-tum"
 

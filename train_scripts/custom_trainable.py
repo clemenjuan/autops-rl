@@ -30,7 +30,9 @@ import json
 from src.envs.FSS_env_v1 import FSS_env  # Make sure you're importing the correct version
 
 # Get Wandb API key from environment variable
-WANDB_API_KEY = "4b5c9c4ae3ffb150f67942dec8cc7d9f6fbcd558"     # fail fast if missing. define with export WANDB_API_KEY=...
+WANDB_API_KEY = os.environ.get("WANDB_API_KEY")
+if not WANDB_API_KEY:
+    raise ValueError("WANDB_API_KEY environment variable is not set. Please set it with: export WANDB_API_KEY=your_key")
 WANDB_PROJECT = "autops-rl"
 WANDB_ENTITY  = "sps-tum"      # team slug only (sps-tum)
 

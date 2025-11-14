@@ -17,3 +17,11 @@ analysis/
 # Results directories - ignore uncompressed folders but keep .zip files
 results/*/
 !results/*.zip
+
+# Environment variables and secrets
+.env
+.env.local
+*.key
+*_api_key*
+*_secret*
+*_token*

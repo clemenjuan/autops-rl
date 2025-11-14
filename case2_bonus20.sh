@@ -24,7 +24,8 @@ srun enroot start --root --mount /dss/dsshome1/05/ge26sav2/autops-rl:/workspace 
     
     # Set environment variables
     export PYTHONPATH=\"\$PYTHONPATH:/workspace\"
-    export WANDB_API_KEY=\"4b5c9c4ae3ffb150f67942dec8cc7d9f6fbcd558\"
+    # WANDB_API_KEY should be set in your environment or as a GitLab CI/CD variable
+    # export WANDB_API_KEY=\"your_key_here\"
     export WANDB_PROJECT=\"autops-rl-sensitivity\"
     export WANDB_ENTITY=\"sps-tum\"
     export RAY_DEDUP_LOGS=0
