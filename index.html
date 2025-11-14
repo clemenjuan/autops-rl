@@ -215,40 +215,80 @@
 <section class="section hero">
   <div class="container is-max-desktop">
     <h2 class="title is-3 has-text-centered">Methodology</h2>
-    <div class="columns">
-      <div class="column is-half">
-        <div class="content">
-          <h3 class="title is-4">Multi-Agent Reinforcement Learning</h3>
-          <p>
-            AUTOPS-RL uses distributed Proximal Policy Optimization (PPO) to train coordination policies for multiple observer satellites. 
-            Each satellite acts as an independent agent making real-time decisions about which targets to observe, considering battery constraints, 
-            communication limitations, and mission objectives.
-          </p>
-          <h3 class="title is-4">Network Architectures</h3>
-          <ul>
-            <li><strong>Centralized:</strong> Full information sharing with global coordination</li>
-            <li><strong>Constrained Decentralized:</strong> Limited communication range with local coordination</li>
-            <li><strong>Fully Decentralized:</strong> No communication, independent decision-making</li>
-          </ul>
+    
+    <div class="content">
+      <h3 class="title is-4">Problem Space</h3>
+      <p>
+        Our problem space consists of a LEO constellation of small satellites, acting as collaborative agents, equipped with imaging and inter-satellite link (ISL) capabilities. Their environment is populated with other orbiting objects in their vicinity. Their main objective is to locate and track these objects and spread the collected information among them to improve Space Situational Awareness (SSA). This aims to provide better outcome information and monitoring of space objects while optimizing the use of resources within the constellation. This optimization of shared resources and onboard capabilities is especially interesting in small satellites with limited onboard resources that perform missions with opportunistic events.
+      </p>
+      
+      <h3 class="title is-4" style="margin-top: 2rem;">Network Architectures</h3>
+      <div class="columns" style="margin-top: 1rem;">
+        <div class="column is-one-third">
+          <div class="content has-text-centered">
+            <img class="zoomable-image" src="static/images/centralized_communication.png" alt="Centralized communication architecture" style="width: 100%; height: auto; border-radius: 8px; cursor: zoom-in;">
+            <p style="margin-top: 0.5rem;"><strong>Centralized:</strong> One random observer is initialized as a central node, being the only one in the constellation able to propagate the information it receives from the rest of the constellation.</p>
+          </div>
+        </div>
+        <div class="column is-one-third">
+          <div class="content has-text-centered">
+            <img class="zoomable-image" src="static/images/decentralized_communication.png" alt="Decentralized communication architecture" style="width: 100%; height: auto; border-radius: 8px; cursor: zoom-in;">
+            <p style="margin-top: 0.5rem;"><strong>Constrained Decentralized:</strong> Satellites can only communicate between them if they share the same communication band (4 alternatives).</p>
+          </div>
+        </div>
+        <div class="column is-one-third">
+          <div class="content has-text-centered">
+            <img class="zoomable-image" src="static/images/open_communication.png" alt="Fully decentralized communication architecture" style="width: 100%; height: auto; border-radius: 8px; cursor: zoom-in;">
+            <p style="margin-top: 0.5rem;"><strong>Fully Decentralized:</strong> Every node can communicate with each other.</p>
+          </div>
         </div>
       </div>
-      <div class="column is-half">
-        <div class="content">
-          <h3 class="title is-4">Reward Function Design</h3>
-          <p>Four reward cases evaluated:</p>
-          <ul>
-            <li><strong>Case 1:</strong> Positive rewards for observed targets (individual)</li>
-            <li><strong>Case 2:</strong> Negative rewards for unobserved targets (individual)</li>
-            <li><strong>Case 3:</strong> Individual rewards + global bonus for observed targets (collective)</li>
-            <li><strong>Case 4:</strong> Individual rewards + global bonus for unobserved targets (collective)</li>
-          </ul>
-          <h3 class="title is-4">Sensitivity Analysis</h3>
-          <p>
-            Comprehensive evaluation across 6 scaling factors (α = 0.0, 0.01, 0.05, 1.0, 2.0, 5.0) to analyze 
-            the impact of reward scaling on policy performance and coordination behavior.
-          </p>
-        </div>
-      </div>
+      
+      <h3 class="title is-4" style="margin-top: 2rem;">Multi-Agent Reinforcement Learning</h3>
+      <p>
+        AUTOPS-RL uses distributed Proximal Policy Optimization (PPO) to train coordination policies for multiple observer satellites. 
+        Each satellite acts as an independent agent making real-time decisions about which targets to observe, considering battery constraints, 
+        communication limitations, and mission objectives. The training process is computationally intensive but produces lightweight policies 
+        that can be executed in real-time on resource-constrained systems, with inference times in the microsecond range.
+      </p>
+      
+      <h3 class="title is-4" style="margin-top: 2rem;">Reward Function Design</h3>
+      <p>
+        The success of RL techniques heavily depends on effective reward function design. This work implements PPO with four different reward functions to determine which type leads to better learning policies. Each reward function has three main components: resources, actions, and mission goal terms.
+      </p>
+      
+      <h4 class="title is-5" style="margin-top: 1.5rem;">Common Components</h4>
+      <p><strong>Resource Penalty:</strong> A proportional penalty based on available energy and storage to encourage efficient resource management.</p>
+      
+      <p style="margin-top: 1rem;"><strong>Action-specific Rewards:</strong> Rewards and penalties for different actions:</p>
+      <ul>
+        <li><strong>Standby:</strong> Small penalty to discourage idleness</li>
+        <li><strong>Communication (successful):</strong> Reward proportional to data transmitted (with cap to normalize and encourage balanced communications)</li>
+        <li><strong>Communication/Observation (failed):</strong> Penalty for failed attempts</li>
+        <li><strong>Observation (successful):</strong> Fixed reward plus quality-based bonus</li>
+      </ul>
+      
+      <h4 class="title is-5" style="margin-top: 1.5rem;">Four Reward Function Cases</h4>
+      
+      <p><strong>Case 1: Individual Positive Reinforcement</strong></p>
+      <p>Positive rewards for monitored targets based on individual observation matrices. Each agent receives rewards proportional to the fraction of targets it has observed.</p>
+      
+      <p style="margin-top: 1rem;"><strong>Case 2: Individual Negative Reinforcement</strong></p>
+      <p>Negative rewards for undetected targets based on individual observation matrices. Agents are penalized for targets they have not observed, encouraging comprehensive coverage.</p>
+      
+      <p style="margin-top: 1rem;"><strong>Case 3: Collective Positive Reinforcement</strong></p>
+      <p>Individual terms for resources and actions, plus a global collective bonus shared by all agents when any target is observed by any agent in the constellation. Encourages collaborative behavior.</p>
+      
+      <p style="margin-top: 1rem;"><strong>Case 4: Collective Negative Reinforcement</strong></p>
+      <p>Individual terms for resources and actions, plus a global collective penalty shared by all agents when targets remain unobserved by the entire constellation. Strong incentive for coordination.</p>
+      
+      <h4 class="title is-5" style="margin-top: 1.5rem;">Sensitivity Analysis</h4>
+      <p>
+        To assess the effect of bonus parameters on the final mission goal, the scaling factor α for the mission bonus term is varied. 
+        Comprehensive evaluation across scaling factors (α = 0.0, 0.01, 0.05, 1.0, 2.0, 5.0) to analyze the impact of reward scaling 
+        on policy performance and coordination behavior. Values are adjusted so that the total return per agent has an order of magnitude 
+        not too small for gradients to be significant, nor too big to avoid unstable behaviors and non-stationarity.
+      </p>
     </div>
   </div>
 </section>
@@ -256,15 +296,21 @@
 <!-- Constellation Visualization -->
 <section class="section hero is-light">
   <div class="container is-max-desktop">
-    <h2 class="title is-3 has-text-centered">Constellation Configuration Example</h2>
-    <div class="columns is-centered">
-      <div class="column is-three-quarters">
+    <h2 class="title is-3 has-text-centered">Constellation Configuration</h2>
+    <div class="columns">
+      <div class="column is-half">
         <div class="content has-text-centered">
-          <img class="zoomable-image" src="static/images/example_constellation.png" alt="Satellite constellation visualization showing 20 observer satellites in Walker Delta formation tracking 100 target objects" style="width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: zoom-in;">
+          <img class="zoomable-image" src="static/images/example_constellation.png" alt="Satellite constellation visualization example showing 20 observer satellites in Walker Delta formation tracking 100 target objects" style="width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: zoom-in;">
           <p class="has-text-centered" style="margin-top: 1rem;">
-            <strong>Space Situational Awareness Scenario:</strong> 20 observer satellites arranged in a Walker Delta constellation 
-            coordinate to track and monitor 100 target objects in various orbital configurations. Each observer satellite must 
-            autonomously decide which targets to observe while managing battery constraints and communication limitations.
+            <strong>Space Situational Awareness Exemple Scenario:</strong> 20 observer satellites arranged in a Walker Delta constellation to track and monitor 100 target objects in various orbital configurations.
+          </p>
+        </div>
+      </div>
+      <div class="column is-half">
+        <div class="content has-text-centered">
+          <img class="zoomable-image" src="static/images/observer_satellite_parameters.png" alt="Observer satellite parameters and specifications" style="width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: zoom-in;">
+          <p class="has-text-centered" style="margin-top: 1rem;">
+            Observer Satellite Parameters
           </p>
         </div>
       </div>
@@ -366,24 +412,6 @@
   </div>
 </section>
 
-<!-- Training Curves Section -->
-<section class="section hero is-light">
-  <div class="container is-max-desktop">
-    <h2 class="title is-3 has-text-centered">Training Performance</h2>
-    <div class="columns is-centered">
-      <div class="column is-full">
-        <div class="content has-text-centered">
-          <img class="zoomable-image" src="static/images/professional_training_curves_all_alpha.png" alt="Training curves showing learning progress across different scaling factors" style="width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); cursor: zoom-in;">
-          <p class="has-text-justified" style="margin-top: 1rem;">
-            Training curves demonstrating learning progress across all reward cases and scaling factors. The plots show convergence 
-            behavior, sample efficiency, and final performance levels achieved by the distributed PPO training process. Negative reward 
-            functions demonstrate superior stability and robustness in resource-constrained, mission-critical environments.
-          </p>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
 
 
 
