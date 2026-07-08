@@ -1,7 +1,3 @@
-import numpy as np
-import matplotlib.pyplot as plt
-
-
 class OpticPayload: 
 
     def __init__(self):
@@ -34,7 +30,7 @@ class OpticPayload:
 
     def dist_detect(self):
         """
-        Calculate the minimum distance at which objects of various sizes can be resolved.
+        Calculate the maximum distance at which the configured object size can be resolved.
         
         Parameters:
         - diameter: aperture diameter (in meters)
@@ -42,7 +38,7 @@ class OpticPayload:
         - wavelength: light wavelength (in meters, default is 700 nm)
         
         Returns:
-        - list of minimum resolvable distances (in meters) for each object size
+        - maximum resolvable distance (in meters)
         """
         #dim_obj_array = np.array(self.dim_obj_list)  # Convert to numpy array
         #howfar = dim_obj_array * self.DIAMETER / (2.44 * self.WAVELENGTH)
@@ -111,16 +107,3 @@ class OpticPayload:
 #     howfar = dist_detect(diameter, dim_obj)
 #     print(f"Diameter: {diameter*100:.0f}cm -> Resolvable Distances: {howfar/1000}")
 
-
-
-
-# #TEST HOW FAR
-
-payload=OpticPayload()
-distance=1000*1000 #It has to be in meters
-howfar = payload.dist_detect()
-
-canI=payload.possibility_observation(distance)
-print(howfar)
-print(canI)
-#print(f"Diameter: {Diameter*100:.0f}cm -> Resolvable Distances: {howfar/1000}")

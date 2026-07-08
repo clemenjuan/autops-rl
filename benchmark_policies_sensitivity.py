@@ -183,13 +183,14 @@ class PolicyBenchmark:
                                 # Flatten all observation components into a single array
                                 # This matches how RLLib processes dict observations
                                 obs_components = []
-                                for key in sorted(agent_obs.keys()):  # Sort for consistency
+                                obs_space = self.env.observation_spaces[agent_id]
+                                for key in obs_space.spaces.keys():
                                     component = agent_obs[key]
                                     if isinstance(component, np.ndarray):
                                         obs_components.append(component.flatten())
                                     else:
                                         obs_components.append(np.array([component]).flatten())
-                                
+
                                 actual_obs = np.concatenate(obs_components)
                             else:
                                 actual_obs = agent_obs

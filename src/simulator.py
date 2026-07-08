@@ -201,12 +201,14 @@ class Simulator():
             # Check for resource depletion
             if observer.epsys['EnergyAvailable'] < 0 or observer.DataHand['StorageAvailable'] < 0:
                 print(f"Satellite energy or storage depleted ({observer.name}). Terminating simulation.")
-                reward += self.reward_function.check_depletion(observer)
+                reward_step[agent] += self.reward_function.check_depletion(observer)
                 self.breaker = True
             
             self.batteries[i] = max(observer.epsys['EnergyAvailable'] / observer.epsys['EnergyStorage'], 0)
             self.storage[i] = max(observer.DataHand['StorageAvailable'] / observer.DataHand['DataStorage'], 0)
         
+        self.update_global_observation_status_matrix(self.observer_satellites, self.target_satellites)
+
         # For case3 and case4, add global bonus/penalty
         if hasattr(self.reward_function, 'calculate_global_bonus'):
             global_bonus = self.reward_function.calculate_global_bonus(self.global_observation_status_matrix)

@@ -24,7 +24,9 @@ class FSS_env(MultiAgentEnv):
                  simulator_type: str = 'everyone', 
                  time_step: float = 1, 
                  duration: float = 24*60*60,
-                 seed: int = 42
+                 seed: int = 42,
+                 reward_type: str = "case1",
+                 reward_config: dict = None
                  ):
         # Environment setup
         super().__init__()
@@ -51,6 +53,8 @@ class FSS_env(MultiAgentEnv):
         # self._agent_ids = set(self.possible_agents)
         
         self.agents = ["observer_" + str(r) for r in range(num_observers)]
+        self.possible_agents = self.agents.copy()
+        self._agent_ids = set(self.agents)
         self.agent_name_mapping = dict(
             zip(self.agents, list(range(len(self.agents))))
         ) # Mapping of agent names to indices
@@ -72,6 +76,11 @@ class FSS_env(MultiAgentEnv):
         # Define action space for a single agent
         single_agent_action_space = spaces.Discrete(3)
         
+        self._observation_spaces = single_agent_obs_space
+        self._action_space = single_agent_action_space
+        self.observation_space = single_agent_obs_space
+        self.action_space = single_agent_action_space
+
         # Set observation and action spaces for each agent
         self.observation_spaces = {agent: single_agent_obs_space for agent in self.possible_agents}
         self.action_spaces = {agent: single_agent_action_space for agent in self.possible_agents}
@@ -79,6 +88,8 @@ class FSS_env(MultiAgentEnv):
         
         self.infos = {agent: {} for agent in self.agents}
         self.seed = seed
+        self.reward_type = reward_type
+        self.reward_config = reward_config
 
     
     # def get_agent_ids(self):
@@ -113,20 +124,33 @@ class FSS_env(MultiAgentEnv):
     def reset(self, seed=None, options=None): 
         # Initialize simulator
         if self.simulator_type == 'centralized':
-            self.simulator = CentralizedSimulator(self.num_targets, self.num_observers, self.time_step, self.duration)
+            self.simulator = CentralizedSimulator(
+                self.num_targets, self.num_observers, self.time_step, self.duration,
+                reward_type=self.reward_type, reward_config=self.reward_config
+            )
         elif self.simulator_type == 'decentralized':
-            self.simulator = Simulator(self.num_targets, self.num_observers, self.time_step, self.duration)
+            self.simulator = Simulator(
+                self.num_targets, self.num_observers, self.time_step, self.duration,
+                reward_type=self.reward_type, reward_config=self.reward_config
+            )
         elif self.simulator_type == 'everyone':
-            self.simulator = Simulator(self.num_targets, self.num_observers, self.time_step, self.duration)
+            self.simulator = Simulator(
+                self.num_targets, self.num_observers, self.time_step, self.duration,
+                reward_type=self.reward_type, reward_config=self.reward_config
+            )
         else:
             raise ValueError("Invalid simulator type. Choose from 'centralized', 'decentralized', or 'everyone'.")    
         
         self.simulator.time_step_number = 0
+        self.agents = self.possible_agents.copy()
+        self._agent_ids = set(self.agents)
         self.special_events_count = 0
         self.special_event_observe = 0
         self.special_event_communicate = 0
 
-        return {i: self.get_observation_space(i).sample() for i in self.agents}, {}
+        observations = {agent: self._generate_observation(agent) for agent in self.agents}
+        infos = {agent: {} for agent in self.agents}
+        return observations, infos
 
     def observe(self, agent):
         return self._generate_observation(agent)

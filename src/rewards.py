@@ -96,11 +96,11 @@ class Case1RewardFunction(RewardFunction):
             else:
                 reward += self.failed_action_penalty()
         # print(f"After communication and observation: {reward}")
-        # Add positive reward for each acknowledged target
+        # Add positive reward for completed observations.
         total_targets = len(observer.observation_status_matrix)
-        acknowledged_targets = np.sum(observer.observation_status_matrix > 0)
+        observed_targets = np.sum(observer.observation_status_matrix == 3)
 
-        reward += self.targets_bonus(acknowledged_targets, total_targets)	
+        reward += self.targets_bonus(observed_targets, total_targets)
         # print(f"Reward: {reward}")
         return reward * self.reward_scale
 
@@ -129,10 +129,10 @@ class Case2RewardFunction(RewardFunction):
             else:
                 reward += self.failed_action_penalty()
         
-        # Add negative reward for each unacknowledged target
+        # Add negative reward for targets without completed observations.
         total_targets = len(observer.observation_status_matrix)
-        unacknowledged_targets = total_targets - np.sum(observer.observation_status_matrix > 0)
-        reward -= self.targets_bonus(unacknowledged_targets, total_targets)
+        unobserved_targets = total_targets - np.sum(observer.observation_status_matrix == 3)
+        reward -= self.targets_bonus(unobserved_targets, total_targets)
         
         # Apply global scaling
         return reward * self.reward_scale

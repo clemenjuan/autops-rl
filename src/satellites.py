@@ -76,8 +76,8 @@ class Satellite(ABC):
 
         if DataHand is None:
             DataHand = {
-                'DataStorage': 32e9, # Maximum storage onboard. 32G[bytes]=[bites], from ISISpace bus
-                'StorageAvailable': random.uniform(0.2,0.7) * 32e9, # Storage available for observation
+                'DataStorage': 32e9 * 8, # Maximum storage onboard [bits] (32 GB)
+                'StorageAvailable': random.uniform(0.2,0.7) * 32e9 * 8, # Storage available [bits]
                 'DataSize': 52, # Data package size per satellite in bytes
             }
         
@@ -258,16 +258,14 @@ class Satellite(ABC):
 
 
     def distance_between(self, sat2, time_step):
-        pos1 = np.array([self.orbit['x'], self.orbit['y'], self.orbit['z']])
-        pos2 = np.array([sat2.orbit['x'], sat2.orbit['y'], sat2.orbit['z']])
+        """Return the separation between two satellites in meters.
 
-        # calculate the distance between the two satellites
-        dx = pos2[0] - pos1[0]
-        dy = pos2[1] - pos1[1]
-        dz = pos2[2] - pos1[2]
-        distance = math.sqrt(dx ** 2 + dy ** 2 + dz ** 2)
-        # print(distance)
-        return distance
+        Orbit state is stored in kilometers for observations, while optical and
+        communication subsystem models consume SI distances.
+        """
+        pos1_km = np.array([self.orbit['x'], self.orbit['y'], self.orbit['z']], dtype=float)
+        pos2_km = np.array([sat2.orbit['x'], sat2.orbit['y'], sat2.orbit['z']], dtype=float)
+        return float(np.linalg.norm(pos2_km - pos1_km) * 1000.0)
     
 
     def calculate_pointing_direction(self):
@@ -312,7 +310,7 @@ class Satellite(ABC):
         # Calculate the angle between the Sun vector and the satellite's pointing direction
         pointing_direction = self.calculate_pointing_direction()
         # print(f"Pointing direction: {pointing_direction}")
-        cos_angle = np.dot(pointing_direction, sun_vector)
+        cos_angle = float(np.clip(np.dot(pointing_direction, sun_vector), -1.0, 1.0))
         angle = math.acos(cos_angle)
 
         # Check if the satellite is in the Earth's shadow
@@ -327,17 +325,23 @@ class Satellite(ABC):
         return exposure
     
     def is_in_eclipse(self):
-        # Get the satellite's position
-        sat_position = np.array([self.orbit['x'], self.orbit['y'], self.orbit['z']])
-        # Calculate the Earth's shadow radius at the satellite's altitude
-        earth_radius = 6371e3  # Earth radius in meters
-        shadow_radius = earth_radius * (1 + self.orbit['semimajoraxis'] / (self.orbit['semimajoraxis'] + earth_radius))
-        
-        # Calculate the distance from the satellite to the center of the Earth
-        distance_to_earth = np.linalg.norm(sat_position)
+        """Return True when the satellite is behind Earth relative to the Sun.
 
-        # Check if the satellite is within the Earth's shadow
-        return distance_to_earth < shadow_radius
+        Orbit state and the synthetic Sun position are represented in kilometers
+        here. A cylindrical shadow approximation is sufficient for the simulator
+        resource model and avoids mixing km positions with meter radii.
+        """
+        sat_position_km = np.array([self.orbit['x'], self.orbit['y'], self.orbit['z']], dtype=float)
+        sun_position_km = self.get_sun_position()
+        sun_direction = sun_position_km / np.linalg.norm(sun_position_km)
+
+        projection_km = float(np.dot(sat_position_km, sun_direction))
+        if projection_km >= 0:
+            return False
+
+        perpendicular_km = np.linalg.norm(sat_position_km - projection_km * sun_direction)
+        earth_radius_km = 6371.0
+        return perpendicular_km < earth_radius_km
     
     def get_sun_vector(self):
         # Get the satellite's position
@@ -351,7 +355,7 @@ class Satellite(ABC):
     def get_sun_position(self):
         # For simplicity, assume a fixed position in the inertial frame
         # Realistically, this should be updated based on the current date and time
-        return np.array([1.496e+11, 0, 0])  # Example: Sun at 1 AU along the x-axis in meters
+        return np.array([1.496e+8, 0, 0], dtype=float)  # Example: Sun at 1 AU along the x-axis in km
     
 
 
@@ -440,7 +444,7 @@ class ObserverSatellite(Satellite):
             "observation": 18.806,  # During observation
         }
         self.storage_consumption_rates = {
-            "observation": 1024*1024*8,  # Storage consumption rate during observation - 1 Mbits/s
+            "observation": 1_000_000,  # Storage consumption rate during observation [bits/s]
             "communication": 0,  # Storage consumption rate during communication
         }
         self.current_power_consumption = 0  # Current power consumption
@@ -458,8 +462,8 @@ class ObserverSatellite(Satellite):
         # Field of view limited to 10º
         # Evaluate pointing accuracy for each observer satellite with respect to each target satellite if they are in range. Otherwise return 0.
         distance = self.distance_between(target_satellite, time_step)
-        # print(f"Distance between {self.name} and {target_satellite.name}: {distance:.2f} km")
-        # print(f"Max distance: {self.max_distance:.2f} km")
+        # print(f"Distance between {self.name} and {target_satellite.name}: {distance:.2f} m")
+        # print(f"Max distance: {self.max_distance:.2f} m")
         if distance < self.max_distance:
             # Calculate the pointing direction of the observer satellite
             pointing_direction = self.calculate_pointing_direction()

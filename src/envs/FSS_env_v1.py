@@ -68,6 +68,8 @@ class FSS_env(MultiAgentEnv):
                 "communication_ability": spaces.MultiBinary(self.num_observers)
             })
         
+        self.action_space = self._action_space
+        self.observation_space = self._observation_space
         self.action_spaces = {
             agent_id: self._action_space
             for agent_id in self.possible_agents
@@ -138,11 +140,22 @@ class FSS_env(MultiAgentEnv):
 
         # Re-initialize simulator
         if self.simulator_type == 'centralized':
-            self.simulator = CentralizedSimulator(self.num_targets, self.num_observers, self.time_step, self.duration)
+            self.simulator = CentralizedSimulator(
+                self.num_targets, self.num_observers, self.time_step, self.duration,
+                reward_type=self.reward_type, reward_config=self.reward_config
+            )
         elif self.simulator_type == 'decentralized':
-            self.simulator = Simulator(self.num_targets, self.num_observers, self.time_step, self.duration)
+            self.simulator = Simulator(
+                self.num_targets, self.num_observers, self.time_step, self.duration,
+                reward_type=self.reward_type, reward_config=self.reward_config
+            )
         elif self.simulator_type == 'everyone':
-            self.simulator = Simulator(self.num_targets, self.num_observers, self.time_step, self.duration)
+            self.simulator = Simulator(
+                self.num_targets, self.num_observers, self.time_step, self.duration,
+                reward_type=self.reward_type, reward_config=self.reward_config
+            )
+        else:
+            raise ValueError("Invalid simulator type. Choose from 'centralized', 'decentralized', or 'everyone'.")
         
         # Reset the list of agents
         self.agents = self.possible_agents.copy()
@@ -400,9 +413,8 @@ class FSS_env(MultiAgentEnv):
         # Calculate observation stats
         total_targets = self.num_targets
         observed_targets = np.sum(np.any(self.simulator.global_observation_status_matrix == 3, axis=0))
-        # observation_percentage = (observed_targets / total_targets) * 100 if total_targets > 0 else 0
-
-        observation_percentage = (np.mean(self.simulator.global_observation_status_matrix)/3)*100
+        observation_percentage = (observed_targets / total_targets) * 100 if total_targets > 0 else 0
+        observation_progress_percentage = (np.mean(self.simulator.global_observation_status_matrix) / 3) * 100
         
         # Calculate connectivity stats
         total_possible_connections = self.num_observers * (self.num_observers - 1)
@@ -434,7 +446,8 @@ class FSS_env(MultiAgentEnv):
             "observation_stats": {
                 "total_targets": int(total_targets),
                 "observed_targets": int(observed_targets),
-                "observation_percentage": float(observation_percentage)
+                "observation_percentage": float(observation_percentage),
+                "observation_progress_percentage": float(observation_progress_percentage)
             },
             
             # Add connectivity stats
